@@ -970,7 +970,7 @@ if context == 30 and not hwnd then
     return
 end
 
-if not use_toolbar_context_only and (context == 20 or context == 22 or context == 23) then
+if context == 0 or context == 20 or context == 21 or context == 22 or context == 23 then
     if set_edit_cursor and (play_state == 0 or not use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.MIDIEditor_OnCommand(hwnd, 40443)
