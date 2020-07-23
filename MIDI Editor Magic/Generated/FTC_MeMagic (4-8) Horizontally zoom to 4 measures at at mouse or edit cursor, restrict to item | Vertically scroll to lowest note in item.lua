@@ -27,8 +27,8 @@
 -- 8: Scroll to lowest note in item
 -- 9: Scroll to highest note in visible area
 -- 10: Scroll to highest note in item
--- 11: Scroll to note center in visible area
--- 12: Scroll to note center in item
+-- 11: Scroll to center of notes in visible area
+-- 12: Scroll to center of notes in item
 
 -- Note: You can assign a different zoom mode to each MIDI editor timebase
 -- by using an array with four elements, e.g {1, 2, 3, 1}
