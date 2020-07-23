@@ -108,7 +108,7 @@
 ]]></description>
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-07-22T21:51:04Z">
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/54b0798cab618daa5669cfe1563d65fae9ca0e5c/MIDI%20Editor%20Magic/FTC_MeMagic.lua</source>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a31f60e095b97bc4ae89a45424ad0882bf34167e/MIDI%20Editor%20Magic/FTC_MeMagic.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
