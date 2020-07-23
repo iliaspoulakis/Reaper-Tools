@@ -75,7 +75,7 @@ local vmodes = {
 local hmode_cnt, vmode_cnt = 7, 12
 
 local config = ''
-local provides = '    [main=midi_editor] '
+local provides = '    [main=main,midi_editor] '
 local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
 -- Generate MeMagic configurations
 for h = 1, hmode_cnt do
