@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Bundle with all possible configurations of MeMagic
   @metapackage
   @provides
