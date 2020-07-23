@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.3
+  @version 1.0.4
   @noindex
   @about Automatically generated configuration of MeMagic
 ]]
@@ -23,20 +23,20 @@
 -- 4: Scroll note row under mouse cursor
 -- 5: Scroll note row under mouse cursor, restrict to notes in visible area
 -- 6: Scroll note row under mouse cursor, restrict to notes in item
--- 7: Scroll to lowest note in visible area
--- 8: Scroll to lowest note in item
--- 9: Scroll to highest note in visible area
--- 10: Scroll to highest note in item
--- 11: Scroll to center of notes in visible area
--- 12: Scroll to center of notes in item
+-- 7: Scroll to center of notes in visible area
+-- 8: Scroll to center of notes in item
+-- 9: Scroll to lowest note in visible area
+-- 10: Scroll to lowest note in item
+-- 11: Scroll to highest note in visible area
+-- 12: Scroll to highest note in item
 
 -- Note: You can assign a different zoom mode to each MIDI editor timebase
 -- by using an array with four elements, e.g {1, 2, 3, 1}
 -- { Beats (project), Beats (source), Time (project), Sync to arrange }
 
 -- Context: Toolbar button
-local TBB_horizontal_zoom_mode = 6
-local TBB_vertical_zoom_mode = 9
+local TBB_horizontal_zoom_mode = 4
+local TBB_vertical_zoom_mode = 7
 
 -- Context: MIDI editor note area
 local MEN_horizontal_zoom_mode = {7, 1, 7, 7}
@@ -1261,16 +1261,16 @@ if vzoom_mode > 0 and not is_notation then
             end
 
             if vzoom_mode >= 7 and vzoom_mode <= 8 then
-                note_row = 0
+                note_density = note_density or (note_lo + note_hi) / 2
+                note_row = math.floor(note_density)
             end
 
             if vzoom_mode >= 9 and vzoom_mode <= 10 then
-                note_row = 127
+                note_row = 0
             end
 
             if vzoom_mode >= 11 and vzoom_mode <= 12 then
-                note_density = note_density or (note_lo + note_hi) / 2
-                note_row = math.floor(note_density)
+                note_row = 127
             end
 
             if note_row and note_row >= 0 then
