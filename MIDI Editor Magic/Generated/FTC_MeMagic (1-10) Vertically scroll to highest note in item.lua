@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.0.3
   @noindex
   @about Automatically generated configuration of MeMagic
 ]]
