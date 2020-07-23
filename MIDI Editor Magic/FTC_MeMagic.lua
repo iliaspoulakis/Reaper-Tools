@@ -878,6 +878,11 @@ if window == 'arrange' then
     context = 10
 end
 
+-- Non-Contextual mode
+if use_toolbar_context_only then
+    context = 0
+end
+
 if not is_hotkey then
     -- Context: Toolbar button
     if window == 'unknown' or segment == 'unknown' then
@@ -895,18 +900,13 @@ if not is_hotkey then
     end
 end
 
--- Non-Contextual mode
-if use_toolbar_context_only then
-    context = 0
-end
-
 if context == -1 then
     print('Unkown context. Exiting.')
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
 
-if not use_toolbar_context_only and window == 'arrange' then
+if context == 10 or context == 30 or context == 31 then
     if set_edit_cursor and (play_state == 0 or not use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.Main_OnCommand(40513, 0)
