@@ -23,7 +23,8 @@ if file then
 end
 
 -- Create path for generated files
-local dir_path = file_path .. 'Generated' .. seperator
+local gen_folder_name = 'Generated'
+local dir_path = file_path .. gen_folder_name .. seperator
 reaper.RecursiveCreateDirectory(dir_path, 0)
 
 -- Remove old files
@@ -73,6 +74,8 @@ local vmodes = {
 
 local hmode_cnt, vmode_cnt = 7, 12
 
+local config = ''
+local provides = '    [main=midi_editor] '
 local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
 -- Generate MeMagic configurations
 for h = 1, hmode_cnt do
@@ -113,6 +116,25 @@ for h = 1, hmode_cnt do
                 new_file_path,
                 v + h == vmode_cnt + hmode_cnt
             )
+            config = config .. provides .. gen_folder_name .. '/' .. new_file_name .. '\n'
         end
     end
+end
+
+local file = io.open(file_path .. 'FTC_MeMagic configurations.lua', 'w')
+
+if file then
+    -- Create package with configurations
+    for _, line in ipairs(content) do
+        if line:match('@about') then
+            local about = '  @about Package with all possible configurations of MeMagic'
+            line = '  @provides\n' .. config .. about .. '\n]]'
+            content[#content + 1] = line
+            file:write(line, '\n')
+            break
+        end
+        content[#content + 1] = line
+        file:write(line, '\n')
+    end
+    file:close()
 end
