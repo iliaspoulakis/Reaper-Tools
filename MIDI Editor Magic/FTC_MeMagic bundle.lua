@@ -2,6 +2,8 @@
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
   @version 1.0.0
+  @about Bundle with all possible configurations of MeMagic
+  @metapackage
   @provides
     [main=midi_editor] Generated/FTC_MeMagic (1-2) Vertically zoom to notes in visible area.lua
     [main=midi_editor] Generated/FTC_MeMagic (1-3) Vertically zoom to all notes in item.lua
@@ -86,5 +88,4 @@
     [main=midi_editor] Generated/FTC_MeMagic (7-10) Horizontally scroll to mouse or edit cursor | Vertically scroll to highest note in item.lua
     [main=midi_editor] Generated/FTC_MeMagic (7-11) Horizontally scroll to mouse or edit cursor | Vertically scroll to center of notes in visible area.lua
     [main=midi_editor] Generated/FTC_MeMagic (7-12) Horizontally scroll to mouse or edit cursor | Vertically scroll to center of notes in item.lua
-  @about Package with all possible configurations of MeMagic
 ]]

@@ -121,14 +121,15 @@ for h = 1, hmode_cnt do
     end
 end
 
-local file = io.open(file_path .. 'FTC_MeMagic configurations.lua', 'w')
+local file = io.open(file_path .. 'FTC_MeMagic bundle.lua', 'w')
 
 if file then
     -- Create package with configurations
     for _, line in ipairs(content) do
         if line:match('@about') then
-            local about = '  @about Package with all possible configurations of MeMagic'
-            line = '  @provides\n' .. config .. about .. '\n]]'
+            local about = '  @about Bundle with all possible configurations of MeMagic\n'
+            local meta_pkg = '  @metapackage\n'
+            line = about .. meta_pkg .. '  @provides\n' .. config .. ']]'
             content[#content + 1] = line
             file:write(line, '\n')
             break
