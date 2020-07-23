@@ -2,7 +2,8 @@
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
   @version 1.0.0
-  @about Contextual zooming & scrolling for the MIDI editor in reaper
+  @noindex
+  @about Automatically generated configuration of MeMagic
 ]]
 ------------------------------ ZOOM MODES -----------------------------
 
@@ -68,7 +69,7 @@ local AID_vertical_zoom_mode = 2
 ------------------------------ GENERAL SETTINGS -----------------------------
 
 -- Make this action non-contextual and always use modes from context: Toolbar button
-local use_toolbar_context_only = false
+local use_toolbar_context_only = true
 
 -- Follow play cursor instead of edit cursor when playing
 local use_play_cursor = true
@@ -99,7 +100,7 @@ local max_vertical_note_pixels = 32
 
 ------------------------------ FUNCTIONS ------------------------------------
 
-local debug = true
+local debug = false
 local mb_title = 'MIDI Editor Magic'
 local undo_name = 'Change media item selection (MeMagic)'
 undo_name = use_toolbar_context_only and 'MeMagic zoom/scroll' or undo_name

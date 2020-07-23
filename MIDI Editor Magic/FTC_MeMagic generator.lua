@@ -32,12 +32,29 @@ repeat
     local file = reaper.EnumerateFiles(dir_path, i)
     if file then
         local file_path = dir_path .. file
-        os.remove(file_path)
         reaper.AddRemoveReaScript(false, 0, file_path, false)
         reaper.AddRemoveReaScript(false, 32060, file_path, false)
     end
     i = i + 1
 until not file
+
+for n = i, 0, -1 do
+    local file = reaper.EnumerateFiles(dir_path, n)
+    if file then
+        local file_path = dir_path .. file
+        os.remove(file_path)
+    end
+end
+
+local hmodes = {
+    '',
+    'zoom to item',
+    'zoom to 4 measures at mouse or edit cursor',
+    'zoom to 4 measures at at mouse or edit cursor, restrict to item',
+    'smart zoom to 10 notes at mouse or edit cursor',
+    'smart zoom to 10 notes at mouse or edit cursor, restrict to item',
+    'scroll to mouse or edit cursor'
+}
 
 local vmodes = {
     '',
@@ -54,38 +71,28 @@ local vmodes = {
     'scroll to center of notes in item'
 }
 
-local hmodes = {
-    '',
-    'zoom to item',
-    'zoom to 4 measures at mouse or edit cursor',
-    'zoom to 4 measures at at mouse or edit cursor, restrict to item',
-    'smart zoom to 10 notes at mouse or edit cursor',
-    'smart zoom to 10 notes at mouse or edit cursor, restrict to item',
-    'scroll to mouse or edit cursor'
-}
-
-local vmode_cnt, hmode_cnt = 12, 7
+local hmode_cnt, vmode_cnt = 7, 12
 
 local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
 -- Generate MeMagic configurations
-for v = 1, vmode_cnt do
-    for h = 1, hmode_cnt do
+for h = 1, hmode_cnt do
+    for v = 1, vmode_cnt do
         if not (v == 1 and h == 1) then
-            local vmode = vmodes[v]
             local hmode = hmodes[h]
-            vmode = vmode ~= '' and 'Vertically ' .. vmode or vmode
+            local vmode = vmodes[v]
             hmode = hmode ~= '' and 'Horizontally ' .. hmode or hmode
-            local space = vmode ~= '' and hmode ~= '' and ' | ' or ''
-            local new_file_name = name_pattern:format(v, h, vmode, space, hmode)
+            vmode = vmode ~= '' and 'Vertically ' .. vmode or vmode
+            local space = hmode ~= '' and vmode ~= '' and ' | ' or ''
+            local new_file_name = name_pattern:format(h, v, hmode, space, vmode)
             local new_file_path = dir_path .. new_file_name
             local new_file = io.open(new_file_path, 'w')
 
             for _, line in ipairs(content) do
-                if line:match('local TBB_vertical_zoom_mode = ') then
-                    line = 'local TBB_vertical_zoom_mode = ' .. v
-                end
                 if line:match('local TBB_horizontal_zoom_mode = ') then
                     line = 'local TBB_horizontal_zoom_mode = ' .. h
+                end
+                if line:match('local TBB_vertical_zoom_mode = ') then
+                    line = 'local TBB_vertical_zoom_mode = ' .. v
                 end
                 if line:match('local use_toolbar_context_only = ') then
                     line = 'local use_toolbar_context_only = true'
