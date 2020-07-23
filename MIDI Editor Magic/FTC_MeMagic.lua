@@ -2,6 +2,8 @@
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
   @version 1.0.0
+  @provides
+    [main=midi_editor] Generated/*.lua
   @about Contextual zooming & scrolling for the MIDI editor in reaper
 ]]
 ------------------------------ ZOOM MODES -----------------------------
