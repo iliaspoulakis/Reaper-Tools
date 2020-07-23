@@ -23,7 +23,7 @@ if file then
 end
 
 -- Create path for generated files
-local dir_path = file_path .. 'Generated/'
+local dir_path = file_path .. 'Generated' .. seperator
 reaper.RecursiveCreateDirectory(dir_path, 0)
 
 -- Remove old files
@@ -50,8 +50,8 @@ local vmodes = {
     'scroll to lowest note in item',
     'scroll to highest note in visible area',
     'scroll to highest note in item',
-    'scroll to note center in visible area',
-    'scroll to note center in item'
+    'scroll to center of notes in visible area',
+    'scroll to center of notes in item'
 }
 
 local hmodes = {
@@ -66,16 +66,17 @@ local hmodes = {
 
 local vmode_cnt, hmode_cnt = 12, 7
 
+local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
 -- Generate MeMagic configurations
 for v = 1, vmode_cnt do
     for h = 1, hmode_cnt do
         if not (v == 1 and h == 1) then
             local vmode = vmodes[v]
             local hmode = hmodes[h]
-            vmode = vmode ~= '' and '--Vertically ' .. vmode or vmode
-            hmode = hmode ~= '' and '--Horizontally ' .. hmode or hmode
-            local space = vmode ~= '' and hmode ~= '' and ' ' or ''
-            local new_file_name = 'FTC_MeMagic ' .. vmode .. space .. hmode .. '.lua'
+            vmode = vmode ~= '' and 'Vertically ' .. vmode or vmode
+            hmode = hmode ~= '' and 'Horizontally ' .. hmode or hmode
+            local space = vmode ~= '' and hmode ~= '' and ' | ' or ''
+            local new_file_name = name_pattern:format(v, h, vmode, space, hmode)
             local new_file_path = dir_path .. new_file_name
             local new_file = io.open(new_file_path, 'w')
 
