@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @noindex
   @about Generates non-contextual configurations of MeMagic
 ]]
@@ -34,7 +34,7 @@ repeat
     if file then
         local file_path = dir_path .. file
         reaper.AddRemoveReaScript(false, 0, file_path, false)
-        reaper.AddRemoveReaScript(false, 32060, file_path, false)
+        reaper.AddRemoveReaScript(false, 32060, file_path, true)
     end
     i = i + 1
 until not file
@@ -123,7 +123,7 @@ for h = 1, hmode_cnt do
             local vmode = vmodes[v]
             hmode = hmode ~= '' and 'Horizontally ' .. hmode or hmode
             vmode = vmode ~= '' and 'Vertically ' .. vmode or vmode
-            local space = hmode ~= '' and vmode ~= '' and ' | ' or ''
+            local space = hmode ~= '' and vmode ~= '' and ' + ' or ''
             local new_file_name = name_pattern:format(h, v, hmode, space, vmode)
             local new_file_path = dir_path .. new_file_name
             local new_file = io.open(new_file_path, 'w')

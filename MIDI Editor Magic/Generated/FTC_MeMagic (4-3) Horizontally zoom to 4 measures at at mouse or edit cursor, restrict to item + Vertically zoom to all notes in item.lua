@@ -35,8 +35,8 @@
 -- { Beats (project), Beats (source), Time (project), Sync to arrange }
 
 -- Context: Toolbar button
-local TBB_horizontal_zoom_mode = 7
-local TBB_vertical_zoom_mode = 1
+local TBB_horizontal_zoom_mode = 4
+local TBB_vertical_zoom_mode = 3
 
 -- Context: MIDI editor note area
 local MEN_horizontal_zoom_mode = {7, 1, 7, 7}
