@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.5
+  @version 1.0.6
   @about Contextual zooming & scrolling for the MIDI editor in reaper
 ]]
 ------------------------------ ZOOM MODES -----------------------------
@@ -906,7 +906,7 @@ if context == -1 then
     return
 end
 
-if window == 'arrange' and (context > 0 or not is_hotkey and click_mode > 0) then
+if window == 'arrange' and (context > 0 or click_mode > 0) then
     if set_edit_cursor and (play_state == 0 or not use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.Main_OnCommand(40513, 0)
@@ -970,7 +970,7 @@ if context == 30 and not hwnd then
     return
 end
 
-if context == 0 or context == 20 or context == 21 or context == 22 or context == 23 then
+if context == 20 or context == 22 or context == 23 then
     if set_edit_cursor and (play_state == 0 or not use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.MIDIEditor_OnCommand(hwnd, 40443)
