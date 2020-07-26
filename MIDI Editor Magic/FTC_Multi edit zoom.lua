@@ -1,8 +1,8 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
-  @about Open multiple items in the MIDI editor and zoom to all of their content
+  @version 1.0.1
+  @about Opens multiple items in the MIDI editor and zooms to all of their content
 ]]
 ------------------------------ SETTINGS -----------------------------
 
@@ -161,7 +161,7 @@ for i = 0, item_cnt - 1 do
     local item = reaper.GetSelectedMediaItem(0, i)
     local take = reaper.GetActiveTake(item)
     if reaper.ValidatePtr(take, 'MediaItem_Take*') and reaper.TakeIsMIDI(take) then
-        -- Get mininum item start positiong and maximum item end position
+        -- Get mininum item start position and maximum item end position
         local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
         local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
         local item_end_pos = item_start_pos + item_length
