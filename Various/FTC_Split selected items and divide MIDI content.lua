@@ -1,9 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
-  @about Splits selected items and trims their MIDI content
+  @version 1.0.1
+  @about Splits selected items and divides their MIDI content
 ]]
+reaper.Undo_BeginBlock()
 reaper.PreventUIRefresh(1)
 local cursor_pos = reaper.GetCursorPosition()
 local sel_items = {}
@@ -38,17 +39,22 @@ for _, item in ipairs(sel_items) do
             local new_offs = take_soffs - (start_pos - cursor_pos)
             reaper.SetMediaItemTakeInfo_Value(take, 'D_STARTOFFS', new_offs)
         end
-        -- Trim MIDI content of duplicate item
+        -- Delete notes in both items, depending on cursor position
         for tk = 0, reaper.GetMediaItemNumTakes(new_item) - 1 do
-            local take = reaper.GetMediaItemTake(new_item, tk)
+            local take = reaper.GetMediaItemTake(item, tk)
+            local new_take = reaper.GetMediaItemTake(new_item, tk)
             if reaper.TakeIsMIDI(take) then
                 local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
                 local i = 0
                 repeat
                     local ret, _, _, sppq, eppq = reaper.MIDI_GetNote(take, i)
-                    -- Shorten notes under cursor
-                    if ret and cursor_ppq > sppq and cursor_ppq < eppq then
-                        reaper.MIDI_SetNote(take, i, nil, nil, sppq, cursor_ppq)
+                    if ret then
+                        if sppq < cursor_ppq then
+                            reaper.MIDI_DeleteNote(new_take, 0)
+                        else
+                            reaper.MIDI_DeleteNote(take, i)
+                            i = i - 1
+                        end
                     end
                     i = i + 1
                 until not ret
@@ -61,3 +67,4 @@ for _, item in ipairs(sel_items) do
     reaper.SetMediaItemSelected(item, true)
 end
 reaper.PreventUIRefresh(-1)
+reaper.Undo_EndBlock('Split media item (MIDI trim)', -1)
