@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Splits selected items and divides their MIDI content
 ]]
 reaper.Undo_BeginBlock()
@@ -67,4 +67,4 @@ for _, item in ipairs(sel_items) do
     reaper.SetMediaItemSelected(item, true)
 end
 reaper.PreventUIRefresh(-1)
-reaper.Undo_EndBlock('Split media item (MIDI trim)', -1)
+reaper.Undo_EndBlock('Split media item (MIDI divide)', -1)
