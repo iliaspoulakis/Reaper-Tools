@@ -1,0 +1,63 @@
+--[[
+  @author Ilias-Timon Poulakis (FeedTheCat)
+  @license MIT
+  @version 1.0.0
+  @about Splits selected items and trims their MIDI content
+]]
+reaper.PreventUIRefresh(1)
+local cursor_pos = reaper.GetCursorPosition()
+local sel_items = {}
+-- Get and unselect all items
+for i = reaper.CountSelectedMediaItems(0) - 1, 0, -1 do
+    local item = reaper.GetSelectedMediaItem(0, i)
+    reaper.SetMediaItemSelected(item, false)
+    sel_items[#sel_items + 1] = item
+end
+for _, item in ipairs(sel_items) do
+    local length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local end_pos = start_pos + length
+    -- Check if selected item is under cursor
+    if cursor_pos >= start_pos and cursor_pos <= end_pos then
+        -- Create an exact duplicate of item using state chunk
+        local track = reaper.GetMediaItem_Track(item)
+        local new_item = reaper.CreateNewMIDIItemInProj(track, 0, 1, 0)
+        local _, chunk = reaper.GetItemStateChunk(item, '', true)
+        reaper.SetItemStateChunk(new_item, chunk, true)
+        -- Unpool duplicate
+        reaper.SetMediaItemSelected(new_item, true)
+        -- Item: Remove active take from MIDI source data pool
+        reaper.Main_OnCommand(41613, 0)
+        -- Adjust duplicate position and offsets for split
+        reaper.SetMediaItemInfo_Value(item, 'D_LENGTH', cursor_pos - start_pos)
+        reaper.SetMediaItemInfo_Value(new_item, 'D_POSITION', cursor_pos)
+        reaper.SetMediaItemInfo_Value(new_item, 'D_LENGTH', end_pos - cursor_pos)
+        for tk = 0, reaper.GetMediaItemNumTakes(new_item) - 1 do
+            local take = reaper.GetMediaItemTake(new_item, tk)
+            local take_soffs = reaper.GetMediaItemTakeInfo_Value(take, 'D_STARTOFFS')
+            local new_offs = take_soffs - (start_pos - cursor_pos)
+            reaper.SetMediaItemTakeInfo_Value(take, 'D_STARTOFFS', new_offs)
+        end
+        -- Trim MIDI content of duplicate item
+        for tk = 0, reaper.GetMediaItemNumTakes(new_item) - 1 do
+            local take = reaper.GetMediaItemTake(new_item, tk)
+            if reaper.TakeIsMIDI(take) then
+                local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
+                local i = 0
+                repeat
+                    local ret, _, _, sppq, eppq = reaper.MIDI_GetNote(take, i)
+                    -- Shorten notes under cursor
+                    if ret and cursor_ppq > sppq and cursor_ppq < eppq then
+                        reaper.MIDI_SetNote(take, i, nil, nil, sppq, cursor_ppq)
+                    end
+                    i = i + 1
+                until not ret
+            end
+        end
+    end
+end
+-- Reselect all items
+for _, item in ipairs(sel_items) do
+    reaper.SetMediaItemSelected(item, true)
+end
+reaper.PreventUIRefresh(-1)
