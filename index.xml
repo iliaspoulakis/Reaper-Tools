@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="2affbf74b516e9bdc2f2071c455510e389ad96c6">
+<index version="1" name="FTC Tools" commit="607fd5dec3aa50af4538f3d00cf2ee25d49c3cd7">
   <category name="MIDI Editor Magic">
     <reapack name="FTC_MeMagic bundle.lua" type="script">
       <metadata>
@@ -656,6 +656,9 @@
       </version>
       <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-03T23:31:55Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2affbf74b516e9bdc2f2071c455510e389ad96c6/Various/FTC_Split%20selected%20items%20and%20divide%20MIDI%20content.lua</source>
+      </version>
+      <version name="1.0.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-04T09:29:00Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/607fd5dec3aa50af4538f3d00cf2ee25d49c3cd7/Various/FTC_Split%20selected%20items%20and%20divide%20MIDI%20content.lua</source>
       </version>
     </reapack>
   </category>
