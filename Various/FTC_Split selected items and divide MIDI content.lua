@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.0.3
   @about Splits selected items and divides their MIDI content
 ]]
 reaper.Undo_BeginBlock()
@@ -25,10 +25,7 @@ for _, item in ipairs(sel_items) do
         local new_item = reaper.CreateNewMIDIItemInProj(track, 0, 1, 0)
         local _, chunk = reaper.GetItemStateChunk(item, '', true)
         reaper.SetItemStateChunk(new_item, chunk, true)
-        -- Unpool duplicate
-        reaper.SetMediaItemSelected(new_item, true)
-        -- Item: Remove active take from MIDI source data pool
-        reaper.Main_OnCommand(41613, 0)
+
         -- Adjust duplicate position and offsets for split
         reaper.SetMediaItemInfo_Value(item, 'D_LENGTH', cursor_pos - start_pos)
         reaper.SetMediaItemInfo_Value(new_item, 'D_POSITION', cursor_pos)
@@ -39,11 +36,17 @@ for _, item in ipairs(sel_items) do
             local new_offs = take_soffs - (start_pos - cursor_pos)
             reaper.SetMediaItemTakeInfo_Value(take, 'D_STARTOFFS', new_offs)
         end
+
+        reaper.SetMediaItemSelected(new_item, true)
+        local active_take = reaper.GetActiveTake(new_item)
         -- Delete notes in both items, depending on cursor position
         for tk = 0, reaper.GetMediaItemNumTakes(new_item) - 1 do
             local take = reaper.GetMediaItemTake(item, tk)
             local new_take = reaper.GetMediaItemTake(new_item, tk)
             if reaper.TakeIsMIDI(take) then
+                reaper.SetActiveTake(new_take)
+                -- Item: Remove active take from MIDI source data pool
+                reaper.Main_OnCommand(41613, 0)
                 local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
                 local i = 0
                 repeat
@@ -60,6 +63,7 @@ for _, item in ipairs(sel_items) do
                 until not ret
             end
         end
+        reaper.SetActiveTake(active_take)
     end
 end
 -- Reselect all items
