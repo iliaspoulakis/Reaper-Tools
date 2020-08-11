@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.6
+  @version 1.0.7
   @about Contextual zooming & scrolling for the MIDI editor in reaper
 ]]
 ------------------------------ ZOOM MODES -----------------------------
@@ -122,7 +122,7 @@ end
 
 function getSelection()
     local getSetLoopTimeRange = reaper.GetSet_LoopTimeRange
-    local sel_start_pos, sel_end_pos = getSetLoopTimeRange(false, false, 0, 0, false)
+    local sel_start_pos, sel_end_pos = getSetLoopTimeRange(false, true, 0, 0, false)
     local is_valid_sel = sel_end_pos > 0 and sel_start_pos ~= sel_end_pos
     if is_valid_sel then
         local sel = {}

@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Opens multiple items in the MIDI editor and zooms to all of their content
 ]]
 ------------------------------ SETTINGS -----------------------------
@@ -42,7 +42,7 @@ end
 
 function getSelection()
     local getSetLoopTimeRange = reaper.GetSet_LoopTimeRange
-    local sel_start_pos, sel_end_pos = getSetLoopTimeRange(false, false, 0, 0, false)
+    local sel_start_pos, sel_end_pos = getSetLoopTimeRange(false, true, 0, 0, false)
     local is_valid_sel = sel_end_pos > 0 and sel_start_pos ~= sel_end_pos
     if is_valid_sel then
         local sel = {}
