@@ -8,7 +8,7 @@
 local _, file_name = reaper.get_action_context()
 local seperator = reaper.GetOS():match('win') and '\\' or '/'
 local file_path = file_name:match('(.*' .. seperator .. ')')
-local main_name = 'FTC_FolderMagic: Prompt dialog.lua'
+local main_name = 'FTC_FolderMagic - Prompt dialog.lua'
 local file = io.open(file_path .. main_name, 'r')
 
 -- Load MeMagic script content
@@ -45,7 +45,7 @@ end
 
 local config = ''
 local provides = '    [main=main] '
-local prefix = 'FTC_FolderMagic: '
+local prefix = 'FTC_FolderMagic - '
 
 for i = 1, 10 do
     local new_file_name = prefix .. 'Zoom to folder ' .. i .. '.lua'
