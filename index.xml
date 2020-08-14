@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="7816c10d79654877f8bbeb5f40d074e809d7bd95">
+<index version="1" name="FTC Tools" commit="3aadef1db3477fd92d68ffc0b6ca5a9863ad8521">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -688,6 +688,10 @@
         <changelog><![CDATA[- Added support for double-click mouse modifier]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7816c10d79654877f8bbeb5f40d074e809d7bd95/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
+      <version name="1.1.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-14T09:00:47Z">
+        <changelog><![CDATA[- Added support for double-click mouse modifier]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3aadef1db3477fd92d68ffc0b6ca5a9863ad8521/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
       <metadata>
@@ -712,6 +716,11 @@
         <changelog><![CDATA[- Added support for double-click mouse modifier
 - Updated to use latest MeMagic zoom algorithms]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7816c10d79654877f8bbeb5f40d074e809d7bd95/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
+      </version>
+      <version name="1.1.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-14T09:00:47Z">
+        <changelog><![CDATA[- Added support for double-click mouse modifier
+- Updated to use latest MeMagic zoom algorithms]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3aadef1db3477fd92d68ffc0b6ca5a9863ad8521/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
       </version>
     </reapack>
   </category>
