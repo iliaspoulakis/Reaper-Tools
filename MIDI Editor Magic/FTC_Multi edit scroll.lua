@@ -3,6 +3,8 @@
   @license MIT
   @version 1.1.0
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
+  @changelog
+      - Added support for double-click mouse modifier
 ]]
 ------------------------------ SETTINGS -----------------------------
 
