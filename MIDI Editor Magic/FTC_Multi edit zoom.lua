@@ -4,8 +4,8 @@
   @version 1.1.0
   @about Opens multiple items in the MIDI editor and zooms to all of their content
   @changelog
-      - Added support for double-click mouse modifier
-      - Updated to use latest MeMagic zoom algorithms
+    - Added support for double-click mouse modifier
+    - Updated to use latest MeMagic zoom algorithms
 ]]
 ------------------------------ SETTINGS -----------------------------
 
