@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @about Opens multiple items in the MIDI editor and zooms to all of their content
   @changelog
     - Added support for double-click mouse modifier
@@ -19,7 +19,7 @@ local min_vertical_notes = 6
 local max_vertical_note_pixels = 32
 
 -- When double clicking midi items, keep all items selected (Mouse modifier)
-local keep_items_selected = true
+local keep_items_selected = false
 
 ---------------------------------------------------------------------
 

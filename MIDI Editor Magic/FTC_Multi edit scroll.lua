@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
     - Added support for double-click mouse modifier
@@ -12,7 +12,7 @@
 local base_note = 60
 
 -- When double clicking midi items, keep all items selected (Mouse modifier)
-local keep_items_selected = true
+local keep_items_selected = false
 
 ---------------------------------------------------------------------
 
