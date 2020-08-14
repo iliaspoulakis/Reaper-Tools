@@ -1,9 +1,19 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.1.0
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
 ]]
+------------------------------ SETTINGS -----------------------------
+
+-- Which note to scroll to when item/visible area contains no notes
+local base_note = 60
+
+-- When double clicking midi items, keep all items selected (Mouse modifier)
+local keep_items_selected = true
+
+---------------------------------------------------------------------
+
 local debug = false
 local undo_name = 'Multi edit scroll'
 local start_time = reaper.time_precise()
@@ -175,19 +185,86 @@ function scrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     end
 end
 
-reaper.Undo_BeginBlock()
-reaper.PreventUIRefresh(1)
-
 if not reaper.SNM_GetIntConfigVar then
     reaper.MB('Please install SWS extension', 'Error', 0)
+    return
+end
+
+reaper.PreventUIRefresh(1)
+
+local init_item
+local window = reaper.BR_GetMouseCursorContext()
+local _, _, _, _, rel, res, val = reaper.get_action_context()
+
+-- Check if action is executed through item context mouse modifier
+if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
+    -- Commit potential item selection change caused by left click
+    reaper.Undo_BeginBlock()
+    reaper.Undo_EndBlock('Uncommitted', -1)
+    -- Check if there were uncommited changes and revert them
+    if reaper.Undo_CanUndo2(0) == 'Uncommitted' then
+        init_item = reaper.GetSelectedMediaItem(0, 0)
+        local cursor_pos = reaper.GetCursorPosition()
+        reaper.Undo_DoUndo2(0)
+        reaper.SetEditCurPos(cursor_pos, false, false)
+    end
+end
+
+reaper.Undo_BeginBlock()
+
+local sel_item_cnt = reaper.CountSelectedMediaItems(0)
+if sel_item_cnt == 0 then
+    reaper.PreventUIRefresh(-1)
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
 
-local sel_item_cnt = reaper.CountSelectedMediaItems(0)
-if sel_item_cnt == 0 then
-    reaper.Undo_EndBlock(undo_name, -1)
-    return
+if not init_item and sel_item_cnt == 1 then
+    init_item = reaper.GetSelectedMediaItem(0, 0)
+end
+
+if init_item then
+    local take = reaper.GetActiveTake(init_item)
+    local is_valid = reaper.ValidatePtr(take, 'MediaItem_Take*')
+
+    if not is_valid or not reaper.TakeIsMIDI(take) then
+        -- Item: Unselect all items
+        reaper.Main_OnCommand(40289, 0)
+        reaper.SetMediaItemSelected(init_item, true)
+        reaper.UpdateItemInProject(init_item)
+
+        if is_valid then
+            local source = reaper.GetMediaItemTake_Source(take)
+            local file_name = reaper.GetMediaSourceFileName(source, '')
+            local video_extensions = {'mp4', 'gif'}
+            for _, extension in ipairs(video_extensions) do
+                if file_name:match('%.(.-)$'):lower() == extension then
+                    local is_video_visible = reaper.GetToggleCommandState(50125) == 1
+                    if not is_video_visible then
+                        -- Video: Show/hide video window
+                        reaper.Main_OnCommand(50125, 0)
+                        reaper.PreventUIRefresh(-1)
+                        reaper.Undo_EndBlock(undo_name, -1)
+                        return
+                    end
+                end
+            end
+            local _, chunk = reaper.GetItemStateChunk(init_item, '', true)
+            local is_subproject = chunk:match('SOURCE RPP_PROJECT')
+            if is_subproject then
+                -- Cmd: Open associated project in new tab
+                reaper.Main_OnCommand(41816, 0)
+                undo_name = 'Item: Open associated project in new tab'
+            else
+                -- Cmd: Show media item/take properties
+                reaper.Main_OnCommand(40009, 0)
+                undo_name = 'Show media item/take properties'
+            end
+        end
+        reaper.PreventUIRefresh(-1)
+        reaper.Undo_EndBlock(undo_name, -1)
+        return
+    end
 end
 
 local sel_items = {}
@@ -253,6 +330,13 @@ for _, item in ipairs(sel_items) do
     end
 end
 
+-- No MIDI items found
+if zoom_start_pos == math.huge then
+    reaper.PreventUIRefresh(-1)
+    reaper.Undo_EndBlock(undo_name, -1)
+    return
+end
+
 -- Change MIDI editor settings for multi-edit
 local config = reaper.SNM_GetIntConfigVar('midieditor', 0)
 
@@ -264,7 +348,7 @@ local edit_secondary = config & 4096
 
 local new_config = config
 -- Set click type to 'Open all selected MIDI items'
-new_config = new_config - click_type + 16
+new_config = new_config - click_type
 -- Disable 'Avoid automatically setting items from other tracks editable'
 new_config = new_config - other_tracks_editable + 256
 -- Disable 'Selection is linked to editability'
@@ -278,35 +362,67 @@ reaper.SNM_SetIntConfigVar('midieditor', new_config)
 -- Cmd: Open in built-in MIDI editor
 reaper.Main_OnCommand(40153, 0)
 
--- Reset config to original state
-reaper.SNM_SetIntConfigVar('midieditor', config)
-
--- Note: Setting 'Selection is linked to visibility' can change item selection
-if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt then
-    -- Item: Unselect all items
-    reaper.Main_OnCommand(40289, 0)
-    for _, item in ipairs(sel_items) do
-        reaper.SetMediaItemSelected(item, true)
-    end
-    reaper.UpdateArrange()
-end
-
 local hwnd = reaper.MIDIEditor_GetActive()
 local editor_take = reaper.MIDIEditor_GetTake(hwnd)
-local is_valid = reaper.ValidatePtr(editor_take, 'MediaItem_Take*')
 
-if not is_valid then
+if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
+    reaper.PreventUIRefresh(-1)
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
 
-local editor_item = reaper.GetMediaItemTake_Item(editor_take)
+-- Note: Setting 'Selection is linked to visibility' can change item selection to
+-- all items that are open (visible) in editor
+if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt then
+    -- Contents: Activate next MIDI media item on this track, clearing the editor first
+    reaper.MIDIEditor_OnCommand(hwnd, 40798)
+    -- We use this for clearing, if active item changes this needs to be reverted
+    if reaper.MIDIEditor_GetTake(hwnd) ~= editor_take then
+        -- Contents: Activate previous MIDI media item on this track, clearing the ...
+        reaper.MIDIEditor_OnCommand(hwnd, 40797)
+    end
+end
+
+-- Reset config to original state
+reaper.SNM_SetIntConfigVar('midieditor', config)
+
+if visibility == 0 or keep_items_selected then
+    init_item = nil
+end
+
+-- Restore previous item selection
+if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt or init_item then
+    -- Item: Unselect all items
+    reaper.Main_OnCommand(40289, 0)
+    for _, item in ipairs(sel_items) do
+        reaper.SetMediaItemSelected(item, not init_item or item == init_item)
+    end
+    reaper.UpdateArrange()
+end
+
+local are_notes_hidden = reaper.GetToggleCommandStateEx(32060, 40452) ~= 1
+if are_notes_hidden then
+    print('Notes are hidden. Zooming to content')
+    -- Cmd: Zoom to content
+    reaper.MIDIEditor_OnCommand(hwnd, 40466)
+else
+    if note_hi == -1 then
+        print('No note in area/take: Scrolling to center')
+        note_lo = 0
+        note_hi = 127
+    end
+
+    local note_row = math.floor(density_cnt > 0 and density / density_cnt or base_note)
+    print('Vertically scrolling to note ' .. note_row)
+    print('Scroll lo/hi limit: ' .. note_lo .. '/' .. note_hi)
+    local editor_item = reaper.GetMediaItemTake_Item(editor_take)
+    scrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1, note_hi + 1)
+end
 
 -- Get previous time selection
 local sel = getSelection()
-if zoom_start_pos ~= math.huge then
-    setSelection(zoom_start_pos, zoom_end_pos)
-end
+setSelection(zoom_start_pos, zoom_end_pos)
+
 -- Cmd: Zoom to project loop selection
 reaper.MIDIEditor_OnCommand(hwnd, 40726)
 
@@ -316,21 +432,6 @@ local sel_end_pos = sel and sel.end_pos or 0
 if not debug then
     setSelection(sel_start_pos, sel_end_pos)
 end
-
-local are_notes_hidden = reaper.GetToggleCommandStateEx(32060, 40452) ~= 1
-if are_notes_hidden then
-    reaper.Undo_EndBlock(undo_name, -1)
-    return
-end
-
-if note_hi == -1 then
-    note_lo = 0
-    note_hi = 127
-end
-
-local note_row = math.floor(density_cnt > 0 and density / density_cnt or 60)
-
-scrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1, note_hi + 1)
 
 reaper.PreventUIRefresh(-1)
 reaper.Undo_EndBlock(undo_name, -1)
