@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="3aadef1db3477fd92d68ffc0b6ca5a9863ad8521">
+<index version="1" name="FTC Tools" commit="6a6ed3a39801deb73221fefe75094fa5a2d3cbc4">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -755,6 +755,20 @@
     </reapack>
   </category>
   <category name="Various">
+    <reapack name="FTC_Side Mixer.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Toggles between default and side mixer layouts\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-14T10:24:00Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/6a6ed3a39801deb73221fefe75094fa5a2d3cbc4/Various/FTC_Side%20Mixer.lua</source>
+      </version>
+    </reapack>
     <reapack name="FTC_Solo items under mouse cursor.lua" type="script">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
