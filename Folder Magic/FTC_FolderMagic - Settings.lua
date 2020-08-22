@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.1.0
   @noindex
   @about Settings dialog for all FolderMagic scripts
 ]]
@@ -12,16 +12,22 @@ local mb_title = 'FolderMagic: Settings'
 
 local settings = {
     {
+        caption = 'Mode: Single click',
+        key = 'mode_sc',
+        type = 'int',
+        default = 1
+    },
+    {
+        caption = 'Mode: Double click',
+        key = 'mode_dc',
+        type = 'int',
+        default = 2
+    },
+    {
         caption = 'Item emphasis factor',
         key = 'emphasis_factor',
         type = 'float',
         default = 3.5
-    },
-    {
-        caption = 'Reverse zoom behavior',
-        key = 'reverse_zoom_mode',
-        type = 'boolean',
-        default = 'no'
     },
     {
         caption = 'Treat root level tracks like folders',

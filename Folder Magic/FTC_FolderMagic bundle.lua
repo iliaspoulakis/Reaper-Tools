@@ -1,20 +1,22 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.1.0
   @about Zoom to folders or tracks based on name or number
   @metapackage
   @provides
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 1.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 2.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 3.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 4.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 5.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 6.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 7.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 8.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom to folder 9.lua
-    [main=main] Generated/FTC_FolderMagic - Zoom out to all tracks.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 1.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 2.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 3.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 4.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 5.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 6.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 7.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 8.lua
+    [main=main] Generated/FTC_FolderMagic - Folder 9.lua
+    [main=main] Generated/FTC_FolderMagic - All tracks & folders.lua
+    [main=main] Generated/FTC_FolderMagic - Next folder.lua
+    [main=main] Generated/FTC_FolderMagic - Previous folder.lua
     [main=main] FTC_FolderMagic - Prompt dialog.lua
     [main=main] FTC_FolderMagic - Settings.lua
 ]]

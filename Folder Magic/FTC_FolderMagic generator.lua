@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @noindex
   @about Generates various configurations of FolderMagic
 ]]
@@ -47,10 +47,16 @@ local config = ''
 local provides = '    [main=main] '
 local prefix = 'FTC_FolderMagic - '
 
-for i = 1, 10 do
-    local new_file_name = prefix .. 'Zoom to folder ' .. i .. '.lua'
+for i = 1, 12 do
+    local new_file_name = prefix .. 'Folder ' .. i .. '.lua'
     if i == 10 then
-        new_file_name = prefix .. 'Zoom out to all tracks.lua'
+        new_file_name = prefix .. 'All tracks & folders.lua'
+    end
+    if i == 11 then
+        new_file_name = prefix .. 'Next folder.lua'
+    end
+    if i == 12 then
+        new_file_name = prefix .. 'Previous folder.lua'
     end
     local new_file_path = dir_path .. new_file_name
     local new_file = io.open(new_file_path, 'w')
