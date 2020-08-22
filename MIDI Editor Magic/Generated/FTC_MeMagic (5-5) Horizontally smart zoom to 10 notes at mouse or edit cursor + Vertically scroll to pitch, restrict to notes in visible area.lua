@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.7
+  @version 1.0.8
   @noindex
   @about Automatically generated configuration of MeMagic
 ]]
@@ -35,7 +35,7 @@
 -- { Beats (project), Beats (source), Time (project), Sync to arrange }
 
 -- Context: Toolbar button
-local TBB_horizontal_zoom_mode = 1
+local TBB_horizontal_zoom_mode = 5
 local TBB_vertical_zoom_mode = 5
 
 -- Context: MIDI editor note area

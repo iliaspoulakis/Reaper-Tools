@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.7
+  @version 1.0.8
   @about Contextual zooming & scrolling for the MIDI editor in reaper
 ]]
 ------------------------------ ZOOM MODES -----------------------------

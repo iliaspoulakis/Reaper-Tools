@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @noindex
   @about Generates non-contextual configurations of MeMagic
 ]]
@@ -51,7 +51,7 @@ local hmodes = {
     '',
     'zoom to item',
     'zoom to 4 measures at mouse or edit cursor',
-    'zoom to 4 measures at at mouse or edit cursor, restrict to item',
+    'zoom to 4 measures at mouse or edit cursor, restrict to item',
     'smart zoom to 10 notes at mouse or edit cursor',
     'smart zoom to 10 notes at mouse or edit cursor, restrict to item',
     'scroll to mouse or edit cursor'
@@ -61,9 +61,9 @@ local vmodes = {
     '',
     'zoom to notes in visible area',
     'zoom to all notes in item',
-    'scroll to note row under mouse cursor',
-    'scroll to note row under mouse cursor, restrict to notes in visible area',
-    'scroll to note row under mouse cursor, restrict to notes in item',
+    'scroll to pitch',
+    'scroll to pitch, restrict to notes in visible area',
+    'scroll to pitch, restrict to notes in item',
     'scroll to center of notes in visible area',
     'scroll to center of notes in item',
     'scroll to lowest note in visible area',

@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.7
+  @version 1.0.8
   @noindex
   @about Automatically generated configuration of MeMagic
 ]]
@@ -36,7 +36,7 @@
 
 -- Context: Toolbar button
 local TBB_horizontal_zoom_mode = 4
-local TBB_vertical_zoom_mode = 4
+local TBB_vertical_zoom_mode = 8
 
 -- Context: MIDI editor note area
 local MEN_horizontal_zoom_mode = {7, 1, 7, 7}
