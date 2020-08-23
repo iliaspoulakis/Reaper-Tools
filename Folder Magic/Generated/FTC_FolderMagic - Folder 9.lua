@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @noindex
   @about Zoom to folders or tracks based on name or number
 ]]
@@ -354,6 +354,55 @@ if not main_track then
     main_track = all_tracks[1]
 end
 
+--------------------
+local pinned_name = reaper.GetExtState(extname, 'pinned_name')
+local pinned_track
+local pinned_lock
+
+-- Get pinned track
+if pinned_name and pinned_name ~= '' then
+    for i = 0, reaper.CountTracks(0) - 1 do
+        local track = reaper.GetTrack(0, i)
+        local _, track_name = reaper.GetTrackName(track, '')
+        if track_name == pinned_name then
+            pinned_track = track
+        end
+    end
+end
+
+if pinned_track then
+    reaper.PreventUIRefresh(1)
+    -- Save current track selection
+    local sel_tracks = {}
+    for i = reaper.CountSelectedTracks(0) - 1, 0, -1 do
+        local track = reaper.GetSelectedTrack(0, i)
+        sel_tracks[#sel_tracks + 1] = track
+        reaper.SetTrackSelected(track, false)
+    end
+    -- Reorder pinned track
+    reaper.SetTrackSelected(pinned_track, true)
+    local track_num = reaper.GetMediaTrackInfo_Value(tracks[1], 'IP_TRACKNUMBER')
+    reaper.ReorderSelectedTracks(track_num - 1, 0)
+    reaper.SetTrackSelected(pinned_track, false)
+
+    -- Lock pinned track
+    pinned_lock = getTrackInfoValue(pinned_track, 'B_HEIGHTLOCK')
+    setTrackInfoValue(pinned_track, 'B_HEIGHTLOCK', 1)
+
+    -- Add pinned track to the beginning of track list
+    local reorder_tracks = {pinned_track}
+    for _, track in ipairs(tracks) do
+        reorder_tracks[#reorder_tracks + 1] = track
+    end
+    tracks = reorder_tracks
+    -- Restore track selection
+    for _, track in ipairs(sel_tracks) do
+        reaper.SetTrackSelected(track, true)
+    end
+    reaper.PreventUIRefresh(-1)
+end
+----------------
+
 -- Get main window properties
 local main_hwnd = reaper.GetMainHwnd()
 local main_id = reaper.JS_Window_FindChildByID(main_hwnd, 1000)
@@ -549,6 +598,10 @@ else
     local tcp_y = getTrackInfoValue(tracks[1], 'I_TCPY')
     reaper.JS_Window_SetScrollPos(main_id, 'v', page_pos + tcp_y)
     reaper.TrackList_AdjustWindows(true)
+end
+
+if pinned_track then
+    setTrackInfoValue(pinned_track, 'B_HEIGHTLOCK', pinned_lock)
 end
 
 reaper.SetMixerScroll(main_track)

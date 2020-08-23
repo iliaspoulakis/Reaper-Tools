@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @noindex
   @about Settings dialog for all FolderMagic scripts
 ]]
@@ -46,6 +46,12 @@ local settings = {
         key = 'max_depth',
         type = 'int',
         default = 0
+    },
+    {
+        caption = 'Pinned track name',
+        key = 'pinned_name',
+        type = 'string',
+        default = ''
     }
 }
 
