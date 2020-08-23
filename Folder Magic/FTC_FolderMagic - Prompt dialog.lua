@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @noindex
   @about Zoom to folders or tracks based on name or number
 ]]
@@ -214,8 +214,8 @@ local emphasis_factor = tonumber(reaper.GetExtState(extname, 'emphasis_factor'))
 local min_depth = tonumber(reaper.GetExtState(extname, 'min_depth')) or 0
 local max_depth = tonumber(reaper.GetExtState(extname, 'max_depth')) or 0
 local use_tracks = reaper.GetExtState(extname, 'use_tracks') == 'yes' or false
-local mode_sc = tonumber(reaper.GetExtState(extname, 'mode_sc')) or 1
-local mode_dc = tonumber(reaper.GetExtState(extname, 'mode_dc')) or 2
+local mode_sc = tonumber(reaper.GetExtState(extname, 'mode_sc')) or 3
+local mode_dc = tonumber(reaper.GetExtState(extname, 'mode_dc')) or 4
 
 local _, file_name = reaper.get_action_context()
 local sep = reaper.GetOS():match('win') and '\\' or '/'
@@ -240,8 +240,8 @@ end
 -- Get track or folder id from filename
 local folder_id, track_id = file_name:match('folder (.-) track (.-)%.')
 if not folder_id and not track_id then
-    folder_id = file_name:match('folder (.-)%.')
-    track_id = file_name:match('track (.-)%.')
+    folder_id = file_name:match(' folder (.-)%.')
+    track_id = file_name:match(' track (.-)%.')
 end
 -- Get track or folder id from user dialog
 local is_dialog = file_name:match('dialog') ~= nil
@@ -497,7 +497,7 @@ if mode < 0 or mode == 3 or mode == 4 then
     local empty_offset, full_offset, rest_offset, rest = 0, 0, 0, 0
     diff = page_size - min_height_sum
 
-    if mode > 0 and diff > 0 then
+    if diff > 0 then
         -- Calculate track height offsets that will be added to minimum height
         if mode == 4 and full_lane_cnt > 0 or emphasis_factor >= 10 then
             empty_offset = 0
