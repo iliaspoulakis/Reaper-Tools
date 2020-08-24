@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Record takes without creating new splits. If necessary, existing track items are extended.
 ]]
 -- User configuration
@@ -276,7 +276,7 @@ function poll()
         prev_play_state = play_state
     end
 
-    if tracks_state and play_state == 0 then
+    if tracks_state and play_state ~= 5 then
         -- Check undo state in case there is a record dialog
         if prev_undo_state ~= undo_state then
             if reaper.Undo_CanUndo2(0) == 'Recorded media' then
