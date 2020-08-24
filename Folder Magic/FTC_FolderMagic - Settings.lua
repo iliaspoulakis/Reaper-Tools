@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @noindex
   @about Settings dialog for all FolderMagic scripts
 ]]
@@ -30,7 +30,7 @@ local settings = {
         default = 3.5
     },
     {
-        caption = 'Treat root level tracks like folders',
+        caption = 'Treat root tracks like folders',
         key = 'use_tracks',
         type = 'boolean',
         default = 'no'
