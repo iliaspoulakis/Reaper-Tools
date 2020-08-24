@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="333d856a856547da04e7cecde220097b65555034">
+<index version="1" name="FTC Tools" commit="c8aa7c3ea862ab48f8dbd747ae7eb1ed2e540402">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -849,6 +849,9 @@
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-07-22T21:51:04Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a31f60e095b97bc4ae89a45424ad0882bf34167e/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
       </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-24T09:08:28Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c8aa7c3ea862ab48f8dbd747ae7eb1ed2e540402/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
+      </version>
     </reapack>
     <reapack name="FTC_Record takes without new splits.lua" type="script">
       <metadata>
@@ -862,6 +865,9 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-07-22T21:51:04Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a31f60e095b97bc4ae89a45424ad0882bf34167e/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
+      </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-24T09:08:28Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c8aa7c3ea862ab48f8dbd747ae7eb1ed2e540402/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
       </version>
     </reapack>
   </category>
