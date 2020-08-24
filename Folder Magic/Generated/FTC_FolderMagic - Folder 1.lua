@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
+  @version 1.1.3
   @noindex
   @about Zoom to folders or tracks based on name or number
 ]]
@@ -371,35 +371,36 @@ if pinned_name and pinned_name ~= '' then
 end
 
 if pinned_track then
-    reaper.PreventUIRefresh(1)
-    -- Save current track selection
-    local sel_tracks = {}
-    for i = reaper.CountSelectedTracks(0) - 1, 0, -1 do
-        local track = reaper.GetSelectedTrack(0, i)
-        sel_tracks[#sel_tracks + 1] = track
-        reaper.SetTrackSelected(track, false)
+    local track_num = getTrackInfoValue(tracks[1], 'IP_TRACKNUMBER')
+    local pinned_num = getTrackInfoValue(pinned_track, 'IP_TRACKNUMBER')
+    if pinned_num ~= track_num - 1 then
+        reaper.PreventUIRefresh(1)
+        -- Save current track selection
+        local sel_tracks = {}
+        for i = reaper.CountSelectedTracks(0) - 1, 0, -1 do
+            local track = reaper.GetSelectedTrack(0, i)
+            sel_tracks[#sel_tracks + 1] = track
+            reaper.SetTrackSelected(track, false)
+        end
+        -- Reorder pinned track
+        reaper.SetTrackSelected(pinned_track, true)
+        reaper.ReorderSelectedTracks(track_num - 1, 0)
+        reaper.SetTrackSelected(pinned_track, false)
+        -- Restore track selection
+        for _, track in ipairs(sel_tracks) do
+            reaper.SetTrackSelected(track, true)
+        end
+        reaper.PreventUIRefresh(-1)
     end
-    -- Reorder pinned track
-    reaper.SetTrackSelected(pinned_track, true)
-    local track_num = reaper.GetMediaTrackInfo_Value(tracks[1], 'IP_TRACKNUMBER')
-    reaper.ReorderSelectedTracks(track_num - 1, 0)
-    reaper.SetTrackSelected(pinned_track, false)
-
     -- Lock pinned track
     pinned_lock = getTrackInfoValue(pinned_track, 'B_HEIGHTLOCK')
     setTrackInfoValue(pinned_track, 'B_HEIGHTLOCK', 1)
-
     -- Add pinned track to the beginning of track list
     local reorder_tracks = {pinned_track}
     for _, track in ipairs(tracks) do
         reorder_tracks[#reorder_tracks + 1] = track
     end
     tracks = reorder_tracks
-    -- Restore track selection
-    for _, track in ipairs(sel_tracks) do
-        reaper.SetTrackSelected(track, true)
-    end
-    reaper.PreventUIRefresh(-1)
 end
 ----------------
 
@@ -445,7 +446,18 @@ if mode < 0 or mode == 3 or mode == 4 then
     local setEnvProps = reaper.BR_EnvSetProperties
 
     local tracks_info = {}
-    local track_min_height, armed_track_min_height = getTrackHeights(main_track)
+
+    local track_min_height = tonumber(reaper.GetExtState(extname, 'min_height'))
+    local armed_track_min_height = tonumber(reaper.GetExtState(extname, 'arm_min_height'))
+    local theme = reaper.GetLastColorThemeFile()
+
+    if not track_min_height or reaper.GetExtState(extname, 'theme') ~= theme then
+        local last_vis_track = all_tracks[#all_tracks]
+        track_min_height, armed_track_min_height = getTrackHeights(last_vis_track)
+        reaper.SetExtState(extname, 'min_height', track_min_height, false)
+        reaper.SetExtState(extname, 'arm_min_height', armed_track_min_height, false)
+        reaper.SetExtState(extname, 'theme', theme, false)
+    end
 
     local min_height_sum = 0
     local empty_lane_cnt = 0
@@ -600,7 +612,7 @@ else
     reaper.TrackList_AdjustWindows(true)
 end
 
-if pinned_track then
+if pinned_lock then
     setTrackInfoValue(pinned_track, 'B_HEIGHTLOCK', pinned_lock)
 end
 

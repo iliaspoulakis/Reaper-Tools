@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
+  @version 1.1.3
   @about Zoom to folders or tracks based on name or number
   @metapackage
   @provides
