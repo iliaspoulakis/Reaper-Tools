@@ -1,31 +1,16 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Simple utility to update REAPER to the latest version
 ]]
------------------ ALTERNATE INSTALLATION DIRECTORY -----------------
-
--- Example Windows: 'C:\\Program Files\\REAPER'
--- Example Linux: '~/REAPER'
-local alternate_install_dir = ''
-
---------------------------------------------------------------------
 local platform = reaper.GetOS()
+local install_dir = reaper.GetExePath()
 
 -- Links to REAPER websites
 local main_dlink = 'https://www.reaper.fm/download.php'
 local dev_dlink = 'https://www.landoleet.org/'
 local dlink, dfile_name
-
--- Set installation directory
-local install_dir = '/opt'
-if platform:match('Win') then
-    install_dir = nil
-end
-if alternate_install_dir ~= '' then
-    install_dir = alternate_install_dir
-end
 
 -- Define paths to temporary files
 local tmp_dir = '/tmp/'
@@ -286,8 +271,7 @@ function Main()
                     return
                 end
                 -- Run Windows installation
-                local cmd = '%s%s /S %s'
-                install_dir = install_dir and ' /D=' .. install_dir or ''
+                local cmd = '%s%s /S /D=%s'
                 ExecProcess(cmd:format(tmp_dir, dfile_name, install_dir))
             end
             if platform:match('OSX') then
