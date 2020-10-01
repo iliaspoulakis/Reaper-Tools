@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.1.0
   @about Simple utility to update REAPER to the latest version
+  @changelog
+    - Reaper will now restart automatically after the install is finished
 ]]
 local platform = reaper.GetOS()
 local install_dir = reaper.GetExePath()
@@ -218,8 +220,8 @@ function Main()
         if step == 1 then
             -- Download the HTML of the REAPER website
             task = 'Checking latest release version...'
-            local cmd = 'curl -L %s > %s && echo %s > %s'
-            ExecProcess(cmd:format(main_dlink, html_path, 2, step_path))
+            local cmd = 'curl -L %s > %s && echo 2 > %s'
+            ExecProcess(cmd:format(main_dlink, html_path, step_path))
         end
 
         if step == 2 then
@@ -235,8 +237,8 @@ function Main()
             end
             -- Download the HTML of the LANDOLEET website
             task = 'Checking latest pre-release version...'
-            local cmd = 'curl -L %s > %s && echo %s > %s'
-            ExecProcess(cmd:format(dev_dlink, html_path, 3, step_path))
+            local cmd = 'curl -L %s > %s && echo 3 > %s'
+            ExecProcess(cmd:format(dev_dlink, html_path, step_path))
         end
 
         if step == 3 then
@@ -260,8 +262,8 @@ function Main()
             -- Download chosen REAPER version
             task = 'Downloading...'
             dfile_name = dlink:gsub('.-/', '')
-            local cmd = 'curl -L -o %s%s %s && echo %s > %s'
-            ExecProcess(cmd:format(tmp_dir, dfile_name, dlink, 5, step_path))
+            local cmd = 'curl -L -o %s%s %s && echo 5 > %s'
+            ExecProcess(cmd:format(tmp_dir, dfile_name, dlink, step_path))
         end
 
         if step == 5 then
@@ -270,9 +272,9 @@ function Main()
                     reaper.MB('\nInstallation cancelled!\n ', title, 0)
                     return
                 end
-                -- Run Windows installation
-                local cmd = '%s%s /S /D=%s'
-                ExecProcess(cmd:format(tmp_dir, dfile_name, install_dir))
+                -- Run Windows installation and restart reaper
+                local cmd = '%s%s /S /D=%s & cd %s && reaper.exe'
+                ExecProcess(cmd:format(tmp_dir, dfile_name, install_dir, install_dir))
             end
             if platform:match('OSX') then
             -- TODO: OSX support
@@ -280,8 +282,8 @@ function Main()
             if platform:match('Other') then
                 -- Extract tar file
                 task = 'Extracting...'
-                local cmd = 'tar -xf %s%s -C %s && echo %s > %s'
-                ExecProcess(cmd:format(tmp_dir, dfile_name, tmp_dir, 6, step_path))
+                local cmd = 'tar -xf %s%s -C %s && echo 6 > %s'
+                ExecProcess(cmd:format(tmp_dir, dfile_name, tmp_dir, step_path))
             end
         end
 
@@ -290,12 +292,17 @@ function Main()
                 reaper.MB('\nInstallation cancelled!\n ', title, 0)
                 return
             end
-            -- Run Linux installation
+            -- Run Linux installation and restart
             local cmd = 'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
             -- Comment out the following lines to disable desktop integration etc.
             cmd = cmd .. ' --integrate-desktop'
             cmd = cmd .. ' --usr-local-bin-symlink'
-            ExecProcess(cmd:format(tmp_dir, arch, install_dir) .. '&')
+            -- Wrap install command in new shell with sudo privileges (for chaining restart)
+            cmd = "/bin/sh -c '" .. cmd .. "' && %s/reaper"
+
+            -- Linux installer will also create a REAPER directory
+            local outer_install_dir = install_dir:gsub('/REAPER$', '')
+            ExecProcess(cmd:format(tmp_dir, arch, outer_install_dir, install_dir))
         end
     end
     -- Exit script on window close & escape key
