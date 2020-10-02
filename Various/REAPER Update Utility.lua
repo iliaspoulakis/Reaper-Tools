@@ -1,11 +1,22 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @about Simple utility to update REAPER to the latest version
   @changelog
     - Reaper will now restart automatically after the install is finished
+    - Added startup mode for use as global startup action
 ]]
+-------------------------------- USER CONFIGURATION --------------------------------
+
+-- Startup mode: Show GUI when updates are available (first script run only)
+local startup_mode = false
+
+-- Show GUI for new pre-release versions
+local startup_check_dev_releases = false
+
+------------------------------------------------------------------------------------
+
 local platform = reaper.GetOS()
 local install_dir = reaper.GetExePath()
 
@@ -18,16 +29,16 @@ local dlink, dfile_name
 local tmp_dir = '/tmp/'
 if platform:match('Win') then
     tmp_dir = reaper.ExecProcess('cmd.exe /c echo %TEMP%', 5000)
-    tmp_dir = tmp_dir:match('^%d+(.-)$'):gsub('[\r\n]', '') .. '\\'
+    tmp_dir = tmp_dir:match('^%d+(.+)$'):gsub('[\r\n]', '') .. '\\'
 end
-local step_path = tmp_dir .. 'reaper_update_step.txt'
-local main_path = tmp_dir .. 'reaper_release.html'
-local dev_path = tmp_dir .. 'reaper_dev_release.html'
+local step_path = tmp_dir .. 'reaper_uutil_step.txt'
+local main_path = tmp_dir .. 'reaper_uutil_main.html'
+local dev_path = tmp_dir .. 'reaper_uutil_dev.html'
 
 -- App version & platform architecture
 local app = reaper.GetAppVersion()
 local curr_version = app:gsub('/.-$', '')
-local main_version, dev_version
+local main_version, dev_version, new_version
 
 local arch = app:match('/(.-)$')
 arch = arch == 'linux64' and 'x86_64' or arch
@@ -109,7 +120,8 @@ function DrawButtons()
     local x = math.floor(gfx.w / 7)
     local y = math.floor(gfx.h / 4)
 
-    local is_main_installed = curr_version == main_version
+    local is_main_new = main_version == new_version
+    local is_main_installed = main_version == curr_version
     local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
 
     if is_main_installed or is_hover then
@@ -142,20 +154,29 @@ function DrawButtons()
     gfx.y = gfx.h / 2 - th / 2
     gfx.drawstr(main_version, 1)
 
-    -- Installed string
+    -- Info string
+    local info = ''
+    if is_main_new then
+        gfx.set(1.12 * opacity, 0.92 * opacity, 0.67 * opacity)
+        info = 'NEW!'
+    end
+    if is_main_installed then
+        gfx.set(0.12, 0.52, 0.42)
+        info = 'INSTALLED'
+    end
     gfx.setfont(1, '', 14 * font_factor)
-    local installed = is_main_installed and 'INSTALLED' or ''
-    local tw = gfx.measurestr(installed)
+    local tw = gfx.measurestr(info)
     gfx.x = gfx.w / 7 * 2 - tw / 2 + 1
     gfx.y = y + h + 8
-    gfx.drawstr(installed, 1)
+    gfx.drawstr(info, 1)
 
     -- Dev button
     gfx.set(0.6)
     local x = math.floor(gfx.w / 7) * 4
     local y = math.floor(gfx.h / 4)
 
-    local is_dev_installed = curr_version == dev_version
+    local is_dev_new = dev_version == new_version
+    local is_dev_installed = dev_version == curr_version
     local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
 
     if is_dev_installed or is_hover then
@@ -201,13 +222,65 @@ function DrawButtons()
     gfx.y = gfx.y + th + 4
     gfx.drawstr(version, 1)
 
-    -- Installed string
+    -- Info string
+    local info = ''
+    if is_dev_new then
+        gfx.set(1.12 * opacity, 0.92 * opacity, 0.67 * opacity)
+        info = 'NEW!'
+    end
+    if is_dev_installed then
+        gfx.set(0.08, 0.52, 0.41)
+        info = 'INSTALLED'
+    end
     gfx.setfont(1, '', 14 * font_factor)
-    local installed = is_dev_installed and 'INSTALLED' or ''
-    local tw = gfx.measurestr(installed)
+    local tw = gfx.measurestr(info)
     gfx.x = gfx.w / 7 * 5 - tw / 2 + 1
     gfx.y = y + h + 8
-    gfx.drawstr(installed, 1)
+    gfx.drawstr(info, 1)
+end
+
+function checkNewVersion()
+    -- Convert version strings to comparable numbers
+    local curr_num = tonumber(({curr_version:gsub('[^%d.]', '')})[1])
+    local main_num = tonumber(({main_version:gsub('[^%d.]', '')})[1])
+    local dev_num = tonumber(({dev_version:gsub('[^%d.]', '')})[1])
+    local latest_num = tonumber(reaper.GetExtState(title, 'version')) or curr_num
+    local ret = false
+    -- Check if new numbers are higher than when last checked
+    if main_num > latest_num then
+        new_version = main_version
+        latest_num = main_num
+        ret = true
+    end
+    if dev_num > latest_num then
+        if startup_check_dev_releases then
+            new_version = dev_version
+            ret = true
+        else
+            -- Show info about dev version if there's not a new main version
+            if not new_version then
+                new_version = dev_version
+            end
+        end
+        latest_num = dev_num
+    end
+    reaper.SetExtState(title, 'version', latest_num, true)
+    return ret
+end
+
+function ShowGUI()
+    -- Get REAPER window size
+    local w_x, w_y, w_w, w_h
+    for line in io.open(reaper.get_ini_file(), 'r'):lines() do
+        w_x = w_x or line:match('^wnd_x=(.-)$')
+        w_y = w_y or line:match('^wnd_y=(.-)$')
+        w_w = w_w or line:match('^wnd_w=(.-)$')
+        w_h = w_h or line:match('^wnd_h=(.-)$')
+    end
+    -- Show script window
+    gfx.clear = reaper.ColorToNative(37, 37, 37)
+    local gfx_w, gfx_h = 500, 250
+    gfx.init(title, gfx_w, gfx_h, 0, w_x + (w_w - gfx_w) / 2, w_y + (w_h - gfx_h) / 2)
 end
 
 function Main()
@@ -244,9 +317,19 @@ function Main()
                 reaper.MB(msg:format(platform, arch), 'Error', 0)
                 return
             end
-            -- Show buttons with both versions (user choice)
+            -- Parse latest versions from download link
             main_version = main_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
             dev_version = dev_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
+
+            local is_new = checkNewVersion()
+            if startup_mode then
+                if not is_new then
+                    return
+                end
+                startup_mode = false
+                ShowGUI()
+            end
+            -- Show buttons with both versions (user choice)
             show_buttons = true
         end
 
@@ -312,38 +395,36 @@ function Main()
         end
 
         if step == 'err_internet' then
-            local msg = 'Could not fetch latest version. Please check your internet'
-            reaper.MB(msg, 'Error', 0)
+            if not startup_mode then
+                local msg = 'Could not fetch latest version. Please check your internet'
+                reaper.MB(msg, 'Error', 0)
+            end
             return
         end
     end
-    -- Exit script on window close & escape key
-    local char = gfx.getchar()
-    if char == -1 or char == 27 then
-        return
+    if not startup_mode then
+        -- Exit script on window close & escape key
+        local char = gfx.getchar()
+        if char == -1 or char == 27 then
+            return
+        end
+        -- Draw content
+        DrawTask(task)
+        if show_buttons then
+            DrawButtons()
+        end
+        gfx.update()
     end
-    -- Draw content
-    DrawTask(task)
-    if show_buttons then
-        DrawButtons()
-    end
-    gfx.update()
     reaper.defer(Main)
 end
 
--- Get REAPER window size
-local w_x, w_y, w_w, w_h
-for line in io.open(reaper.get_ini_file(), 'r'):lines() do
-    w_x = w_x or line:match('^wnd_x=(.-)$')
-    w_y = w_y or line:match('^wnd_y=(.-)$')
-    w_w = w_w or line:match('^wnd_w=(.-)$')
-    w_h = w_h or line:match('^wnd_h=(.-)$')
-end
+-- Save the extstate value 'started' with persist=false (erase on startup)
+startup_mode = startup_mode and reaper.GetExtState(title, 'started') ~= '1'
+reaper.SetExtState(title, 'started', '1', false)
 
--- Open script window
-gfx.clear = reaper.ColorToNative(37, 37, 37)
-local gfx_w, gfx_h = 500, 250
-gfx.init(title, gfx_w, gfx_h, 0, w_x + (w_w - gfx_w) / 2, w_y + (w_h - gfx_h) / 2)
+if not startup_mode then
+    ShowGUI()
+end
 
 if platform:match('OSX') then
     task = 'OSX is not supported (yet)...'
