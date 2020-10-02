@@ -18,10 +18,11 @@ local dlink, dfile_name
 local tmp_dir = '/tmp/'
 if platform:match('Win') then
     tmp_dir = reaper.ExecProcess('cmd.exe /c echo %TEMP%', 5000)
-    tmp_dir = tmp_dir:gsub('\r\n', ''):sub(3) .. '\\'
+    tmp_dir = tmp_dir:match('^%d+(.-)$'):gsub('[\r\n]', '') .. '\\'
 end
 local step_path = tmp_dir .. 'reaper_update_step.txt'
-local html_path = tmp_dir .. 'reaper_update_site.html'
+local main_path = tmp_dir .. 'reaper_release.html'
+local dev_path = tmp_dir .. 'reaper_dev_release.html'
 
 -- App version & platform architecture
 local app = reaper.GetAppVersion()
@@ -122,7 +123,7 @@ function DrawButtons()
 
     if dlink == main_dlink and gfx.mouse_cap == 0 then
         if is_hover then
-            ExecProcess('echo 4 > ' .. step_path)
+            ExecProcess('echo download > ' .. step_path)
             show_buttons = false
         else
             dlink = nil
@@ -172,7 +173,7 @@ function DrawButtons()
 
     if dlink == dev_dlink and gfx.mouse_cap == 0 then
         if is_hover then
-            ExecProcess('echo 4 > ' .. step_path)
+            ExecProcess('echo download > ' .. step_path)
             show_buttons = false
         else
             dlink = nil
@@ -213,42 +214,33 @@ function Main()
     -- Check step file for newly completed steps
     local step_file = io.open(step_path, 'r')
     if step_file then
-        step = tonumber(step_file:read('*a')) or 0
+        step = step_file:read('*a'):gsub('[^%w_]+', '')
         step_file:close()
         os.remove(step_path)
 
-        if step == 1 then
+        if step == 'check_update' then
+            task = 'Checking for updates...'
             -- Download the HTML of the REAPER website
-            task = 'Checking latest release version...'
-            local cmd = 'curl -L %s > %s && echo 2 > %s'
-            ExecProcess(cmd:format(main_dlink, html_path, step_path))
+            local cmd = 'curl -L %s > %s && curl -L %s > %s'
+            cmd = cmd:format(main_dlink, main_path, dev_dlink, dev_path)
+            -- Show buttons if download succeeds, otherwise show error
+            cmd = cmd .. ' && echo show_buttons > %s || echo err_internet > %s'
+            ExecProcess(cmd:format(step_path, step_path))
         end
 
-        if step == 2 then
+        if step == 'show_buttons' then
             -- Parse the REAPER website html for the download link
-            local file = io.open(html_path, 'r')
+            local file = io.open(main_path, 'r')
             main_dlink = ParseDownloadLink(file, main_dlink)
             file:close()
-            os.remove(html_path)
-            if not main_dlink then
-                local msg = 'Could not parse download link!\nOS: %s\nArch: %s'
-                reaper.MB(msg:format(platform, arch), 'Error', 0)
-                return
-            end
-            -- Download the HTML of the LANDOLEET website
-            task = 'Checking latest pre-release version...'
-            local cmd = 'curl -L %s > %s && echo 3 > %s'
-            ExecProcess(cmd:format(dev_dlink, html_path, step_path))
-        end
-
-        if step == 3 then
+            os.remove(main_path)
             -- Parse the LANDOLEET website html for the download link
-            local file = io.open(html_path, 'r')
+            local file = io.open(dev_path, 'r')
             dev_dlink = ParseDownloadLink(file, dev_dlink)
             file:close()
-            os.remove(html_path)
-            if not dev_dlink then
-                local msg = 'Could not parse dev download link!\nOS: %s\nArch: %s'
+            os.remove(dev_path)
+            if not main_dlink or not dev_dlink then
+                local msg = 'Could not parse download link!\nOS: %s\nArch: %s'
                 reaper.MB(msg:format(platform, arch), 'Error', 0)
                 return
             end
@@ -258,36 +250,50 @@ function Main()
             show_buttons = true
         end
 
-        if step == 4 then
+        if step == 'download' then
             -- Download chosen REAPER version
             task = 'Downloading...'
             dfile_name = dlink:gsub('.-/', '')
-            local cmd = 'curl -L -o %s%s %s && echo 5 > %s'
-            ExecProcess(cmd:format(tmp_dir, dfile_name, dlink, step_path))
-        end
+            local cmd = 'curl -L -o %s%s %s'
+            cmd = cmd:format(tmp_dir, dfile_name, dlink)
 
-        if step == 5 then
+            local next_step
             if platform:match('Win') then
-                if not SaveAndQuit() then
-                    reaper.MB('\nInstallation cancelled!\n ', title, 0)
-                    return
-                end
-                -- Run Windows installation and restart reaper
-                local cmd = '%s%s /S /D=%s & cd %s && reaper.exe'
-                ExecProcess(cmd:format(tmp_dir, dfile_name, install_dir, install_dir))
+                next_step = 'windows_install'
             end
             if platform:match('OSX') then
-            -- TODO: OSX support
+                next_step = 'osx_install'
             end
             if platform:match('Other') then
-                -- Extract tar file
-                task = 'Extracting...'
-                local cmd = 'tar -xf %s%s -C %s && echo 6 > %s'
-                ExecProcess(cmd:format(tmp_dir, dfile_name, tmp_dir, step_path))
+                next_step = 'linux_extract'
             end
+            -- Go to next step if download succeeds, otherwise show error
+            cmd = cmd .. '&& echo %s > %s || echo err_internet > %s'
+            ExecProcess(cmd:format(next_step, step_path, step_path))
         end
 
-        if step == 6 then
+        if step == 'windows_install' then
+            if not SaveAndQuit() then
+                reaper.MB('\nInstallation cancelled!\n ', title, 0)
+                return
+            end
+            -- Run Windows installation and restart reaper
+            local cmd = '%s%s /S /D=%s & cd %s & reaper.exe'
+            ExecProcess(cmd:format(tmp_dir, dfile_name, install_dir, install_dir))
+        end
+
+        -- TODO: OSX support
+        if step == 'osx_install' then
+        end
+
+        if step == 'linux_extract' then
+            -- Extract tar file
+            task = 'Extracting...'
+            local cmd = 'tar -xf %s%s -C %s && echo linux_install > %s'
+            ExecProcess(cmd:format(tmp_dir, dfile_name, tmp_dir, step_path))
+        end
+
+        if step == 'linux_install' then
             if not SaveAndQuit() then
                 reaper.MB('\nInstallation cancelled!\n ', title, 0)
                 return
@@ -298,11 +304,17 @@ function Main()
             cmd = cmd .. ' --integrate-desktop'
             cmd = cmd .. ' --usr-local-bin-symlink'
             -- Wrap install command in new shell with sudo privileges (for chaining restart)
-            cmd = "/bin/sh -c '" .. cmd .. "' && %s/reaper"
+            cmd = "/bin/sh -c '" .. cmd .. "' ; %s/reaper"
 
             -- Linux installer will also create a REAPER directory
             local outer_install_dir = install_dir:gsub('/REAPER$', '')
             ExecProcess(cmd:format(tmp_dir, arch, outer_install_dir, install_dir))
+        end
+
+        if step == 'err_internet' then
+            local msg = 'Could not fetch latest version. Please check your internet'
+            reaper.MB(msg, 'Error', 0)
+            return
         end
     end
     -- Exit script on window close & escape key
@@ -337,6 +349,6 @@ if platform:match('OSX') then
     task = 'OSX is not supported (yet)...'
 else
     -- Write a 1 to the step file to trigger the first step
-    ExecProcess('echo 1 > ' .. step_path)
+    ExecProcess('echo check_update > ' .. step_path)
 end
 reaper.defer(Main)
