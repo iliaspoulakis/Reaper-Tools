@@ -269,18 +269,12 @@ function checkNewVersion()
 end
 
 function ShowGUI()
-    -- Get REAPER window size
-    local w_x, w_y, w_w, w_h
-    for line in io.open(reaper.get_ini_file(), 'r'):lines() do
-        w_x = w_x or line:match('^wnd_x=(.-)$')
-        w_y = w_y or line:match('^wnd_y=(.-)$')
-        w_w = w_w or line:match('^wnd_w=(.-)$')
-        w_h = w_h or line:match('^wnd_h=(.-)$')
-    end
-    -- Show script window
+    -- Show script window in center of screen
     gfx.clear = reaper.ColorToNative(37, 37, 37)
-    local gfx_w, gfx_h = 500, 250
-    gfx.init(title, gfx_w, gfx_h, 0, w_x + (w_w - gfx_w) / 2, w_y + (w_h - gfx_h) / 2)
+    local w, h = 500, 250
+    local x, y = reaper.GetMousePosition()
+    local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
+    gfx.init(title, w, h, 0, (r + l - w) / 2, (b + t - h) / 2)
 end
 
 function Main()
@@ -396,7 +390,7 @@ function Main()
 
         if step == 'err_internet' then
             if not startup_mode then
-                local msg = 'Could not fetch latest version. Please check your internet'
+                local msg = 'Download failed'
                 reaper.MB(msg, 'Error', 0)
             end
             return
