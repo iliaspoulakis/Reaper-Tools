@@ -1,13 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Support for older Windows versions (7 and higher)
-    - Auto-detect if script is used as startup action
-    - Added Debugging output
-    - Added Changelog GUI links
+    - Minor Windows bugfixes
 ]]
 -- Set this to true to show debugging output
 local debug = false
@@ -58,7 +55,7 @@ end
 
 function ExecProcess(cmd, timeout)
     if platform:match('Win') then
-        cmd = 'cmd.exe  /Q /C  ' .. cmd
+        cmd = 'cmd.exe /Q /C "' .. cmd .. '"'
     else
         cmd = '/bin/sh -c "' .. cmd .. '"'
     end
@@ -450,7 +447,7 @@ function Main()
                 return
             end
             -- Run Windows installation and restart reaper
-            local cmd = '%s%s /S /D=%s & cd %s & start reaper.exe'
+            local cmd = '%s%s /S /D=%s & cd /D %s & start reaper.exe'
             ExecProcess(cmd:format(tmp_path, dfile_name, install_path, install_path))
         end
 
@@ -512,6 +509,9 @@ function Main()
 end
 
 print('\nSTARTING...', debug)
+print('CPU achitecture: ' .. tostring(arch), debug)
+print('Installation path: ' .. tostring(install_path), debug)
+print('Resource path: ' .. tostring(res_path), debug)
 
 -- Define paths to temporary files
 tmp_path = '/tmp/'
@@ -537,6 +537,7 @@ dl_cmd = 'curl -L %s -o %s'
 if platform:match('Win') then
     dl_cmd = 'powershell.exe -windowstyle hidden (new-object System.Net.WebClient)'
     dl_cmd = dl_cmd .. ".DownloadFile('%s', '%s')"
+--dl_cmd = 'powershell.exe -windowstyle hidden Invoke-Webrequest -Uri %s -OutFile %s'
 end
 
 -- Set command for opening web-pages from terminal
@@ -549,15 +550,22 @@ if platform:match('OSX') then
 end
 
 -- Check if the script has already run since last restart (using extstate persist)
-startup_mode = reaper.GetExtState(title, 'startup') ~= '1'
+local has_already_run = reaper.GetExtState(title, 'startup') == '1'
 reaper.SetExtState(title, 'startup', '1', false)
-if not startup_mode then
-    print('Startup Mode: Script has already been started', debug)
+print('Startup extstate: ' .. tostring(has_already_run), debug)
+-- Check if splash is currently visible
+local is_splash_vis = reaper.Splash_GetWnd() ~= nil
+print('Startup splash: ' .. tostring(is_splash_vis), debug)
+
+if is_splash_vis then
+    startup_mode = true
+elseif has_already_run then
+    startup_mode = false
 else
     -- Get file last modification time
     local cmd = 'cd %s && date -r %s +%%s'
     if platform:match('Win') then
-        cmd = 'cd %s && forfiles /M %s /C "cmd /c echo @ftime"'
+        cmd = 'cd /D %s && forfiles /M %s /C "cmd /c echo @ftime"'
     end
     -- The reginfo2.ini file is written to when reaper is started
     local start_time = ExecProcess(cmd:format(res_path, 'reaper-reginfo2.ini'), 1000)
@@ -570,7 +578,7 @@ else
     -- Get current OS time
     local os_time = os.time()
     if platform:match('Win') then
-        os_time = os.date():gsub('.- ', '')
+        os_time = os.date():match('%d+:%d+:%d+')
         print('Start time (raw): ' .. start_time, debug)
         print('Load time (raw): ' .. load_time, debug)
         print('Curr time (raw): ' .. os_time, debug)
