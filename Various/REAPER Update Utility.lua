@@ -86,12 +86,15 @@ function SaveAndQuit()
 end
 
 function ParseDownloadLink(file, dlink)
-    local file_pattern = '_linux_' .. arch .. '%.tar%.xz'
+    local file_pattern
     if platform:match('Win') then
         file_pattern = (arch and '_' .. arch or '') .. '%-install%.exe'
     end
     if platform:match('OSX') then
         file_pattern = '_' .. arch .. '%.dmg'
+    end
+    if platform:match('Other') then
+        file_pattern = '_linux_' .. arch .. '%.tar%.xz'
     end
     -- Match href file download link
     for line in file:lines() do
