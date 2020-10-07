@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="dfbc3417f918a9404563a18e2be5fe74f16312da">
+<index version="1" name="FTC Tools" commit="cc3e273ae51738cf51029f89bfcea26c28dab811">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -982,7 +982,7 @@
 - Auto-detect if script is used as startup action
 - Added Debugging output
 - Added Changelog GUI links]]></changelog>
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/dfbc3417f918a9404563a18e2be5fe74f16312da/Various/REAPER%20Update%20Utility.lua</source>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/cc3e273ae51738cf51029f89bfcea26c28dab811/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
