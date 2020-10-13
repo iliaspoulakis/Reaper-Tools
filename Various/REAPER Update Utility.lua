@@ -36,12 +36,13 @@ local start_timeout = 90
 local load_timeout = 2
 
 -- Download variables
-local dl_cmd, browser_cmd, dlink, dfile_name
+local dl_cmd, browser_cmd, user_dlink, dfile_name
 
 -- GUI variables
 local step = 0
 local direction = 1
 local opacity = 0.65
+local main_cl, dev_cl
 local show_buttons = false
 local task = 'Initializing...'
 local title = 'REAPER Update Utility'
@@ -115,23 +116,21 @@ function DrawTask()
     gfx.drawstr(task, 1)
 end
 
-function DrawButtons()
-    task = ''
+function DrawButton(x, y, version, dlink, changelog)
     local m_x = gfx.mouse_x
     local m_y = gfx.mouse_y
     local w = math.floor(gfx.w / 7) * 2
     local h = math.floor(gfx.h / 2)
 
-    -- Main button
-    gfx.set(0.6)
-    local x = math.floor(gfx.w / 7)
-    local y = math.floor(gfx.h / 4)
-
-    local is_main_new = main_version == new_version
-    local is_main_installed = main_version == curr_version
+    local is_new = version == new_version
+    local is_dev = version == dev_version
+    local is_main = version == main_version
+    local is_installed = version == curr_version
     local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
 
-    if is_main_new then
+    gfx.set(0.6)
+
+    if is_new then
         gfx.set(1.15 * opacity, 0.92 * opacity, 0.6 * opacity)
     end
 
@@ -139,21 +138,21 @@ function DrawButtons()
         gfx.set(0.8, 0.6, 0.35)
     end
 
-    if is_main_installed then
+    if is_installed then
         gfx.set(0.1, 0.65, 0.5)
     end
 
-    if not is_main_installed and is_hover and gfx.mouse_cap == 1 then
+    if not is_installed and is_hover and gfx.mouse_cap == 1 then
         gfx.set(0.1, 0.65, 0.5)
-        dlink = main_dlink
+        user_dlink = dlink
     end
 
-    if dlink == main_dlink and gfx.mouse_cap == 0 then
+    if user_dlink == dlink and gfx.mouse_cap == 0 then
         if is_hover then
             ExecProcess('echo download > ' .. step_path)
             show_buttons = false
         else
-            dlink = nil
+            user_dlink = nil
         end
     end
 
@@ -162,117 +161,41 @@ function DrawButtons()
     gfx.roundrect(x + 1, y, w, h, 4, 1)
     gfx.roundrect(x, y + 1, w, h, 4, 1)
 
-    -- Version string
+    -- Version
     gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
-    local t_w, t_h = gfx.measurestr(main_version)
-    gfx.x = math.floor(gfx.w / 7 * 2 - t_w / 2) + 1
+    local version_text = version:match('[^+]+')
+    local t_w, t_h = gfx.measurestr(version_text)
+    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
     gfx.y = math.floor(gfx.h / 2 - t_h / 2)
-    gfx.drawstr(main_version, 1)
+    gfx.drawstr(version_text, 1)
 
-    -- Changelog
-    gfx.set(0.6)
-    gfx.setfont(1, '', 12 * font_factor)
-    local changelog = 'CHANGELOG'
-    local t_w, t_h = gfx.measurestr(changelog)
-    gfx.x = math.floor(gfx.w / 7 * 2 - t_w / 2) + 9
-    gfx.y = math.floor(gfx.h * 3 / 32 + y + h) + 1
-
-    local hov_y = gfx.y - math.floor(h / 16)
-    local hov_h = gfx.y + math.floor(h / 16) + t_h
-    local is_hover = m_x >= x and m_x <= x + w and m_y >= hov_y and m_y <= hov_h
-
-    if is_hover then
-        gfx.set(0.8, 0.6, 0.35)
-    end
-
-    if is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.1, 0.65, 0.5)
-        dlink = main_changelog
-    end
-
-    if dlink == main_changelog and gfx.mouse_cap == 0 then
-        if is_hover then
-            ExecProcess(browser_cmd .. dlink)
-        end
-        dlink = nil
-    end
-    gfx.drawstr(changelog, 1)
-
-    -- Info icon
-    local c_x = gfx.x - t_w - 16
-    local c_y = gfx.y + math.floor(t_h / 2)
-    gfx.circle(c_x, c_y, 8, 1, 1)
-    gfx.circle(c_x + 1, c_y, 8, 1, 1)
-    gfx.set(0.13)
-    gfx.setfont(0)
-    local info = 'i'
-    local i_w, i_h = gfx.measurestr(info)
-    gfx.x = c_x - math.floor(i_w / 2) + 1
-    gfx.y = c_y - math.floor(i_h / 2) + 1
-    gfx.drawstr(info, 1)
-
-    -- Dev button
-    gfx.set(0.6)
-    local x = math.floor(gfx.w / 7) * 4
-    local y = math.floor(gfx.h / 4)
-
-    local is_dev_new = dev_version == new_version
-    local is_dev_installed = dev_version == curr_version
-    local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
-
-    if is_dev_new then
-        gfx.set(1.15 * opacity, 0.92 * opacity, 0.6 * opacity)
-    end
-
-    if is_hover then
-        gfx.set(0.8, 0.6, 0.35)
-    end
-
-    if is_dev_installed then
-        gfx.set(0.1, 0.65, 0.5)
-    end
-
-    if not is_dev_installed and is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.1, 0.65, 0.5)
-        dlink = dev_dlink
-    end
-
-    if dlink == dev_dlink and gfx.mouse_cap == 0 then
-        if is_hover then
-            ExecProcess('echo download > ' .. step_path)
-            show_buttons = false
-        else
-            dlink = nil
-        end
-    end
-
-    -- Border
-    gfx.roundrect(x, y, w, h, 4, 1)
-    gfx.roundrect(x + 1, y, w, h, 4, 1)
-    gfx.roundrect(x, y + 1, w, h, 4, 1)
-
-    -- Version string
-    gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
-    local version = dev_version:match('(.-)+')
-    local t_w, t_h = gfx.measurestr(version)
-    gfx.x = math.floor(gfx.w / 7 * 5 - t_w / 2) + 1
-    gfx.y = math.floor(gfx.h / 2 - t_h / 2)
-    gfx.drawstr(version, 1)
-
-    -- Dev string
+    -- Subversion
     gfx.setfont(1, '', 15 * font_factor, string.byte('i'))
-    local version = dev_version:match('(+.-)$')
-    local t_w = gfx.measurestr(version)
-    gfx.x = math.floor(gfx.w / 7 * 5 - t_w / 2) + 1
+    local subversion_text = version:match('(+.-)$') or ''
+    local t_w = gfx.measurestr(subversion_text)
+    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
     gfx.y = math.floor(gfx.y + t_h) + 4
-    gfx.drawstr(version, 1)
+    gfx.drawstr(subversion_text, 1)
 
     -- Changelog
     gfx.set(0.6)
     gfx.setfont(1, '', 12 * font_factor)
-    local changelog = 'CHANGELOG'
-    local t_w, t_h = gfx.measurestr(changelog)
-    gfx.x = math.floor(gfx.w / 7 * 5 - t_w / 2) + 9
+    local changelog_text = 'CHANGELOG'
+
+    -- Display animation when main_cl is set
+    if is_main and main_cl then
+        main_cl = main_cl:sub(-1) .. main_cl:sub(1, #main_cl - 1)
+        changelog_text = main_cl
+    end
+
+    -- Display animation when dev_cl is set
+    if is_dev and dev_cl then
+        dev_cl = dev_cl:sub(-1) .. dev_cl:sub(1, #dev_cl - 1)
+        changelog_text = dev_cl
+    end
+
+    local t_w, t_h = gfx.measurestr(changelog_text)
+    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 9
     gfx.y = math.floor(gfx.h * 3 / 32 + y + h) + 1
 
     local hov_y = gfx.y - math.floor(h / 16)
@@ -285,60 +208,45 @@ function DrawButtons()
 
     if is_hover and gfx.mouse_cap == 1 then
         gfx.set(0.1, 0.65, 0.5)
-        dlink = dev_changelog
+        user_dlink = changelog
     end
 
-    if dlink == dev_changelog and gfx.mouse_cap == 0 then
+    if user_dlink == changelog and gfx.mouse_cap == 0 then
         if is_hover then
-            ExecProcess(browser_cmd .. dlink)
-        end
-        dlink = nil
-    end
-    gfx.drawstr(changelog, 1)
-
-    -- Info icon
-    local c_x = gfx.x - t_w - 16
-    local c_y = gfx.y + math.floor(t_h / 2)
-    gfx.circle(c_x, c_y, 8, 1, 1)
-    gfx.circle(c_x + 1, c_y, 8, 1, 1)
-    gfx.set(0.13)
-    gfx.setfont(0)
-    local info = 'i'
-    local i_w, i_h = gfx.measurestr(info)
-    gfx.x = c_x - math.floor(i_w / 2) + 1
-    gfx.y = c_y - math.floor(i_h / 2) + 1
-    gfx.drawstr(info, 1)
-end
-
-function checkNewVersion()
-    -- Convert version strings to comparable numbers
-    local curr_num = tonumber(({curr_version:gsub('[^%d.]', '')})[1])
-    local main_num = tonumber(({main_version:gsub('[^%d.]', '')})[1])
-    local dev_num = tonumber(({dev_version:gsub('[^%d.]', '')})[1])
-    local latest_num = tonumber(reaper.GetExtState(title, 'version')) or curr_num
-    local ret = false
-    -- Check new pre-release versions (keep logic for potential future user option)
-    local startup_check_dev_releases = true
-    -- Check if new numbers are higher than when last checked
-    if main_num > latest_num then
-        new_version = main_version
-        latest_num = main_num
-        ret = true
-    end
-    if dev_num > latest_num then
-        if startup_check_dev_releases then
-            new_version = dev_version
-            ret = true
-        else
-            -- Show info about dev version if there's not a new main version
-            if not new_version then
-                new_version = dev_version
+            if is_main then
+                main_cl = 'CHANGELOG'
+                ExecProcess('echo get_main_changelog > ' .. step_path)
+            else
+                dev_cl = 'CHANGELOG'
+                ExecProcess('echo get_dev_changelog > ' .. step_path)
             end
         end
-        latest_num = dev_num
+        user_dlink = nil
     end
-    reaper.SetExtState(title, 'version', latest_num, true)
-    return ret
+    gfx.drawstr(changelog_text, 1)
+
+    -- Info icon
+    local c_x = gfx.x - t_w - 16
+    local c_y = gfx.y + math.floor(t_h / 2)
+    gfx.circle(c_x, c_y, 8, 1, 1)
+    gfx.circle(c_x + 1, c_y, 8, 1, 1)
+    gfx.set(0.13)
+    gfx.setfont(0)
+    local info_text = 'i'
+    local i_w, i_h = gfx.measurestr(info_text)
+    gfx.x = c_x - math.floor(i_w / 2) + 1
+    gfx.y = c_y - math.floor(i_h / 2) + 1
+    gfx.drawstr(info_text, 1)
+end
+
+function DrawButtons()
+    task = ''
+    local x = math.floor(gfx.w / 7)
+    local y = math.floor(gfx.h / 4)
+    DrawButton(x, y, main_version, main_dlink, main_changelog)
+    local x = math.floor(gfx.w / 7) * 4
+    local y = math.floor(gfx.h / 4)
+    DrawButton(x, y, dev_version, dev_dlink, dev_changelog)
 end
 
 function ConvertToSeconds(time)
@@ -408,14 +316,32 @@ function Main()
             main_version = main_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
             dev_version = dev_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
 
-            local is_new = checkNewVersion()
+            -- Check if there's new version
+            if reaper.GetExtState(title, 'main_version') ~= main_version then
+                new_version = main_version
+            end
+            if reaper.GetExtState(title, 'dev_version') ~= dev_version then
+                -- If both are new, show update to the currently installed version
+                local is_dev_installed = not curr_version:match('^%d+%.%d+$')
+                if not new_version or is_dev_installed then
+                    new_version = dev_version
+                end
+            end
+            -- Check if the new version is already installed (first script run)
+            if new_version == curr_version then
+                new_version = nil
+            end
+            -- Save latest version numbers in extstate for next check
+            reaper.SetExtState(title, 'main_version', main_version, true)
+            reaper.SetExtState(title, 'dev_version', dev_version, true)
+
             if startup_mode then
-                if not is_new then
+                if not new_version then
                     print('No update found! Exiting...', debug)
                     return
                 end
-                startup_mode = false
                 ShowGUI()
+                startup_mode = false
             end
             -- Show buttons with both versions (user choice)
             show_buttons = true
@@ -447,8 +373,9 @@ function Main()
                 return
             end
             -- Run Windows installation and restart reaper
-            local cmd = '%s%s /S /D=%s & cd /D %s & start reaper.exe'
-            ExecProcess(cmd:format(tmp_path, dfile_name, install_path, install_path))
+            local cmd = '%s /S /D=%s & cd /D %s & start reaper.exe & del %s'
+            local dfile_path = tmp_path .. dfile_name
+            ExecProcess(cmd:format(dfile_path, install_path, install_path, dfile_path))
         end
 
         -- TODO: OSX support
@@ -481,6 +408,55 @@ function Main()
             -- Linux installer will also create a REAPER directory
             local outer_install_path = install_path:gsub('/REAPER$', '')
             ExecProcess(cmd:format(tmp_path, arch, outer_install_path, install_path))
+        end
+
+        if step:match('^get_.-_changelog$') then
+            local file_path, cl_cmd, link
+            if step:match('main') then
+                file_path = main_path
+                cl_cmd = 'echo open_main_changelog > %s'
+                link = 'https://forum.cockos.com/forumdisplay.php?f=19'
+            else
+                file_path = dev_path
+                cl_cmd = 'echo open_dev_changelog > %s'
+                link = 'https://forum.cockos.com/forumdisplay.php?f=37'
+            end
+            -- Download the corresponding sub-forum website
+            local cmd = dl_cmd .. ' && ' .. cl_cmd .. ' ||' .. cl_cmd
+            ExecProcess(cmd:format(link, file_path, step_path, step_path))
+        end
+
+        if step:match('^open_.-_changelog$') then
+            print('\nSTEP ' .. step, debug)
+            local file_path, version, changelog
+            if step:match('main') then
+                main_cl = nil
+                file_path = main_path
+                version = main_version
+                changelog = main_changelog
+            else
+                dev_cl = nil
+                file_path = dev_path
+                version = dev_version
+                changelog = dev_changelog
+            end
+            local file = io.open(file_path, 'r')
+            local pattern = '<a href=".-" id="thread_title_(%d+)">v*V*'
+            pattern = pattern .. version:gsub('%+', '%%+') .. ' '
+            -- Default: Open the changelog website directly
+            local cmd = browser_cmd .. changelog
+            for line in file:lines() do
+                local forum_link = line:match(pattern)
+                if forum_link then
+                    -- If forum post is matched, open this as changelog instead
+                    local thread_link = 'https://forum.cockos.com/showthread.php?t='
+                    cmd = browser_cmd .. thread_link .. forum_link
+                    break
+                end
+            end
+            file:close()
+            ExecProcess(cmd)
+            os.remove(file_path)
         end
 
         if step == 'err_internet' then
@@ -537,7 +513,6 @@ dl_cmd = 'curl -L %s -o %s'
 if platform:match('Win') then
     dl_cmd = 'powershell.exe -windowstyle hidden (new-object System.Net.WebClient)'
     dl_cmd = dl_cmd .. ".DownloadFile('%s', '%s')"
---dl_cmd = 'powershell.exe -windowstyle hidden Invoke-Webrequest -Uri %s -OutFile %s'
 end
 
 -- Set command for opening web-pages from terminal
@@ -578,7 +553,7 @@ else
     -- Get current OS time
     local os_time = os.time()
     if platform:match('Win') then
-        os_time = os.date():match('%d+:%d+:%d+')
+        os_time = os.date('%H:%M:%S')
         print('Start time (raw): ' .. start_time, debug)
         print('Load time (raw): ' .. load_time, debug)
         print('Curr time (raw): ' .. os_time, debug)
