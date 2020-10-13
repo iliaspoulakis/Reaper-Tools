@@ -616,10 +616,6 @@ if not startup_mode then
     ShowGUI()
 end
 
-if platform:match('OSX') then
-    task = 'OSX is not supported (yet)...'
-else
-    -- Trigger the first step (steps are triggered by writing to the step file)
-    ExecProcess('echo check_update > ' .. step_path)
-end
+-- Trigger the first step (steps are triggered by writing to the step file)
+ExecProcess('echo check_update > ' .. step_path)
 reaper.defer(Main)
