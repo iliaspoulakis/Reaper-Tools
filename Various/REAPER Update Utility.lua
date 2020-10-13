@@ -7,7 +7,7 @@
     - Minor Windows bugfixes
 ]]
 -- Set this to true to show debugging output
-local debug = true
+local debug = false
 
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -18,6 +18,8 @@ local main_version, dev_version, new_version
 local arch = app:match('/(.-)$')
 arch = arch == 'linux64' and 'x86_64' or arch
 arch = arch == 'linux32' and 'i686' or arch
+arch = arch == 'OSX64' and 'x86_64' or arch
+arch = arch == 'OSX32' and 'i386' or arch
 
 -- Links to REAPER websites
 local main_dlink = 'https://www.reaper.fm/download.php'
@@ -76,11 +78,12 @@ function ExecProcess(cmd, timeout)
     return ret
 end
 
-function SaveAndQuit()
+function SaveExitAndInstall(install_cmd)
     -- File: Close all projects
     reaper.Main_OnCommand(40886, 0)
 
     if reaper.IsProjectDirty(0) == 0 then
+        ExecProcess(install_cmd)
         -- File: Quit REAPER
         reaper.Main_OnCommand(40004, 0)
         return true
@@ -93,7 +96,7 @@ function ParseDownloadLink(file, dlink)
         file_pattern = (arch and '_' .. arch or '') .. '%-install%.exe'
     end
     if platform:match('OSX') then
-        file_pattern = '_' .. arch .. '%.dmg'
+        file_pattern = '%d_' .. arch .. '%.dmg'
     end
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
@@ -355,8 +358,8 @@ function Main()
             print('\nSTEP ' .. step, debug)
             -- Download chosen REAPER version
             task = 'Downloading...'
-            dfile_name = dlink:gsub('.-/', '')
-            local cmd = dl_cmd:format(dlink, tmp_path .. dfile_name)
+            dfile_name = user_dlink:gsub('.-/', '')
+            local cmd = dl_cmd:format(user_dlink, tmp_path .. dfile_name)
             -- Choose next step based on platform
             local next_step = 'linux_extract'
             if platform:match('Win') then
@@ -372,19 +375,35 @@ function Main()
 
         if step == 'windows_install' then
             print('\nSTEP ' .. step, debug)
-            if not SaveAndQuit() then
-                reaper.MB('\nInstallation cancelled!\n ', title, 0)
-                return
-            end
-            -- Run Windows installation and restart reaper
+            -- Windows installer: /S is silent mode, /D specifies directory
             local cmd = '%s /S /D=%s & cd /D %s & start reaper.exe & del %s'
             local dfile_path = tmp_path .. dfile_name
-            ExecProcess(cmd:format(dfile_path, install_path, install_path, dfile_path))
+
+            -- Save, exit and run install command
+            cmd = cmd:format(dfile_path, install_path, install_path, dfile_path)
+            if not SaveExitAndInstall(cmd) then
+                reaper.MB('\nInstallation cancelled!\n ', title, 0)
+            end
+            return
         end
 
-        -- TODO: OSX support
         if step == 'osx_install' then
             print('\nSTEP ' .. step, debug)
+            -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
+            local cmd = 'mount_dir=$(yes | hdiutil attach %s%s | grep Volumes | cut -f 3)'
+            -- Get the .app name
+            cmd = cmd .. ' && cd $mount_dir && app_name=$(ls | grep REAPER)'
+            -- Copy .app to install path
+            cmd = cmd .. ' && cp -rf $app_name %s'
+            -- Unmount file and restart reaper
+            cmd = cmd .. ' ; cd && hdiutil unmount $mount_dir ; open %s/$app_name'
+
+            -- Save, exit and run install command
+            cmd = cmd:format(tmp_path, dfile_name, install_path, install_path)
+            if not SaveExitAndInstall(cmd) then
+                reaper.MB('\nInstallation cancelled!\n ', title, 0)
+            end
+            return
         end
 
         if step == 'linux_extract' then
@@ -397,10 +416,6 @@ function Main()
 
         if step == 'linux_install' then
             print('\nSTEP ' .. step, debug)
-            if not SaveAndQuit() then
-                reaper.MB('\nInstallation cancelled!\n ', title, 0)
-                return
-            end
             -- Run Linux installation and restart
             local cmd = 'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
             -- Comment out the following lines to disable desktop integration etc.
@@ -411,7 +426,13 @@ function Main()
 
             -- Linux installer will also create a REAPER directory
             local outer_install_path = install_path:gsub('/REAPER$', '')
-            ExecProcess(cmd:format(tmp_path, arch, outer_install_path, install_path))
+
+            -- Save, exit and run install command
+            cmd = cmd:format(tmp_path, arch, outer_install_path, install_path)
+            if not SaveExitAndInstall(cmd) then
+                reaper.MB('\nInstallation cancelled!\n ', title, 0)
+            end
+            return
         end
 
         if step:match('^get_.-_changelog$') then
@@ -492,6 +513,12 @@ print('\nSTARTING...', debug)
 print('CPU achitecture: ' .. tostring(arch), debug)
 print('Installation path: ' .. tostring(install_path), debug)
 print('Resource path: ' .. tostring(res_path), debug)
+
+if not platform:match('Win') then
+    -- String escape Unix paths (spaces and brackets)
+    install_path = install_path:gsub('[%s%(%)]', '\\%1')
+    res_path = res_path:gsub('[%s%(%)]', '\\%1')
+end
 
 -- Define paths to temporary files
 tmp_path = '/tmp/'
