@@ -7,7 +7,7 @@
     - Minor Windows bugfixes
 ]]
 -- Set this to true to show debugging output
-local debug = false
+local debug = true
 
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -63,8 +63,12 @@ function ExecProcess(cmd, timeout)
     local ret = reaper.ExecProcess(cmd, timeout or -2)
     print('Executing command:\n' .. cmd, debug)
     if ret then
-        -- Remove exit code (first line) and all newlines
-        ret = ret:gsub('^.-\n', ''):gsub('[\r\n]', '')
+        -- Remove exit code (first line)
+        ret = ret:gsub('^.-\n', '')
+        -- Remove Windows network drive error (fix by jkooks)
+        ret = ret:gsub('^.-Defaulting to Windows directory%.', '')
+        -- Remove all newlines
+        ret = ret:gsub('[\r\n]', '')
         if ret ~= '' then
             print('Return value:\n' .. ret, debug)
         end
