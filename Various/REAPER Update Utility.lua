@@ -1,10 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.1
+  @version 1.3.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Minor Windows bugfixes
+    - OSX is now supported
+    - Changelog links will search for corresponding forum posts
+    - New simplified update logic (supports RC versions)
+    - Fix for Windows network drives (by jkooks)
 ]]
 -- Set this to true to show debugging output
 local debug = false
