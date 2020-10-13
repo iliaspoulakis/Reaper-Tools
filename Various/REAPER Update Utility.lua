@@ -81,7 +81,7 @@ function ExecProcess(cmd, timeout)
     return ret
 end
 
-function SaveExitAndInstall(install_cmd)
+function ExecInstall(install_cmd)
     -- File: Close all projects
     reaper.Main_OnCommand(40886, 0)
 
@@ -89,7 +89,8 @@ function SaveExitAndInstall(install_cmd)
         ExecProcess(install_cmd)
         -- File: Quit REAPER
         reaper.Main_OnCommand(40004, 0)
-        return true
+    else
+        reaper.MB('\nInstallation cancelled!\n ', title, 0)
     end
 end
 
@@ -381,12 +382,7 @@ function Main()
             -- Windows installer: /S is silent mode, /D specifies directory
             local cmd = '%s /S /D=%s & cd /D %s & start reaper.exe & del %s'
             local dfile_path = tmp_path .. dfile_name
-
-            -- Save, exit and run install command
-            cmd = cmd:format(dfile_path, install_path, install_path, dfile_path)
-            if not SaveExitAndInstall(cmd) then
-                reaper.MB('\nInstallation cancelled!\n ', title, 0)
-            end
+            ExecInstall(cmd:format(dfile_path, install_path, install_path, dfile_path))
             return
         end
 
@@ -400,12 +396,7 @@ function Main()
             cmd = cmd .. ' && cp -rf $app_name %s'
             -- Unmount file and restart reaper
             cmd = cmd .. ' ; cd && hdiutil unmount $mount_dir ; open %s/$app_name'
-
-            -- Save, exit and run install command
-            cmd = cmd:format(tmp_path, dfile_name, install_path, install_path)
-            if not SaveExitAndInstall(cmd) then
-                reaper.MB('\nInstallation cancelled!\n ', title, 0)
-            end
+            ExecInstall(cmd:format(tmp_path, dfile_name, install_path, install_path))
             return
         end
 
@@ -426,15 +417,9 @@ function Main()
             cmd = cmd .. ' --usr-local-bin-symlink'
             -- Wrap install command in new shell with sudo privileges (for chaining restart)
             cmd = "/bin/sh -c '" .. cmd .. "' ; %s/reaper"
-
             -- Linux installer will also create a REAPER directory
             local outer_install_path = install_path:gsub('/REAPER$', '')
-
-            -- Save, exit and run install command
-            cmd = cmd:format(tmp_path, arch, outer_install_path, install_path)
-            if not SaveExitAndInstall(cmd) then
-                reaper.MB('\nInstallation cancelled!\n ', title, 0)
-            end
+            ExecInstall(cmd:format(tmp_path, arch, outer_install_path, install_path))
             return
         end
 
