@@ -11,6 +11,7 @@
 ]]
 -- Set this to true to show debugging output
 local debug = false
+local log = false
 
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -57,6 +58,13 @@ function print(msg, debug)
     if debug == nil or debug then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
+    if log then
+        local separator = platform:match('Win') and '\\' or '/'
+        local log_path = res_path .. separator .. 'update-utility.log'
+        local log_file = io.open(log_path, 'a')
+        log_file:write(msg, '\n')
+        log_file:close()
+    end
 end
 
 function ExecProcess(cmd, timeout)
@@ -66,7 +74,7 @@ function ExecProcess(cmd, timeout)
         cmd = '/bin/sh -c "' .. cmd .. '"'
     end
     local ret = reaper.ExecProcess(cmd, timeout or -2)
-    print('Executing command:\n' .. cmd, debug)
+    print('\nExecuting command:\n' .. cmd, debug)
     if ret then
         -- Remove exit code (first line)
         ret = ret:gsub('^.-\n', '')
@@ -284,22 +292,21 @@ function Main()
     local step_file = io.open(step_path, 'r')
     if step_file then
         step = step_file:read('*a'):gsub('[^%w_]+', '')
+        print('\n--STEP ' .. tostring(step), debug)
         step_file:close()
         os.remove(step_path)
 
         if step == 'check_update' then
-            print('\nSTEP ' .. step, debug)
-            task = 'Checking for updates...'
             -- Download the HTML of the REAPER website
             local cmd = dl_cmd .. ' && ' .. dl_cmd
             cmd = cmd:format(main_dlink, main_path, dev_dlink, dev_path)
             -- Show buttons if download succeeds, otherwise show error
             cmd = cmd .. ' && echo display_update > %s || echo err_internet > %s'
             ExecProcess(cmd:format(step_path, step_path))
+            task = 'Checking for updates...'
         end
 
         if step == 'display_update' then
-            print('\nSTEP ' .. step, debug)
             -- Parse the REAPER website html for the download link
             local file = io.open(main_path, 'r')
             if not file then
@@ -327,20 +334,27 @@ function Main()
             main_version = main_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
             dev_version = dev_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
 
+            print('Curr version: ' .. curr_version, debug)
+            print('Main version: ' .. main_version, debug)
+            print('Dev version: ' .. dev_version, debug)
+
             -- Check if there's new version
             if reaper.GetExtState(title, 'main_version') ~= main_version then
                 new_version = main_version
+                print('Found new main version', debug)
             end
             if reaper.GetExtState(title, 'dev_version') ~= dev_version then
                 -- If both are new, show update to the currently installed version
                 local is_dev_installed = not curr_version:match('^%d+%.%d+$')
                 if not new_version or is_dev_installed then
                     new_version = dev_version
+                    print('Found new dev version', debug)
                 end
             end
             -- Check if the new version is already installed (first script run)
             if new_version == curr_version then
                 new_version = nil
+                print('Newly found version is already installed', debug)
             end
             -- Save latest version numbers in extstate for next check
             reaper.SetExtState(title, 'main_version', main_version, true)
@@ -359,9 +373,7 @@ function Main()
         end
 
         if step == 'download' then
-            print('\nSTEP ' .. step, debug)
             -- Download chosen REAPER version
-            task = 'Downloading...'
             dfile_name = user_dlink:gsub('.-/', '')
             local cmd = dl_cmd:format(user_dlink, tmp_path .. dfile_name)
             -- Choose next step based on platform
@@ -375,10 +387,10 @@ function Main()
             -- Go to next step if download succeeds, otherwise show error
             cmd = cmd .. '&& echo %s > %s || echo err_internet > %s'
             ExecProcess(cmd:format(next_step, step_path, step_path))
+            task = 'Downloading...'
         end
 
         if step == 'windows_install' then
-            print('\nSTEP ' .. step, debug)
             -- Windows installer: /S is silent mode, /D specifies directory
             local cmd = '%s /S /D=%s & cd /D %s & start reaper.exe & del %s'
             local dfile_path = tmp_path .. dfile_name
@@ -387,7 +399,6 @@ function Main()
         end
 
         if step == 'osx_install' then
-            print('\nSTEP ' .. step, debug)
             -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
             local cmd = 'mount_dir=$(yes | hdiutil attach %s%s | grep Volumes | cut -f 3)'
             -- Get the .app name
@@ -401,15 +412,13 @@ function Main()
         end
 
         if step == 'linux_extract' then
-            print('\nSTEP ' .. step, debug)
             -- Extract tar file
-            task = 'Extracting...'
             local cmd = 'tar -xf %s%s -C %s && echo linux_install > %s'
             ExecProcess(cmd:format(tmp_path, dfile_name, tmp_path, step_path))
+            task = 'Extracting...'
         end
 
         if step == 'linux_install' then
-            print('\nSTEP ' .. step, debug)
             -- Run Linux installation and restart
             local cmd = 'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
             -- Comment out the following lines to disable desktop integration etc.
@@ -440,7 +449,6 @@ function Main()
         end
 
         if step:match('^open_.-_changelog$') then
-            print('\nSTEP ' .. step, debug)
             local file_path, version, changelog
             if step:match('main') then
                 main_cl = nil
@@ -473,7 +481,6 @@ function Main()
         end
 
         if step == 'err_internet' then
-            print('\nSTEP ' .. step, debug)
             if not startup_mode then
                 reaper.MB('Download failed', 'Error', 0)
             end
@@ -497,10 +504,11 @@ function Main()
     reaper.defer(Main)
 end
 
-print('\nSTARTING...', debug)
+print('\n-------------------------------------------', debug)
 print('CPU achitecture: ' .. tostring(arch), debug)
 print('Installation path: ' .. tostring(install_path), debug)
 print('Resource path: ' .. tostring(res_path), debug)
+print('Reaper version: ' .. curr_version, debug)
 
 if not platform:match('Win') then
     -- String escape Unix paths (spaces and brackets)
@@ -593,6 +601,13 @@ else
     local is_in_start_window = start_diff >= 0 and start_diff <= start_timeout
     local is_in_load_window = load_diff >= 0 and load_diff <= load_timeout
     startup_mode = is_in_start_window and is_in_load_window
+end
+
+if log then
+    local msg =
+        " \nLogging to file is enabled!\n\nYou can find the file 'update-utility.log' \z
+    in your resource directory:\n--> Options --> Show REAPER resource path...\n "
+    reaper.MB(msg, title, 0)
 end
 
 print('Startup Mode: ' .. tostring(startup_mode), debug)
