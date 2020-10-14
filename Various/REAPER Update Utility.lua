@@ -550,11 +550,10 @@ print('Startup extstate: ' .. tostring(has_already_run), debug)
 -- Check if splash is currently visible
 local is_splash_vis = reaper.Splash_GetWnd() ~= nil
 print('Startup splash: ' .. tostring(is_splash_vis), debug)
-
-if is_splash_vis then
-    startup_mode = true
-elseif has_already_run then
+if has_already_run then
     startup_mode = false
+elseif is_splash_vis then
+    startup_mode = true
 else
     -- Get file last modification time
     local cmd = 'cd %s && date -r %s +%%s'
