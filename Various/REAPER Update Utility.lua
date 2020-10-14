@@ -150,7 +150,7 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.set(0.6)
 
     if is_new then
-        gfx.set(1.15 * opacity, 0.92 * opacity, 0.6 * opacity)
+        gfx.set(1.15 * opacity, 0.92 * opacity, 0.55 * opacity)
     end
 
     if is_hover then
@@ -197,7 +197,6 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.drawstr(subversion_text, 1)
 
     -- Changelog
-    gfx.set(0.6)
     gfx.setfont(1, '', 12 * font_factor)
     local changelog_text = 'CHANGELOG'
 
@@ -221,12 +220,14 @@ function DrawButton(x, y, version, dlink, changelog)
     local hov_h = gfx.y + math.floor(h / 16) + t_h
     local is_hover = m_x >= x and m_x <= x + w and m_y >= hov_y and m_y <= hov_h
 
+    gfx.set(0.57)
+
     if is_hover then
         gfx.set(0.8, 0.6, 0.35)
     end
 
     if is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.1, 0.65, 0.5)
+        gfx.set(0.9, 0.7, 0.45)
         user_dlink = changelog
     end
 
