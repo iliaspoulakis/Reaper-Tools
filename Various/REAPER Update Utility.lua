@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added file logging
-    - Removed OSX restriction
+    - Correctly display RC version name
 ]]
 -- Set this to true to show debugging output
 local debug = false
