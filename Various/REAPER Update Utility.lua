@@ -282,7 +282,7 @@ function ShowGUI()
     local w, h = 500, 250
     local x, y = reaper.GetMousePosition()
     local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
-    gfx.init(title, w, h, 0, (r + l - w) / 2, (b + t - h) / 2)
+    gfx.init(title, w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
 end
 
 function Main()
@@ -506,7 +506,7 @@ print('\n-------------------------------------------', debug)
 print('CPU achitecture: ' .. tostring(arch), debug)
 print('Installation path: ' .. tostring(install_path), debug)
 print('Resource path: ' .. tostring(res_path), debug)
-print('Reaper version: ' .. curr_version, debug)
+print('Reaper version: ' .. tostring(curr_version), debug)
 
 if not platform:match('Win') then
     -- String escape Unix paths (spaces and brackets)
