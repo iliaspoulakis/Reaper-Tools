@@ -180,7 +180,7 @@ function DrawButton(x, y, version, dlink, changelog)
 
     -- Version
     gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
-    local version_text = version:match('[^+]+')
+    local version_text = version:match('^([%d%.]+)') or ''
     local t_w, t_h = gfx.measurestr(version_text)
     gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
     gfx.y = math.floor(gfx.h / 2 - t_h / 2)
@@ -188,10 +188,10 @@ function DrawButton(x, y, version, dlink, changelog)
 
     -- Subversion
     gfx.setfont(1, '', 15 * font_factor, string.byte('i'))
-    local subversion_text = version:match('(+.-)$') or ''
+    local subversion_text = version:match('[%d%.]+(.-)$') or ''
     local t_w = gfx.measurestr(subversion_text)
     gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
-    gfx.y = math.floor(gfx.y + t_h) + 4
+    gfx.y = math.floor(gfx.y + t_h) + 5
     gfx.drawstr(subversion_text, 1)
 
     -- Changelog
