@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.2
+  @version 1.3.3
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Correctly display RC version name
+    - Fix startup time format issue
+    - Fix for Windows "Appears to be running" dialog
 ]]
 -- Set this to true to show debugging output
 local debug = false
@@ -91,9 +92,15 @@ function ExecInstall(install_cmd)
     reaper.Main_OnCommand(40886, 0)
 
     if reaper.IsProjectDirty(0) == 0 then
-        ExecProcess(install_cmd)
+        -- In Windows execute after quitting to avoid error dialog
+        if not platform:match('Win') then
+            ExecProcess(install_cmd)
+        end
         -- File: Quit REAPER
         reaper.Main_OnCommand(40004, 0)
+        if platform:match('Win') then
+            ExecProcess(install_cmd)
+        end
     else
         reaper.MB('\nInstallation cancelled!\n ', title, 0)
     end
