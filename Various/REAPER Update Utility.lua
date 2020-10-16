@@ -36,7 +36,7 @@ local tmp_path, step_path, main_path, dev_path
 -- Startup mode
 local startup_mode
 local start_timeout = 90
-local load_timeout = 2
+local load_timeout = 3
 
 -- Download variables
 local dl_cmd, browser_cmd, user_dlink, dfile_name
@@ -267,11 +267,16 @@ function DrawButtons()
 end
 
 function ConvertToSeconds(time)
-    local i = 2
     local res = 0
+    local i = 2
     for num in time:gmatch('%d+') do
         res = res + tonumber(num) * 60 ^ i
         i = i - 1
+    end
+    -- Make sure it works shortly before 12
+    res = res % (12 * 60 * 60)
+    if res <= start_timeout then
+        res = res + 12 * 60 * 60
     end
     return res
 end
@@ -343,7 +348,7 @@ function Main()
             end
             if reaper.GetExtState(title, 'dev_version') ~= dev_version then
                 -- If both are new, show update to the currently installed version
-                local is_dev_installed = not curr_version:match('^%d+%.%d+$')
+                local is_dev_installed = not curr_version:match('^%d+%.%d+%a*$')
                 if not new_version or is_dev_installed then
                     new_version = dev_version
                     print('Found new dev version', debug)
@@ -556,7 +561,13 @@ print('Startup extstate: ' .. tostring(has_already_run), debug)
 -- Check if splash is currently visible
 local is_splash_vis = reaper.Splash_GetWnd() ~= nil
 print('Startup splash: ' .. tostring(is_splash_vis), debug)
-if has_already_run then
+-- Check if action is started using a hotkey
+local _, _, _, _, mode, res, val = reaper.get_action_context()
+local is_hotkey = not (mode == -1 and res == -1 and val == -1)
+print('Startup hotkey: ' .. tostring(is_hotkey), debug)
+if is_hotkey then
+    startup_mode = false
+elseif has_already_run then
     startup_mode = false
 elseif is_splash_vis then
     startup_mode = true
@@ -577,7 +588,11 @@ else
     -- Get current OS time
     local os_time = os.time()
     if platform:match('Win') then
-        os_time = os.date('%H:%M:%S')
+        -- Touch file and get it's modification date (os.time format is unreliable)
+        cmd = 'cd /D %s && copy /b %s +,, >nul 2>&1 && '
+        cmd = cmd .. 'forfiles /M %s /C "cmd /c echo @ftime"'
+        cmd = cmd:format(res_path, 'reaper-reginfo2.ini', 'reaper-reginfo2.ini')
+        os_time = ExecProcess(cmd, 1000)
         print('Start time (raw): ' .. start_time, debug)
         print('Load time (raw): ' .. load_time, debug)
         print('Curr time (raw): ' .. os_time, debug)
@@ -585,8 +600,6 @@ else
         start_time = ConvertToSeconds(start_time)
         load_time = ConvertToSeconds(load_time)
         os_time = ConvertToSeconds(os_time)
-        -- Make sure it works shortly before 12pm
-        os_time = os_time <= start_timeout and os_time + 24 * 60 * 60 or os_time
     end
     print('Start time: ' .. start_time, debug)
     print('Load time: ' .. load_time, debug)
@@ -598,7 +611,9 @@ else
     print('Load diff: ' .. load_diff .. ' / ' .. load_timeout, debug)
     local is_in_start_window = start_diff >= 0 and start_diff <= start_timeout
     local is_in_load_window = load_diff >= 0 and load_diff <= load_timeout
-    startup_mode = is_in_start_window and is_in_load_window
+    local is_same_time = start_time == load_time
+    print('Same start time: ' .. tostring(is_same_time), debug)
+    startup_mode = is_in_start_window and (is_in_load_window or is_same_time)
 end
 
 if log then
