@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="5b5f7409c1d11463d00c66e440c6db7f6dc099f4">
+<index version="1" name="FTC Tools" commit="8b0f9e4acc90dd96ed66a9916a6efeee6cb4b5a6">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -1008,6 +1008,12 @@
         <changelog><![CDATA[- Fix startup time format issue
 - Fix for Windows "Appears to be running" dialog]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5b5f7409c1d11463d00c66e440c6db7f6dc099f4/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.4.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-10-21T14:19:42Z">
+        <changelog><![CDATA[- List old Landoleet versions on right click
+- Display 'None' when Landoleet hosts no version at all
+- Fix for startup use inside custom action]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/8b0f9e4acc90dd96ed66a9916a6efeee6cb4b5a6/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
