@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.3
+  @version 1.4.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix startup time format issue
-    - Fix for Windows "Appears to be running" dialog
+    - List old Landoleet versions on right click
+    - Display 'None' when Landoleet hosts no version at all
+    - Fix for startup use inside custom action
 ]]
 -- Set this to true to show debugging output
 local debug = false
