@@ -9,6 +9,7 @@
 ]]
 -- Set this to true to show debugging output
 local debug = false
+-- Set this to true to save debugging output in a log file
 local log = false
 
 -- App version & platform architecture
@@ -26,8 +27,14 @@ arch = arch == 'OSX32' and 'i386' or arch
 -- Links to REAPER websites
 local main_dlink = 'https://www.reaper.fm/download.php'
 local dev_dlink = 'https://www.landoleet.org/'
+local old_dlink = 'https://www.landoleet.org/old/'
 local main_changelog = 'https://www.reaper.fm/whatsnew.txt'
 local dev_changelog = 'https://www.landoleet.org/whatsnew-dev.txt'
+
+local main_list = {}
+local dev_list = {}
+local is_main_clicked
+local old_pressed
 
 -- Paths
 local install_path = reaper.GetExePath()
@@ -46,6 +53,8 @@ local dl_cmd, browser_cmd, user_dlink, dfile_name
 local step = 0
 local direction = 1
 local opacity = 0.65
+local click = {}
+local is_main_clicked = false
 local main_cl, dev_cl
 local show_buttons = false
 local task = 'Initializing...'
@@ -106,7 +115,7 @@ function ExecInstall(install_cmd)
     end
 end
 
-function ParseDownloadLink(file, dlink)
+function GetFilePattern()
     local file_pattern
     if platform:match('Win') then
         file_pattern = (arch and '_' .. arch or '') .. '%-install%.exe'
@@ -117,13 +126,93 @@ function ParseDownloadLink(file, dlink)
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
     end
-    -- Match href file download link
+    return 'href="([^_"]-' .. file_pattern .. ')"'
+end
+
+function ParseDownloadLink(file, dlink)
+    local file_pattern = GetFilePattern()
+    -- Match first file download link
     for line in file:lines() do
-        local href = line:match('href="([^_"]-' .. file_pattern .. ')"')
-        if href then
+        local file_name = line:match(file_pattern)
+        if file_name then
             dlink = dlink:match('(.-%..-%..-/)')
-            return dlink .. href
+            return dlink .. file_name
         end
+    end
+end
+
+function parseOldDownloadLinks(file, old_dlink)
+    local file_pattern = GetFilePattern()
+    -- Find matching file download links
+    for line in file:lines() do
+        local file_name = line:match(file_pattern)
+        if file_name and file_name:match('reaper') then
+            local link = old_dlink .. file_name
+            local main_match = file_name:match('reaper(%d+%a*)_')
+            -- Divide matches into separate lists for main and dev releases
+            if main_match then
+                main_match = main_match:gsub('^(%d)', '%1.')
+                if main_match ~= main_version then
+                    main_list[#main_list + 1] = {version = main_match, link = link}
+                end
+            else
+                local dev_match = file_name:match('reaper(.-)_')
+                dev_match = dev_match:gsub('^(%d)', '%1.')
+                if dev_match ~= dev_version then
+                    dev_list[#dev_list + 1] = {version = dev_match, link = link}
+                end
+            end
+        end
+    end
+end
+
+function showOldMenu()
+    local list = is_main_clicked and main_list or dev_list
+    local prev_group
+    local menu_list = {}
+    local group_list = {}
+    -- Reorder list for showing in menu (reverse main order, but not sublists)
+    for i = #list, 1, -1 do
+        local group = list[i].version:match('^[%d.]+')
+        if prev_group and group ~= prev_group or i == 1 then
+            if #group_list > 1 then
+                group_list[1].is_last = true
+                group_list[#group_list].is_first = true
+            end
+            for n = #group_list, 1, -1 do
+                if list[i].version ~= curr_version then
+                    menu_list[#menu_list + 1] = group_list[n]
+                end
+            end
+            group_list = {}
+        end
+        group_list[#group_list + 1] = list[i]
+        prev_group = group
+    end
+
+    -- Create string to use with showmenu function
+    local menu = ''
+    for i, item in ipairs(menu_list) do
+        local sep = i == 1 and '' or '|'
+        if item.is_first then
+            local group = item.version:match('^[%d.]+')
+            sep = sep .. '>' .. group .. '|'
+        end
+        if item.is_last then
+            sep = sep .. '<'
+        end
+        menu = menu .. sep .. item.version
+    end
+
+    -- Determine where to show the menu
+    gfx.x = gfx.w * (is_main_clicked and 1 or 4) / 7
+    gfx.y = gfx.h * 3 / 4 + 4
+
+    local ret = gfx.showmenu(menu)
+    if ret > 0 then
+        user_dlink = menu_list[ret].link
+        ExecProcess('echo download > ' .. step_path)
+        show_buttons = false
     end
 end
 
@@ -158,25 +247,48 @@ function DrawButton(x, y, version, dlink, changelog)
     end
 
     if is_hover then
-        gfx.set(0.8, 0.6, 0.35)
+        gfx.set(0.72)
     end
 
     if is_installed then
         gfx.set(0.1, 0.65, 0.5)
     end
 
+    -- Button left click
     if not is_installed and is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.1, 0.65, 0.5)
-        user_dlink = dlink
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'install'}
     end
 
-    if user_dlink == dlink and gfx.mouse_cap == 0 then
-        if is_hover then
+    -- Button left click release
+    if click.type == is_main and click.action == 'install' and gfx.mouse_cap == 0 then
+        if is_hover and dlink ~= '' then
+            user_dlink = dlink
             ExecProcess('echo download > ' .. step_path)
             show_buttons = false
-        else
-            user_dlink = nil
         end
+        click = {}
+    end
+
+    -- Button right click
+    if is_hover and gfx.mouse_cap == 2 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'show_old'}
+    end
+
+    -- Button right click release
+    if click.type == is_main and click.action == 'show_old' and gfx.mouse_cap == 0 then
+        if is_hover then
+            is_main_clicked = is_main
+            if #main_list > 0 and #dev_list > 0 then
+                reaper.defer(showOldMenu)
+            else
+                show_buttons = false
+                task = 'Fetching old versions...'
+                ExecProcess('echo get_old_versions > ' .. step_path)
+            end
+        end
+        click = {}
     end
 
     -- Border
@@ -186,7 +298,7 @@ function DrawButton(x, y, version, dlink, changelog)
 
     -- Version
     gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
-    local version_text = version:match('^([%d%.]+)') or ''
+    local version_text = version:match('^([%d%.]+)') or 'none'
     local t_w, t_h = gfx.measurestr(version_text)
     gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
     gfx.y = math.floor(gfx.h / 2 - t_h / 2)
@@ -227,25 +339,27 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.set(0.57)
 
     if is_hover then
-        gfx.set(0.8, 0.6, 0.35)
+        gfx.set(0.72)
     end
 
+    -- Changelog left click
     if is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.9, 0.7, 0.45)
-        user_dlink = changelog
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'show_cl'}
     end
 
-    if user_dlink == changelog and gfx.mouse_cap == 0 then
+    -- Changelog left click release
+    if click.type == is_main and click.action == 'show_cl' and gfx.mouse_cap == 0 then
         if is_hover then
             if is_main then
                 main_cl = 'CHANGELOG'
                 ExecProcess('echo get_main_changelog > ' .. step_path)
-            else
+            elseif dev_version ~= 'none' then
                 dev_cl = 'CHANGELOG'
                 ExecProcess('echo get_dev_changelog > ' .. step_path)
             end
         end
-        user_dlink = nil
+        click = {}
     end
     gfx.drawstr(changelog_text, 1)
 
@@ -326,6 +440,11 @@ function Main()
             main_dlink = ParseDownloadLink(file, main_dlink)
             file:close()
             os.remove(main_path)
+            if not main_dlink then
+                local msg = 'Could not parse download link!\nOS: %s\nArch: %s'
+                reaper.MB(msg:format(platform, arch), 'Error', 0)
+                return
+            end
             -- Parse the LANDOLEET website html for the download link
             local file = io.open(dev_path, 'r')
             if not file then
@@ -335,18 +454,18 @@ function Main()
             dev_dlink = ParseDownloadLink(file, dev_dlink)
             file:close()
             os.remove(dev_path)
-            if not main_dlink or not dev_dlink then
-                local msg = 'Could not parse download link!\nOS: %s\nArch: %s'
-                reaper.MB(msg:format(platform, arch), 'Error', 0)
-                return
-            end
             -- Parse latest versions from download link
             main_version = main_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
-            dev_version = dev_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
+            if dev_dlink then
+                dev_version = dev_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
+            else
+                dev_dlink = ''
+                dev_version = 'none'
+            end
 
-            print('Curr version: ' .. curr_version, debug)
-            print('Main version: ' .. main_version, debug)
-            print('Dev version: ' .. dev_version, debug)
+            print('Curr version: ' .. tostring(curr_version), debug)
+            print('Main version: ' .. tostring(main_version), debug)
+            print('Dev version: ' .. tostring(dev_version), debug)
 
             -- Check if there's new version
             if reaper.GetExtState(title, 'main_version') ~= main_version then
@@ -356,7 +475,7 @@ function Main()
             if reaper.GetExtState(title, 'dev_version') ~= dev_version then
                 -- If both are new, show update to the currently installed version
                 local is_dev_installed = not curr_version:match('^%d+%.%d+%a*$')
-                if not new_version or is_dev_installed then
+                if (not new_version or is_dev_installed) and dev_version ~= 'none' then
                     new_version = dev_version
                     print('Found new dev version', debug)
                 end
@@ -442,6 +561,27 @@ function Main()
             return
         end
 
+        if step == 'get_old_versions' then
+            -- Show buttons if download succeeds, otherwise show error
+            local cmd = dl_cmd
+            cmd = cmd .. ' && echo show_old_versions > %s || echo err_internet > %s'
+            cmd = cmd:format(old_dlink, main_path, step_path, step_path)
+            ExecProcess(cmd)
+        end
+
+        if step == 'show_old_versions' then
+            local file = io.open(main_path, 'r')
+            if not file then
+                reaper.MB('File not found: ' .. main_path, 'Error', 0)
+                return
+            end
+            parseOldDownloadLinks(file, old_dlink)
+            os.remove(main_path)
+            task = ''
+            show_buttons = true
+            reaper.defer(showOldMenu)
+        end
+
         if step:match('^get_.-_changelog$') then
             local file_path, cl_cmd, link
             if step:match('main') then
@@ -472,22 +612,24 @@ function Main()
                 changelog = dev_changelog
             end
             local file = io.open(file_path, 'r')
-            local pattern = '<a href=".-" id="thread_title_(%d+)">v*V*'
-            pattern = pattern .. version:gsub('%+', '%%+') .. ' '
-            -- Default: Open the changelog website directly
-            local cmd = browser_cmd .. changelog
-            for line in file:lines() do
-                local forum_link = line:match(pattern)
-                if forum_link then
-                    -- If forum post is matched, open this as changelog instead
-                    local thread_link = 'https://forum.cockos.com/showthread.php?t='
-                    cmd = browser_cmd .. thread_link .. forum_link
-                    break
+            if file then
+                local thread_link = 'https://forum.cockos.com/showthread.php?t='
+                local pattern = '<a href=".-" id="thread_title_(%d+)">v*V*'
+                pattern = pattern .. version:gsub('%+', '%%+') .. ' '
+                -- Default: Open the changelog website directly
+                local cmd = browser_cmd .. changelog
+                for line in file:lines() do
+                    local forum_link = line:match(pattern)
+                    if forum_link then
+                        -- If forum post is matched, open this as changelog instead
+                        cmd = browser_cmd .. thread_link .. forum_link
+                        break
+                    end
                 end
+                file:close()
+                ExecProcess(cmd)
+                os.remove(file_path)
             end
-            file:close()
-            ExecProcess(cmd)
-            os.remove(file_path)
         end
 
         if step == 'err_internet' then
@@ -568,13 +710,8 @@ print('Startup extstate: ' .. tostring(has_already_run), debug)
 -- Check if splash is currently visible
 local is_splash_vis = reaper.Splash_GetWnd() ~= nil
 print('Startup splash: ' .. tostring(is_splash_vis), debug)
--- Check if action is started using a hotkey
-local _, _, _, _, mode, res, val = reaper.get_action_context()
-local is_hotkey = not (mode == -1 and res == -1 and val == -1)
-print('Startup hotkey: ' .. tostring(is_hotkey), debug)
-if is_hotkey then
-    startup_mode = false
-elseif has_already_run then
+
+if has_already_run then
     startup_mode = false
 elseif is_splash_vis then
     startup_mode = true
