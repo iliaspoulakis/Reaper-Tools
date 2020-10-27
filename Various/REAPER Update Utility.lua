@@ -1,12 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.4.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - List old Landoleet versions on right click
-    - Display 'None' when Landoleet hosts no version at all
-    - Fix for startup use inside custom action
+    - Added debug button
 ]]
 -- Set this to true to show debugging output
 local debug = false
