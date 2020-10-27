@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="8b0f9e4acc90dd96ed66a9916a6efeee6cb4b5a6">
+<index version="1" name="FTC Tools" commit="5592f7faebc989f45deb6afc52eb37e266cd6cb2">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -1014,6 +1014,10 @@
 - Display 'None' when Landoleet hosts no version at all
 - Fix for startup use inside custom action]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/8b0f9e4acc90dd96ed66a9916a6efeee6cb4b5a6/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.4.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-10-27T13:04:19Z">
+        <changelog><![CDATA[- Added debug button]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5592f7faebc989f45deb6afc52eb37e266cd6cb2/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
