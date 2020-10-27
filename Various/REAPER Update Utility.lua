@@ -32,18 +32,13 @@ local old_dlink = 'https://www.landoleet.org/old/'
 local main_changelog = 'https://www.reaper.fm/whatsnew.txt'
 local dev_changelog = 'https://www.landoleet.org/whatsnew-dev.txt'
 
-local main_list = {}
-local dev_list = {}
-local is_main_clicked
-local old_pressed
-
 -- Paths
 local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
 local tmp_path, step_path, main_path, dev_path
 
 -- Startup mode
-local startup_mode
+local startup_mode = false
 local start_timeout = 90
 local load_timeout = 3
 
@@ -62,6 +57,11 @@ local task = 'Initializing...'
 local title = 'REAPER Update Utility'
 local font_factor = platform:match('Win') and 1.25 or 1
 
+local main_list = {}
+local dev_list = {}
+
+local debug_str = ''
+
 function print(msg, debug)
     if debug == nil or debug then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
@@ -73,6 +73,7 @@ function print(msg, debug)
         log_file:write(msg, '\n')
         log_file:close()
     end
+    debug_str = debug_str .. tostring(msg) .. '\n'
 end
 
 function ExecProcess(cmd, timeout)
@@ -376,6 +377,31 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.x = c_x - math.floor(i_w / 2) + 1
     gfx.y = c_y - math.floor(i_h / 2) + 1
     gfx.drawstr(info_text, 1)
+
+    -- Debug output
+    gfx.set(0.22)
+    local is_hover = m_x >= gfx.w - 14 and m_x <= gfx.w - 2 and m_x >= 2 and m_y <= 14
+
+    if is_hover then
+        gfx.set(0.5)
+    end
+
+    -- Debug output left click
+    if is_hover and gfx.mouse_cap == 1 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'debug'}
+    end
+
+    -- Debug output left click release
+    if click.type == is_main and click.action == 'debug' and gfx.mouse_cap == 0 then
+        if is_hover then
+            reaper.ClearConsole()
+            reaper.ShowConsoleMsg(debug_str)
+        end
+        click = {}
+    end
+
+    gfx.rect(gfx.w - 8, 4, 3, 3)
 end
 
 function DrawButtons()
@@ -464,16 +490,21 @@ function Main()
                 dev_version = 'none'
             end
 
-            print('Curr version: ' .. tostring(curr_version), debug)
-            print('Main version: ' .. tostring(main_version), debug)
+            local saved_main_version = reaper.GetExtState(title, 'main_version')
+            local saved_dev_version = reaper.GetExtState(title, 'dev_version')
+
+            print('\nCurr version: ' .. tostring(curr_version), debug)
+            print('\nSaved main version: ' .. tostring(saved_main_version), debug)
+            print('Saved dev version: ' .. tostring(saved_dev_version), debug)
+            print('\nMain version: ' .. tostring(main_version), debug)
             print('Dev version: ' .. tostring(dev_version), debug)
 
             -- Check if there's new version
-            if reaper.GetExtState(title, 'main_version') ~= main_version then
+            if saved_main_version ~= main_version then
                 new_version = main_version
                 print('Found new main version', debug)
             end
-            if reaper.GetExtState(title, 'dev_version') ~= dev_version then
+            if saved_dev_version ~= dev_version then
                 -- If both are new, show update to the currently installed version
                 local is_dev_installed = not curr_version:match('^%d+%.%d+%a*$')
                 if (not new_version or is_dev_installed) and dev_version ~= 'none' then
@@ -489,6 +520,8 @@ function Main()
             -- Save latest version numbers in extstate for next check
             reaper.SetExtState(title, 'main_version', main_version, true)
             reaper.SetExtState(title, 'dev_version', dev_version, true)
+
+            print('\nNew version: ' .. tostring(new_version), debug)
 
             if startup_mode then
                 if not new_version then
