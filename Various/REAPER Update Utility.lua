@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.1
+  @version 1.4.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added debug button
+    - Fixed whats-new link for RC versions
 ]]
 -- Set this to true to show debugging output
 local debug = false
