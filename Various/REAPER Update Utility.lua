@@ -29,6 +29,7 @@ local dev_dlink = 'https://www.landoleet.org/'
 local old_dlink = 'https://www.landoleet.org/old/'
 local main_changelog = 'https://www.reaper.fm/whatsnew.txt'
 local dev_changelog = 'https://www.landoleet.org/whatsnew-dev.txt'
+local rc_changelog = 'https://www.landoleet.org/whatsnew-rc.txt'
 
 -- Paths
 local install_path = reaper.GetExePath()
@@ -641,7 +642,7 @@ function Main()
                 dev_cl = nil
                 file_path = dev_path
                 version = dev_version
-                changelog = dev_changelog
+                changelog = version:match('rc') and rc_changelog or dev_changelog
             end
             local file = io.open(file_path, 'r')
             if file then
