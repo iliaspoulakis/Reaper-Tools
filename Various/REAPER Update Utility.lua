@@ -1,16 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.0
+  @version 1.5.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Backwards compatibility with version naming changes introduced in 6.16
-    - Added settings menu
-    - Added keyboard shortcuts (for blind users)
-        m: Install latest main version
-        d: Install latest dev version
-        M: Open main version changelog in browser
-        D: Open dev version changelog in browser
+    - ARM support
 ]]
 -- Set this to true to show debugging output
 local debug = false
@@ -25,16 +19,19 @@ local main_version, dev_version, new_version, install_version
 
 local arch = app:match('/(.-)$')
 if arch then
-    if arch:lower():match('win') then
+    if arch:match('win') then
         arch = arch:match('64') and 'x64' or arch
     end
-    if arch:lower():match('osx') then
+    if arch:match('OSX') then
         arch = arch:match('64') and 'x86_64' or arch
         arch = arch:match('32') and 'i386' or arch
+        arch = arch:match('arm') and 'arm64' or arch
     end
-    if arch:lower():match('linux') then
+    if arch:match('linux') then
         arch = arch:match('64') and 'x86_64' or arch
         arch = arch:match('32') and 'i686' or arch
+        arch = arch:match('arm') and 'armv7l' or arch
+        arch = arch:match('aarch') and 'aarch64' or arch
     end
 end
 
