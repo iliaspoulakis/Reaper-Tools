@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="03b97809d9aa321d6fba40456898b52b90fd5bc9">
+<index version="1" name="FTC Tools" commit="f3282240fd83869dfb9a332703877c3376b89945">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -1022,6 +1022,16 @@
       <version name="1.4.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-11-12T17:51:36Z">
         <changelog><![CDATA[- Fixed whats-new link for RC versions]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/03b97809d9aa321d6fba40456898b52b90fd5bc9/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.5.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-11-24T00:27:11Z">
+        <changelog><![CDATA[- Backwards compatibility with version naming changes introduced in 6.16
+- Added settings menu
+- Added keyboard shortcuts (for blind users)
+    m: Install latest main version
+    d: Install latest dev version
+    M: Open main version changelog in browser
+    D: Open dev version changelog in browser]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/f3282240fd83869dfb9a332703877c3376b89945/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
