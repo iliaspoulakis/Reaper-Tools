@@ -1,10 +1,16 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.2
+  @version 1.5.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed whats-new link for RC versions
+    - Backwards compatibility with version naming changes introduced in 6.16
+    - Added settings menu
+    - Added keyboard shortcuts (for blind users)
+        m: Install latest main version
+        d: Install latest dev version
+        M: Open main version changelog in browser
+        D: Open dev version changelog in browser
 ]]
 -- Set this to true to show debugging output
 local debug = false
