@@ -15,13 +15,22 @@ local log = false
 local platform = reaper.GetOS()
 local app = reaper.GetAppVersion()
 local curr_version = app:gsub('/.-$', '')
-local main_version, dev_version, new_version
+local main_version, dev_version, new_version, install_version
 
 local arch = app:match('/(.-)$')
-arch = arch == 'linux64' and 'x86_64' or arch
-arch = arch == 'linux32' and 'i686' or arch
-arch = arch == 'OSX64' and 'x86_64' or arch
-arch = arch == 'OSX32' and 'i386' or arch
+if arch then
+    if arch:lower():match('win') then
+        arch = arch:match('64') and 'x64' or arch
+    end
+    if arch:lower():match('osx') then
+        arch = arch:match('64') and 'x86_64' or arch
+        arch = arch:match('32') and 'i386' or arch
+    end
+    if arch:lower():match('linux') then
+        arch = arch:match('64') and 'x86_64' or arch
+        arch = arch:match('32') and 'i686' or arch
+    end
+end
 
 -- Links to REAPER websites
 local main_dlink = 'https://www.reaper.fm/download.php'
@@ -40,11 +49,13 @@ local tmp_path, step_path, main_path, dev_path
 local startup_mode = false
 local start_timeout = 90
 local load_timeout = 3
+local settings
 
 -- Download variables
 local dl_cmd, browser_cmd, user_dlink, dfile_name
 
 -- GUI variables
+local m_x, m_y
 local step = 0
 local direction = 1
 local opacity = 0.65
@@ -98,6 +109,18 @@ function ExecProcess(cmd, timeout)
 end
 
 function ExecInstall(install_cmd)
+    if settings.dialog_install.enabled then
+        local msg =
+            'Reaper has to close for the installation process to begin.\n\z
+            Should you have unsaved projects, you will be prompted to save them.\n\z
+            After the installation is complete, reaper will restart automatically.\n\n\z
+            Quit reaper and proceed with installation of v%s?'
+        local ret = reaper.MB(msg:format(install_version), title, 4)
+        if ret == 7 then
+            print('User exit...', debug)
+            return
+        end
+    end
     -- File: Close all projects
     reaper.Main_OnCommand(40886, 0)
 
@@ -212,8 +235,54 @@ function showOldMenu()
     local ret = gfx.showmenu(menu)
     if ret > 0 then
         user_dlink = menu_list[ret].link
+        install_version = menu_list[ret].version
         ExecProcess('echo download > ' .. step_path)
         show_buttons = false
+    end
+end
+
+function LoadSettings()
+    local settings = {
+        ['notify_main'] = {idx = 1, default = true},
+        ['notify_dev'] = {idx = 2, default = true},
+        ['notify_rc'] = {idx = 3, default = true},
+        ['force_startup'] = {idx = 4, default = false},
+        ['dialog_install'] = {idx = 5, default = app:lower():match('osx') ~= nil},
+        ['dialog_dl_cancel'] = {idx = 6, default = true}
+    }
+    for key, setting in pairs(settings) do
+        local ret = reaper.GetExtState(title, key)
+        setting.enabled = ret == 'true' or ret == '' and setting.default
+    end
+    return settings
+end
+
+function ShowSettingsMenu()
+    local state = {}
+    for key, setting in pairs(settings) do
+        state[setting.idx] = {key = key, enabled = setting.enabled}
+    end
+
+    local menu =
+        '>Startup notifications|%1Main|%2Dev|%3RC||<%4Force startup mode\z
+        |>Confirmation dialogs|%5Before installing|%6When cancelling download'
+    local function substitute(s)
+        return state[tonumber(s)].enabled and '!' or ''
+    end
+    menu = menu:gsub('%%(%d+)', substitute)
+
+    local ret = gfx.showmenu(menu)
+
+    if ret > 0 then
+        local enabled = not state[ret].enabled
+        reaper.SetExtState(title, state[ret].key, tostring(enabled), true)
+        settings[state[ret].key].enabled = enabled
+
+        -- Make sure user can't unselect all notification options
+        if not settings.notify_dev.enabled and not settings.notify_rc.enabled then
+            reaper.SetExtState(title, 'notify_main', 'true', true)
+            settings.notify_main.enabled = true
+        end
     end
 end
 
@@ -230,8 +299,6 @@ function DrawTask()
 end
 
 function DrawButton(x, y, version, dlink, changelog)
-    local m_x = gfx.mouse_x
-    local m_y = gfx.mouse_y
     local w = math.floor(gfx.w / 7) * 2
     local h = math.floor(gfx.h / 2)
 
@@ -265,6 +332,7 @@ function DrawButton(x, y, version, dlink, changelog)
     if click.type == is_main and click.action == 'install' and gfx.mouse_cap == 0 then
         if is_hover and dlink ~= '' then
             user_dlink = dlink
+            install_version = version
             ExecProcess('echo download > ' .. step_path)
             show_buttons = false
         end
@@ -376,8 +444,9 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.x = c_x - math.floor(i_w / 2) + 1
     gfx.y = c_y - math.floor(i_h / 2) + 1
     gfx.drawstr(info_text, 1)
+end
 
-    -- Debug output
+function DrawDebugButton()
     gfx.set(0.22)
     local is_hover = m_x >= gfx.w - 14 and m_x <= gfx.w - 2 and m_x >= 2 and m_y <= 14
 
@@ -385,14 +454,14 @@ function DrawButton(x, y, version, dlink, changelog)
         gfx.set(0.5)
     end
 
-    -- Debug output left click
+    -- Left click
     if is_hover and gfx.mouse_cap == 1 then
         gfx.set(0.8, 0.6, 0.35)
-        click = {type = is_main, action = 'debug'}
+        click = {action = 'debug'}
     end
 
-    -- Debug output left click release
-    if click.type == is_main and click.action == 'debug' and gfx.mouse_cap == 0 then
+    -- Left click release
+    if click.action == 'debug' and gfx.mouse_cap == 0 then
         if is_hover then
             reaper.ClearConsole()
             reaper.ShowConsoleMsg(debug_str)
@@ -403,7 +472,39 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.rect(gfx.w - 8, 4, 3, 3)
 end
 
-function DrawButtons()
+function DrawSettingsButton()
+    gfx.set(0.40)
+
+    local is_hover = m_x >= 2 and m_x <= 20 and m_y >= 2 and m_y <= 20
+
+    if is_hover then
+        gfx.set(0.52)
+    end
+
+    -- Left click
+    if is_hover and gfx.mouse_cap == 1 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {action = 'menu'}
+    end
+
+    -- Left click release
+    if click.action == 'menu' and gfx.mouse_cap == 0 then
+        gfx.x = 4
+        gfx.y = 4
+        if is_hover then
+            ShowSettingsMenu()
+        end
+        click = {}
+    end
+
+    gfx.rect(6, 06, 17, 3)
+    gfx.rect(6, 11, 17, 3)
+    gfx.rect(6, 16, 17, 3)
+end
+
+function DrawGUI()
+    m_x = gfx.mouse_x
+    m_y = gfx.mouse_y
     task = ''
     local x = math.floor(gfx.w / 7)
     local y = math.floor(gfx.h / 4)
@@ -411,6 +512,8 @@ function DrawButtons()
     local x = math.floor(gfx.w / 7) * 4
     local y = math.floor(gfx.h / 4)
     DrawButton(x, y, dev_version, dev_dlink, dev_changelog)
+    DrawSettingsButton()
+    DrawDebugButton()
 end
 
 function ConvertToSeconds(time)
@@ -525,6 +628,19 @@ function Main()
             if startup_mode then
                 if not new_version then
                     print('No update found! Exiting...', debug)
+                    return
+                elseif new_version:match('dev') then
+                    if not settings.notify_dev.enabled then
+                        print('No dev notifications! Exiting...', debug)
+                        return
+                    end
+                elseif new_version:match('rc') then
+                    if not settings.notify_rc.enabled then
+                        print('No rc notifications! Exiting...', debug)
+                        return
+                    end
+                elseif not settings.notify_main.enabled then
+                    print('No main notifications! Exiting...', debug)
                     return
                 end
                 ShowGUI()
@@ -676,13 +792,48 @@ function Main()
         -- Exit script on window close & escape key
         local char = gfx.getchar()
         if char == -1 or char == 27 then
-            print('User exit...', debug)
-            return
+            if task == 'Downloading...' and settings.dialog_dl_cancel.enabled then
+                local msg = 'Quit installation of v%s?'
+                local ret = reaper.MB(msg:format(install_version), title, 4)
+                if ret == 6 then
+                    print('User exit...', debug)
+                    return
+                end
+            else
+                print('User exit...', debug)
+                return
+            end
+        end
+        if show_buttons then
+            -- User hotkey 'm'
+            if char == 109 then
+                user_dlink = main_dlink
+                install_version = main_version
+                ExecProcess('echo download > ' .. step_path)
+                show_buttons = false
+            end
+            -- User hotkey 'd'
+            if char == 100 then
+                user_dlink = dev_dlink
+                install_version = dev_version
+                ExecProcess('echo download > ' .. step_path)
+                show_buttons = false
+            end
+            -- User hotkey 'M'
+            if char == 77 then
+                main_cl = 'CHANGELOG'
+                ExecProcess('echo get_main_changelog > ' .. step_path)
+            end
+            -- User hotkey 'D'
+            if char == 68 then
+                dev_cl = 'CHANGELOG'
+                ExecProcess('echo get_dev_changelog > ' .. step_path)
+            end
         end
         -- Draw content
         DrawTask(task)
         if show_buttons then
-            DrawButtons()
+            DrawGUI()
         end
         gfx.update()
     end
@@ -694,6 +845,8 @@ print('CPU achitecture: ' .. tostring(arch), debug)
 print('Installation path: ' .. tostring(install_path), debug)
 print('Resource path: ' .. tostring(res_path), debug)
 print('Reaper version: ' .. tostring(curr_version), debug)
+
+settings = LoadSettings()
 
 if not platform:match('Win') then
     -- String escape Unix paths (spaces and brackets)
@@ -746,6 +899,9 @@ print('Startup splash: ' .. tostring(is_splash_vis), debug)
 
 if has_already_run then
     startup_mode = false
+elseif settings.force_startup.enabled then
+    print('Forced startup up mode is enabled!')
+    startup_mode = true
 elseif is_splash_vis then
     startup_mode = true
 else
