@@ -1,10 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Added support for double-click mouse modifier
+    - Keeps multiple items selected by default
+    - Toggle zoom on audio items by default
+    - Fixed potential crash
 ]]
 ------------------------------ SETTINGS -----------------------------
 
@@ -12,7 +14,10 @@
 local base_note = 60
 
 -- When double clicking midi items, keep all items selected (Mouse modifier)
-local keep_items_selected = false
+local keep_items_selected = true
+
+-- Behavior when double-clicking on audio items
+local zoom_to_audio_items = true
 
 ---------------------------------------------------------------------
 
@@ -230,17 +235,12 @@ if init_item then
     local is_valid = reaper.ValidatePtr(take, 'MediaItem_Take*')
 
     if not is_valid or not reaper.TakeIsMIDI(take) then
-        -- Item: Unselect all items
-        reaper.Main_OnCommand(40289, 0)
-        reaper.SetMediaItemSelected(init_item, true)
-        reaper.UpdateItemInProject(init_item)
-
         if is_valid then
             local source = reaper.GetMediaItemTake_Source(take)
             local file_name = reaper.GetMediaSourceFileName(source, '')
             local video_extensions = {'mp4', 'gif'}
             for _, extension in ipairs(video_extensions) do
-                if file_name:match('%.(.-)$'):lower() == extension then
+                if file_name:lower():match('[^.]+$') == extension then
                     local is_video_visible = reaper.GetToggleCommandState(50125) == 1
                     if not is_video_visible then
                         -- Video: Show/hide video window
@@ -258,9 +258,15 @@ if init_item then
                 reaper.Main_OnCommand(41816, 0)
                 undo_name = 'Item: Open associated project in new tab'
             else
-                -- Cmd: Show media item/take properties
-                reaper.Main_OnCommand(40009, 0)
-                undo_name = 'Show media item/take properties'
+                if zoom_to_audio_items then
+                    -- Cmd: Toggle zoom to selected items
+                    reaper.Main_OnCommand(41622, 0)
+                    undo_name = 'Toggle zoom to selected items'
+                else
+                    -- Cmd: Show media item/take properties
+                    reaper.Main_OnCommand(40009, 0)
+                    undo_name = 'Show media item/take properties'
+                end
             end
         end
         reaper.PreventUIRefresh(-1)
@@ -394,8 +400,7 @@ end
 
 -- Restore previous item selection
 if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt or init_item then
-    -- Item: Unselect all items
-    reaper.Main_OnCommand(40289, 0)
+    reaper.SelectAllMediaItems(0, false)
     for _, item in ipairs(sel_items) do
         reaper.SetMediaItemSelected(item, not init_item or item == init_item)
     end

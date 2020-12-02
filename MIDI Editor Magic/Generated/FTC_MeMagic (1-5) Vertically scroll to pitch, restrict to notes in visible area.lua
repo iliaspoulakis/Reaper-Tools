@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.8
+  @version 1.0.9
   @noindex
   @about Automatically generated configuration of MeMagic
 ]]
@@ -93,7 +93,7 @@ local smoothing = 0.75
 local base_note = 60
 
 -- Minimum number of vertical notes when zooming (not exact)
-local min_vertical_notes = 6
+local min_vertical_notes = 8
 
 -- Maximum vertical size for notes in pixels (smaller values increase performance)
 local max_vertical_note_pixels = 32
@@ -937,7 +937,7 @@ if window == 'arrange' and (context > 0 or click_mode > 0) then
                 local file_name = reaper.GetMediaSourceFileName(source, '')
                 local video_extensions = {'mp4', 'gif'}
                 for _, extension in ipairs(video_extensions) do
-                    if file_name:match('%.(.-)$'):lower() == extension then
+                    if file_name:lower():match('[^.]+$') == extension then
                         local is_video_visible = reaper.GetToggleCommandState(50125) == 1
                         if not is_video_visible then
                             reaper.Main_OnCommand(50125, 0)
