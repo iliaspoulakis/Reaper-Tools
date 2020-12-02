@@ -1,12 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
+  @version 1.1.3
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Keeps multiple items selected by default
-    - Toggle zoom on audio items by default
-    - Fixed potential crash
+    - Use SWS zoom to selected items (to also show track envelopes)
 ]]
 ------------------------------ SETTINGS -----------------------------
 
@@ -253,14 +251,16 @@ if init_item then
             end
             local _, chunk = reaper.GetItemStateChunk(init_item, '', true)
             local is_subproject = chunk:match('SOURCE RPP_PROJECT')
+            reaper.PreventUIRefresh(-1)
             if is_subproject then
                 -- Cmd: Open associated project in new tab
                 reaper.Main_OnCommand(41816, 0)
                 undo_name = 'Item: Open associated project in new tab'
             else
                 if zoom_to_audio_items then
-                    -- Cmd: Toggle zoom to selected items
-                    reaper.Main_OnCommand(41622, 0)
+                    -- SWS: Toggle zoom to selected items
+                    local cmd = reaper.NamedCommandLookup('_SWS_TOGZOOMIONLY')
+                    reaper.Main_OnCommand(cmd, 0)
                     undo_name = 'Toggle zoom to selected items'
                 else
                     -- Cmd: Show media item/take properties
@@ -269,7 +269,6 @@ if init_item then
                 end
             end
         end
-        reaper.PreventUIRefresh(-1)
         reaper.Undo_EndBlock(undo_name, -1)
         return
     end
