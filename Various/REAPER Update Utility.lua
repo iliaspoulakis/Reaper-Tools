@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.2
+  @version 1.5.3
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added post-install hooks
-    - Fixed MacOS arm compatibility after 6.17 version changes
+    - Added lua post-install hook
 ]]
 -- Set this to true to show debugging output
 local debug = false
@@ -47,8 +46,10 @@ local dev_changelog = 'https://www.landoleet.org/whatsnew-dev.txt'
 local rc_changelog = 'https://www.landoleet.org/whatsnew-rc.txt'
 
 -- Paths
+local separator = platform:match('Win') and '\\' or '/'
 local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
+local scripts_path = res_path .. separator .. 'Scripts' .. separator
 local tmp_path, step_path, main_path, dev_path
 
 -- Startup mode
@@ -76,9 +77,7 @@ local font_factor = platform:match('Win') and 1.25 or 1
 local main_list = {}
 local dev_list = {}
 
-local separator = platform:match('Win') and '\\' or '/'
 local hook_cmd = ''
-
 local debug_str = ''
 
 function print(msg, debug)
@@ -133,6 +132,9 @@ function ExecInstall(install_cmd)
     reaper.Main_OnCommand(40886, 0)
 
     if reaper.IsProjectDirty(0) == 0 then
+        if reaper.file_exists(scripts_path .. '__update.lua') then
+            reaper.SetExtState(title, 'lua_hook', '1', true)
+        end
         -- In Windows execute after quitting to avoid error dialog
         if not platform:match('Win') then
             ExecProcess(install_cmd)
@@ -906,19 +908,24 @@ if platform:match('OSX') or platform:match('macOS') then
     browser_cmd = 'open '
 end
 
--- Set command for post-install hooks
-local hook_sh_path = res_path .. separator .. 'update-hook.sh'
-local hook_bat_path = res_path .. separator .. 'update-hook.bat'
-
+-- Set command for platform-dependent post-install hooks
 if platform:match('Win') then
-    if reaper.file_exists(hook_sh_path) then
-        hook_cmd = hook_cmd .. '& bash -c "sh ' .. hook_sh_path .. '"'
+    if reaper.file_exists(scripts_path .. '__update.bat') then
+        hook_cmd = '& start "" /D "' .. scripts_path .. '" /W __update.bat'
     end
-    if reaper.file_exists(hook_bat_path) then
-        hook_cmd = hook_cmd .. '& start "" /D "' .. res_path .. '" /W update-hook.bat'
+    if reaper.file_exists(scripts_path .. '__update.sh') then
+        hook_cmd = '& bash -c "sh ' .. scripts_path .. '__update.sh"'
     end
-elseif reaper.file_exists(hook_sh_path) then
-    hook_cmd = hook_cmd .. '; sh ' .. hook_sh_path
+elseif reaper.file_exists(scripts_path .. '__update.sh') then
+    hook_cmd = '; sh ' .. scripts_path .. '__update.sh'
+end
+
+-- Run lua startup hook
+if reaper.GetExtState(title, 'lua_hook') == '1' then
+    reaper.DeleteExtState(title, 'lua_hook', true)
+    if reaper.file_exists(scripts_path .. '__update.lua') then
+        dofile(scripts_path .. '__update.lua')
+    end
 end
 
 -- Check if the script has already run since last restart (using extstate persist)
