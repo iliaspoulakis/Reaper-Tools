@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.1
+  @version 1.5.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - ARM support
+    - Added post-install hooks
+    - Fixed MacOS arm compatibility after 6.17 version changes
 ]]
 -- Set this to true to show debugging output
 local debug = false
@@ -25,6 +26,8 @@ if arch then
     if arch:match('OSX') then
         arch = arch:match('64') and 'x86_64' or arch
         arch = arch:match('32') and 'i386' or arch
+    end
+    if arch:match('macOS') then
         arch = arch:match('arm') and 'arm64' or arch
     end
     if arch:match('linux') then
@@ -73,6 +76,9 @@ local font_factor = platform:match('Win') and 1.25 or 1
 local main_list = {}
 local dev_list = {}
 
+local separator = platform:match('Win') and '\\' or '/'
+local hook_cmd = ''
+
 local debug_str = ''
 
 function print(msg, debug)
@@ -80,7 +86,6 @@ function print(msg, debug)
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
     if log then
-        local separator = platform:match('Win') and '\\' or '/'
         local log_path = res_path .. separator .. 'update-utility.log'
         local log_file = io.open(log_path, 'a')
         log_file:write(msg, '\n')
@@ -149,6 +154,9 @@ function GetFilePattern()
     end
     if platform:match('OSX') then
         file_pattern = '%d_' .. arch .. '%.dmg'
+    end
+    if platform:match('macOS') then
+        file_pattern = 'beta_' .. arch .. '%.dmg'
     end
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
@@ -662,7 +670,7 @@ function Main()
             if platform:match('Win') then
                 next_step = 'windows_install'
             end
-            if platform:match('OSX') then
+            if platform:match('OSX') or platform:match('macOS') then
                 next_step = 'osx_install'
             end
             -- Go to next step if download succeeds, otherwise show error
@@ -673,9 +681,11 @@ function Main()
 
         if step == 'windows_install' then
             -- Windows installer: /S is silent mode, /D specifies directory
-            local cmd = '%s /S /D=%s & cd /D %s & start reaper.exe & del %s'
+            local cmd = '%s /S /D=%s & cd /D %s %s& start reaper.exe & del %s'
             local dfile_path = tmp_path .. dfile_name
-            ExecInstall(cmd:format(dfile_path, install_path, install_path, dfile_path))
+            ExecInstall(
+                cmd:format(dfile_path, install_path, install_path, hook_cmd, dfile_path)
+            )
             return
         end
 
@@ -687,8 +697,10 @@ function Main()
             -- Copy .app to install path
             cmd = cmd .. ' && cp -rf $app_name %s'
             -- Unmount file and restart reaper
-            cmd = cmd .. ' ; cd && hdiutil unmount $mount_dir ; open %s/$app_name'
-            ExecInstall(cmd:format(tmp_path, dfile_name, install_path, install_path))
+            cmd = cmd .. ' ; cd && hdiutil unmount $mount_dir %s ; open %s/$app_name'
+            ExecInstall(
+                cmd:format(tmp_path, dfile_name, install_path, hook_cmd, install_path)
+            )
             return
         end
 
@@ -706,10 +718,12 @@ function Main()
             cmd = cmd .. ' --integrate-desktop'
             cmd = cmd .. ' --usr-local-bin-symlink'
             -- Wrap install command in new shell with sudo privileges (for chaining restart)
-            cmd = "/bin/sh -c '" .. cmd .. "' ; %s/reaper"
+            cmd = "/bin/sh -c '" .. cmd .. "' %s ; %s/reaper"
             -- Linux installer will also create a REAPER directory
             local outer_install_path = install_path:gsub('/REAPER$', '')
-            ExecInstall(cmd:format(tmp_path, arch, outer_install_path, install_path))
+            ExecInstall(
+                cmd:format(tmp_path, arch, outer_install_path, hook_cmd, install_path)
+            )
             return
         end
 
@@ -888,8 +902,23 @@ browser_cmd = 'xdg-open '
 if platform:match('Win') then
     browser_cmd = 'start '
 end
-if platform:match('OSX') then
+if platform:match('OSX') or platform:match('macOS') then
     browser_cmd = 'open '
+end
+
+-- Set command for post-install hooks
+local hook_sh_path = res_path .. separator .. 'update-hook.sh'
+local hook_bat_path = res_path .. separator .. 'update-hook.bat'
+
+if platform:match('Win') then
+    if reaper.file_exists(hook_sh_path) then
+        hook_cmd = hook_cmd .. '& bash -c "sh ' .. hook_sh_path .. '"'
+    end
+    if reaper.file_exists(hook_bat_path) then
+        hook_cmd = hook_cmd .. '& start "" /D "' .. res_path .. '" /W update-hook.bat'
+    end
+elseif reaper.file_exists(hook_sh_path) then
+    hook_cmd = hook_cmd .. '; sh ' .. hook_sh_path
 end
 
 -- Check if the script has already run since last restart (using extstate persist)
