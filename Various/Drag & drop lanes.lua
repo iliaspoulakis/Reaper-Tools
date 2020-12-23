@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Runs in the background and lets you change the order of layers using drag & drop
 ]]
 if not reaper.JS_Window_FindChildByID then
@@ -13,16 +13,12 @@ local main_window = reaper.JS_Window_FindChildByID(reaper.GetMainHwnd(), 1000)
 local _, _, main_y = reaper.JS_Window_GetClientRect(main_window)
 
 local last_edit_flags
-local last_edit_source
 local last_edit_item
 
 local last_track_t, last_track_b
 local last_item_t, last_item_b
-local last_item_h
 
-local transition_y = 0
 local remeasure = false
-local mouse_click_y
 
 local debug = false
 
@@ -84,6 +80,8 @@ function GetItemUnderMouse()
 end
 
 function MeasureBounds(item)
+    -- View: Toggle displaying labels above/within media items
+    local label_height = reaper.GetToggleCommandState(40258) == 1 and 14 or 0
     local track = reaper.GetMediaItem_Track(item)
     local track_y = reaper.GetMediaTrackInfo_Value(track, 'I_TCPY')
     local track_h = reaper.GetMediaTrackInfo_Value(track, 'I_WNDH')
@@ -92,9 +90,8 @@ function MeasureBounds(item)
     last_track_t = main_y + track_y
     last_track_b = last_track_t + track_h
     last_item_t = last_track_t + item_y
-    last_item_b = last_item_t + item_h
-    last_item_h = last_item_b - last_item_t
-    print('Measure: ' .. last_item_t .. ' ' .. last_item_b)
+    last_item_b = last_item_t + item_h + label_height
+    print('Measure: ' .. last_item_b - last_item_t)
 end
 
 function GetItemIID(item)
@@ -171,22 +168,19 @@ function Main()
             FixItemTrackIIDs(last_edit_item)
         end
 
-        local is_transition = math.abs(mouse_y - transition_y) < last_item_h / 5
         local is_above_item = mouse_y < last_item_t
-
-        if not is_transition and is_above_item then
+        if is_above_item then
             print('Up: ' .. mouse_y .. ' | ' .. last_item_t .. ' ' .. last_item_b)
             -- Item lanes: Move item up one lane (when showing overlapping items in lanes)
             reaper.Main_OnCommand(40068, 0)
-            transition_y = mouse_y
             remeasure = true
         end
+
         local is_below_item = mouse_y > last_item_b
-        if not is_transition and is_below_item then
+        if is_below_item then
             print('Down: ' .. mouse_y .. ' | ' .. last_item_t .. ' ' .. last_item_b)
             -- Item lanes: Move item down one lane (when showing overlapping items in lanes)
             reaper.Main_OnCommand(40107, 0)
-            transition_y = mouse_y
             remeasure = true
         end
         reaper.Undo_EndBlock('Change item lane', -1)
