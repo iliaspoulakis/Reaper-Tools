@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="c2f546a636be3cae484195f5a3c14289be1cbfd1">
+<index version="1" name="FTC Tools" commit="073fc602610da701dd155f7941cdafedc09b6f34">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -987,6 +987,20 @@
     </reapack>
   </category>
   <category name="Various">
+    <reapack name="Drag &amp; drop lanes.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Runs in the background and lets you change the order of layers using drag & drop\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-23T18:09:49Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/073fc602610da701dd155f7941cdafedc09b6f34/Various/Drag%20&amp;%20drop%20lanes.lua</source>
+      </version>
+    </reapack>
     <reapack name="FTC_Side Mixer.lua" type="script">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
