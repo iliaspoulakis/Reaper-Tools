@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="dd37b477114e5c2b8da3dedd53fcc93396494fa8">
+<index version="1" name="FTC Tools" commit="1b1b95a564796da7c741343898fa7fbee5d2547f">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -1002,6 +1002,9 @@
       </version>
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-23T18:58:43Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/dd37b477114e5c2b8da3dedd53fcc93396494fa8/Various/Drag%20&amp;%20drop%20lanes.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-24T00:25:08Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/1b1b95a564796da7c741343898fa7fbee5d2547f/Various/Drag%20&amp;%20drop%20lanes.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Side Mixer.lua" type="script">
