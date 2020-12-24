@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.0.3
   @about Runs in the background and lets you change the order of layers using drag & drop
 ]]
 local debug = false
@@ -22,7 +22,8 @@ local last_edit_flags = 0
 
 local last_track_t, last_track_b
 local last_item_t, last_item_b
-local last_item_h
+
+local last_item_h, last_item_y
 local last_item
 
 function print(msg)
@@ -96,13 +97,12 @@ function MeasureBounds(item)
     local track = reaper.GetMediaItem_Track(item)
     local track_y = reaper.GetMediaTrackInfo_Value(track, 'I_TCPY')
     local track_h = reaper.GetMediaTrackInfo_Value(track, 'I_WNDH')
-    local item_y = reaper.GetMediaItemInfo_Value(item, 'I_LASTY')
-    local item_h = reaper.GetMediaItemInfo_Value(item, 'I_LASTH')
+    last_item_y = reaper.GetMediaItemInfo_Value(item, 'I_LASTY')
+    last_item_h = reaper.GetMediaItemInfo_Value(item, 'I_LASTH')
     last_track_t = main_y + track_y
     last_track_b = last_track_t + track_h
-    last_item_t = last_track_t + item_y
-    last_item_b = last_item_t + item_h
-    last_item_h = item_h
+    last_item_t = last_track_t + last_item_y
+    last_item_b = last_item_t + last_item_h
     print('Measure: ' .. last_item_b - last_item_t)
     label_height = reaper.GetToggleCommandState(40258) == 1 and 15 or 0
 end
@@ -163,7 +163,7 @@ function FixItemTrackIIDs(drag_item)
     for i = 0, reaper.CountTrackMediaItems(track) - 1 do
         local item = reaper.GetTrackMediaItem(track, i)
         if item ~= drag_item then
-            SetItemIID(item, i * 15)
+            SetItemIID(item, 15 + i * 15)
         end
     end
     reaper.Undo_EndBlock('Prepare track for lanes changes (bugfix?)', -1)
@@ -186,7 +186,9 @@ function Main()
     end
 
     if edit_flags == 4 and last_item then
-        if reaper.GetMediaItemInfo_Value(last_item, 'I_LASTH') ~= last_item_h then
+        local item_y = reaper.GetMediaItemInfo_Value(last_item, 'I_LASTY')
+        local item_h = reaper.GetMediaItemInfo_Value(last_item, 'I_LASTH')
+        if item_y ~= last_item_y or item_h ~= last_item_h then
             print('Item height changed...')
             MeasureBounds(last_item)
         end
