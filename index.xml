@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="3578d9903102cd38ce574b7672e14997360fe008">
+<index version="1" name="FTC Tools" commit="03864971d9613e5f6cbc71c482c5dd0b57b70091">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -957,7 +957,7 @@
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Record takes without creating new splits. If necessary, existing track items are extended.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Record takes without creating new splits. If possible, existing track items are extended.\par}
 }
 ]]></description>
       </metadata>
@@ -966,6 +966,9 @@
       </version>
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-24T09:08:28Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c8aa7c3ea862ab48f8dbd747ae7eb1ed2e540402/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-26T13:55:11Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/03864971d9613e5f6cbc71c482c5dd0b57b70091/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Record takes without new splits.lua" type="script">
@@ -983,6 +986,9 @@
       </version>
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-24T09:08:28Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c8aa7c3ea862ab48f8dbd747ae7eb1ed2e540402/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-26T13:55:11Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/03864971d9613e5f6cbc71c482c5dd0b57b70091/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
       </version>
     </reapack>
   </category>
