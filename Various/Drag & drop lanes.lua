@@ -1,8 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.3
+  @version 1.1.0
   @about Runs in the background and lets you change the order of layers using drag & drop
+  @changelog
+    - Added toggle state for toolbars
+    - Removed workaround for IIDs due to reaper bugfix
 ]]
 local debug = false
 
@@ -130,45 +133,6 @@ function PrintTrackIIDs(track)
     end
 end
 
-function FixTrackIIDs(track)
-    for i = reaper.CountTrackMediaItems(track) - 1, 0, -1 do
-        local item = reaper.GetTrackMediaItem(track, i)
-        if item ~= last_item then
-            local iid = GetItemIID(item)
-            SetItemIID(item, iid + i * 2)
-        end
-    end
-end
-
-function FixItemTrackIIDs_alt(drag_item)
-    reaper.Undo_BeginBlock()
-    local track = reaper.GetMediaItem_Track(drag_item)
-    local drag_item_offset = 4
-    local item_cnt = reaper.CountTrackMediaItems(track)
-    for i = item_cnt - 1, 0, -1 do
-        local item = reaper.GetTrackMediaItem(track, i)
-        if item ~= drag_item then
-            local iid = GetItemIID(item)
-            SetItemIID(item, item_cnt * i * 4 + drag_item_offset)
-        else
-            drag_item_offset = 0
-        end
-    end
-    reaper.Undo_EndBlock('Prepare track for lanes changes (bugfix?)', -1)
-end
-
-function FixItemTrackIIDs(drag_item)
-    reaper.Undo_BeginBlock()
-    local track = reaper.GetMediaItem_Track(drag_item)
-    for i = 0, reaper.CountTrackMediaItems(track) - 1 do
-        local item = reaper.GetTrackMediaItem(track, i)
-        if item ~= drag_item then
-            SetItemIID(item, 15 + i * 15)
-        end
-    end
-    reaper.Undo_EndBlock('Prepare track for lanes changes (bugfix?)', -1)
-end
-
 function Main()
     local _, _, edit_flags = reaper.GetItemEditingTime2()
     if edit_flags ~= 0 and last_edit_flags == 0 then
@@ -176,7 +140,6 @@ function Main()
         last_item = GetItemUnderMouse()
         if last_item then
             MeasureBounds(last_item)
-            FixItemTrackIIDs(last_item)
         end
     end
 
@@ -195,9 +158,13 @@ function Main()
         local mouse_y = select(2, reaper.GetMousePosition())
         local is_within_track = mouse_y >= last_track_t and mouse_y < last_track_b
         if not is_within_track and last_item then
+            if not GetTrackUnderMouse() then
+                print('No track under mouse')
+                reaper.defer(Main)
+                return
+            end
             print('Track changed...')
             MeasureBounds(last_item)
-            FixItemTrackIIDs(last_item)
         end
 
         local is_above_item = mouse_y < last_item_t - label_height
@@ -228,4 +195,14 @@ function Main()
     reaper.defer(Main)
 end
 
+local _, _, sec, cmd = reaper.get_action_context()
+reaper.SetToggleCommandState(sec, cmd, 1)
+reaper.RefreshToolbar2(sec, cmd)
+
+function Exit()
+    reaper.SetToggleCommandState(sec, cmd, 0)
+    reaper.RefreshToolbar2(sec, cmd)
+end
+
 reaper.defer(Main)
+reaper.atexit(Exit)
