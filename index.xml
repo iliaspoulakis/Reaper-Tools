@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="bc4c886daa2c01b38f410f399a97fb3606448c37">
+<index version="1" name="FTC Tools" commit="21e12afff8d51f1533d128cdebb0189115c908a6">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -947,6 +947,36 @@
       <version name="1.1.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-02T11:52:35Z">
         <changelog><![CDATA[- Use SWS zoom to selected items (to also show track envelopes)]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/1f3580ddf0a893d18dd382e3e6fd65350816e0f5/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Mouse modifiers">
+    <reapack name="Razor edit region under mouse.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Sets a razor edit to the region under the mouse\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-19T20:49:11Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/21e12afff8d51f1533d128cdebb0189115c908a6/Mouse%20modifiers/Razor%20edit%20region%20under%20mouse.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Remove region including contents (Ruler alt double click).lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Mouse modifier to remove a region including contents.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-19T20:49:11Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/21e12afff8d51f1533d128cdebb0189115c908a6/Mouse%20modifiers/Remove%20region%20including%20contents%20(Ruler%20alt%20double%20click).lua</source>
       </version>
     </reapack>
   </category>
