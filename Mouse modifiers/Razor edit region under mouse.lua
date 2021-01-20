@@ -1,8 +1,8 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
-  @about Sets a razor edit to the region under the mouse
+  @version 1.0.1
+  @about Create an approximate razor edit from region under mouse
 ]]
 local expand_beat_limit = 3
 local shrink_beat_limit = 1
@@ -103,4 +103,4 @@ for t = 0, reaper.CountTracks(0) - 1 do
     local raz_edit = raz_start_pos .. ' ' .. raz_end_pos .. ' ""'
     reaper.GetSetMediaTrackInfo_String(track, 'P_RAZOREDITS', raz_edit, true)
 end
-reaper.Undo_EndBlock('Razor edit region under mouse', -1)
+reaper.Undo_EndBlock('Create razor edit from region under mouse', -1)
