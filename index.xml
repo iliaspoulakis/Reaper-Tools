@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="21e12afff8d51f1533d128cdebb0189115c908a6">
+<index version="1" name="FTC Tools" commit="0bf8a1cf325b1cab0f34ce936a086334e13ccf28">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -951,18 +951,32 @@
     </reapack>
   </category>
   <category name="Mouse modifiers">
-    <reapack name="Razor edit region under mouse.lua" type="script">
+    <reapack name="Create an approximate razor edit from region under mouse.lua" type="script">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Sets a razor edit to the region under the mouse\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Create an approximate razor edit from region under mouse\par}
 }
 ]]></description>
       </metadata>
-      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-19T20:49:11Z">
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/21e12afff8d51f1533d128cdebb0189115c908a6/Mouse%20modifiers/Razor%20edit%20region%20under%20mouse.lua</source>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-20T16:29:51Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/0bf8a1cf325b1cab0f34ce936a086334e13ccf28/Mouse%20modifiers/Create%20an%20approximate%20razor%20edit%20from%20region%20under%20mouse.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Create an approximate razor edit from time selection.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Create an approximate razor edit from time selection\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-20T16:27:38Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c1df37a6c3ca794637a4c3116424916a21b1d44f/Mouse%20modifiers/Create%20an%20approximate%20razor%20edit%20from%20time%20selection.lua</source>
       </version>
     </reapack>
     <reapack name="Remove region including contents (Ruler alt double click).lua" type="script">
