@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Create an approximate razor edit from region under mouse
 ]]
 local expand_beat_limit = 3
-local shrink_beat_limit = 1
+local shrink_beat_limit = 3
 
 reaper.Undo_BeginBlock()
 
