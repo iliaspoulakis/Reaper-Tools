@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="c770b7dbadc6289b17eb94de110b79819012071c">
+<index version="1" name="FTC Tools" commit="5ebfba4499f1c1689945e97e92cd36d84d03a590">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -997,6 +997,176 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-19T20:49:11Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/21e12afff8d51f1533d128cdebb0189115c908a6/Mouse%20modifiers/Remove%20region%20including%20contents%20(Ruler%20alt%20double%20click).lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Razor edits">
+    <reapack name="Move razor edit down by one track.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Move%20razor%20edit%20down%20by%20one%20track.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move razor edit left by grid size.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Move%20razor%20edit%20left%20by%20grid%20size.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move razor edit left by one measure.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Move%20razor%20edit%20left%20by%20one%20measure.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move razor edit right by grid size.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Move%20razor%20edit%20right%20by%20grid%20size.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move razor edit right by one measure.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Move%20razor%20edit%20right%20by%20one%20measure.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move razor edit up by one track.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Move%20razor%20edit%20up%20by%20one%20track.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Resize razor edit down by one track.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20down%20by%20one%20track.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Resize razor edit left by grid size.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20left%20by%20grid%20size.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Resize razor edit left by one measure.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20left%20by%20one%20measure.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Resize razor edit right by grid size.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20right%20by%20grid%20size.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Resize razor edit right by one measure.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20right%20by%20one%20measure.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Resize razor edit up by one track.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A set of scripts for quick razor editing using arrow keys\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20up%20by%20one%20track.lua</source>
       </version>
     </reapack>
   </category>
