@@ -1,12 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Toggles between default and side mixer layouts
 ]]
 -------------------------------- SETTINGS -----------------------------------
 
--- Number of screensets
+-- Screenset number
 local screenset_default = 1
 local screenset_sidemixer = 2
 
@@ -136,14 +136,17 @@ end
 
 function exit()
     -- Restore tracks for all projects
-    local curr_proj = reaper.EnumProjects(-1, '')
+    local curr_proj, fn = reaper.EnumProjects(-1, '')
+    if not reaper.ValidatePtr(curr_proj, 'ReaProject*') then
+        return
+    end
     local i = 0
-    local proj = reaper.EnumProjects(i, '')
-    while proj do
+    local proj = reaper.EnumProjects(i)
+    while reaper.ValidatePtr(proj, 'ReaProject*') do
         reaper.SelectProjectInstance(proj)
         restoreTracks()
         i = i + 1
-        proj = reaper.EnumProjects(i, '')
+        proj = reaper.EnumProjects(i)
     end
     if reaper.ValidatePtr(curr_proj, 'ReaProject*') then
         reaper.SelectProjectInstance(curr_proj)
@@ -152,13 +155,10 @@ function exit()
     reaper.Main_OnCommand(40453 + screenset_default, 0)
     reaper.ThemeLayout_SetLayout('mcp', layout_default)
     reaper.ThemeLayout_SetLayout('master_mcp', layout_default_master)
-    local _, fn = reaper.EnumProjects(-1, '')
     local mixer_visible = reaper.GetToggleCommandState(40078)
     if mixer_visible == 0 and fn ~= '' then
         reaper.Main_OnCommand(40078, 0)
-        return
     end
-    return
 end
 
 -- Check state / Restore if necessary
