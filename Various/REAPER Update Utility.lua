@@ -115,6 +115,20 @@ function ExecProcess(cmd, timeout)
     return ret
 end
 
+function CountUnsavedProjects()
+    local cnt = 0
+    local p = 0
+    local proj = reaper.EnumProjects(p)
+    while proj do
+        if reaper.IsProjectDirty(proj) ~= 0 then
+            cnt = cnt + 1
+        end
+        p = p + 1
+        proj = reaper.EnumProjects(p)
+    end
+    return cnt
+end
+
 function ExecInstall(install_cmd)
     if settings.dialog_install.enabled then
         local msg =
@@ -128,10 +142,18 @@ function ExecInstall(install_cmd)
             return
         end
     end
-    -- File: Close all projects
-    reaper.Main_OnCommand(40886, 0)
 
-    if reaper.IsProjectDirty(0) == 0 then
+    if CountUnsavedProjects() > 0 then
+        if reaper.IsProjectDirty(0) == 0 then
+            -- Close all projects but current
+            reaper.Main_OnCommand(41922, 0)
+        else
+            -- File: Close all projects
+            reaper.Main_OnCommand(40886, 0)
+        end
+    end
+
+    if CountUnsavedProjects() == 0 then
         if reaper.file_exists(scripts_path .. '__update.lua') then
             reaper.SetExtState(title, 'lua_hook', '1', true)
         end
