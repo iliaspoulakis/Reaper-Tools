@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="9cd20c2cd94e5c691dc5acbf47681ae871d5c66c">
+<index version="1" name="FTC Tools" commit="c06e44063caf47120447efe0aaa65c9a8cd9e519">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -1253,6 +1253,9 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-08-14T10:24:00Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/6a6ed3a39801deb73221fefe75094fa5a2d3cbc4/Various/FTC_Side%20Mixer.lua</source>
+      </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-26T16:41:56Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c06e44063caf47120447efe0aaa65c9a8cd9e519/Various/FTC_Side%20Mixer.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Solo items under mouse cursor.lua" type="script">
