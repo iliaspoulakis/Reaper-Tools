@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.3
+  @version 1.5.4
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added lua post-install hook
+    - Avoid closing saved projects, so that they are reopened on restart
 ]]
 -- Set this to true to show debugging output
 local debug = false
