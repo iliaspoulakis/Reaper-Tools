@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.0
+  @version 1.6.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added debugging options to menu
+    - Automatically delete startup log file on next script run
 ]]
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -47,6 +47,7 @@ local res_path = reaper.GetResourcePath()
 local scripts_path = res_path .. separator .. 'Scripts' .. separator
 local tmp_path, step_path, main_path, dev_path
 local log_path = res_path .. separator .. 'update-utility.log'
+local dump_path = res_path .. separator .. 'update-utility-startup.log'
 local is_portable = res_path == install_path
 
 -- Startup mode
@@ -323,15 +324,15 @@ function ShowSettingsMenu()
             reaper.SetExtState(title, 'debug_startup', 'false', true)
             settings.debug_startup.enabled = false
 
-            local path = res_path .. separator .. 'update-utility-startup.log'
-            local log_file = io.open(path, 'w')
+            local log_file = io.open(dump_path, 'w')
             log_file:write(debug_str, '\n')
             log_file:close()
 
             local msg =
                 'Created new file: update-utility-startup.log\n\n\z
-                Please attach this file to your forum post. Thank you for \z
-                testing!\n\nThe containing folder (your resource directory) will \z
+                Please attach this file to your forum post. It will be automatically \z
+                deleted the next time this script runs. Thank you for testing!\n\n\z
+                The containing folder (your resource directory) will \z
                 now automatically open in explorer/finder\n '
             reaper.MB(msg, title, 0)
             -- Show REAPER resource path in explorer
@@ -937,6 +938,7 @@ dev_path = tmp_path .. 'reaper_uutil_dev.html'
 os.remove(step_path)
 os.remove(main_path)
 os.remove(dev_path)
+os.remove(dump_path)
 
 -- Set command for downloading from terminal
 dl_cmd = 'curl -L %s -o %s'
