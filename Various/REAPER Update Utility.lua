@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.1
+  @version 1.6.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Automatically delete startup log file on next script run
+    - Fix detection of linux i686 architecture
 ]]
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -26,7 +26,7 @@ if arch then
     end
     if arch:match('linux') then
         arch = arch:match('64') and 'x86_64' or arch
-        arch = arch:match('32') and 'i686' or arch
+        arch = arch:match('686') and 'i686' or arch
         arch = arch:match('arm') and 'armv7l' or arch
         arch = arch:match('aarch') and 'aarch64' or arch
     end
