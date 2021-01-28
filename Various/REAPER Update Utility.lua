@@ -51,6 +51,7 @@ local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
 local scripts_path = res_path .. separator .. 'Scripts' .. separator
 local tmp_path, step_path, main_path, dev_path
+local is_portable = res_path == install_path
 
 -- Startup mode
 local startup_mode = false
@@ -705,10 +706,19 @@ function Main()
 
         if step == 'windows_install' then
             -- Windows installer: /S is silent mode, /D specifies directory
-            local cmd = '%s /S /D=%s & cd /D %s %s& start reaper.exe & del %s'
+            local cmd =
+                'timeout 1 & %s /S %s /D=%s & cd /D %s %s& start reaper.exe & del %s'
+            local portable_str = is_portable and '/PORTABLE' or ''
             local dfile_path = tmp_path .. dfile_name
             ExecInstall(
-                cmd:format(dfile_path, install_path, install_path, hook_cmd, dfile_path)
+                cmd:format(
+                    dfile_path,
+                    portable_str,
+                    install_path,
+                    install_path,
+                    hook_cmd,
+                    dfile_path
+                )
             )
             return
         end
@@ -738,9 +748,10 @@ function Main()
         if step == 'linux_install' then
             -- Run Linux installation and restart
             local cmd = 'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
-            -- Comment out the following lines to disable desktop integration etc.
-            cmd = cmd .. ' --integrate-desktop'
-            cmd = cmd .. ' --usr-local-bin-symlink'
+            if not is_portable then
+                cmd = cmd .. ' --integrate-desktop'
+                cmd = cmd .. ' --usr-local-bin-symlink'
+            end
             -- Wrap install command in new shell with sudo privileges (for chaining restart)
             cmd = "/bin/sh -c '" .. cmd .. "' %s ; %s/reaper"
             -- Linux installer will also create a REAPER directory
@@ -886,6 +897,7 @@ print('CPU achitecture: ' .. tostring(arch), debug)
 print('Installation path: ' .. tostring(install_path), debug)
 print('Resource path: ' .. tostring(res_path), debug)
 print('Reaper version: ' .. tostring(curr_version), debug)
+print('Portable: ' .. (is_portable and 'yes' or 'no'), debug)
 
 settings = LoadSettings()
 
