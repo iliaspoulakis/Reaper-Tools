@@ -1,16 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.5
+  @version 1.6.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added auto-detection and handling of portable installs
+    - Added debugging options to menu
 ]]
--- Set this to true to show debugging output
-local debug = false
--- Set this to true to save debugging output in a log file
-local log = false
-
 -- App version & platform architecture
 local platform = reaper.GetOS()
 local app = reaper.GetAppVersion()
@@ -51,6 +46,7 @@ local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
 local scripts_path = res_path .. separator .. 'Scripts' .. separator
 local tmp_path, step_path, main_path, dev_path
+local log_path = res_path .. separator .. 'update-utility.log'
 local is_portable = res_path == install_path
 
 -- Startup mode
@@ -81,12 +77,11 @@ local dev_list = {}
 local hook_cmd = ''
 local debug_str = ''
 
-function print(msg, debug)
-    if debug == nil or debug then
+function print(msg, force)
+    if settings.debug_console.enabled or force then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
-    if log then
-        local log_path = res_path .. separator .. 'update-utility.log'
+    if settings.debug_file.enabled then
         local log_file = io.open(log_path, 'a')
         log_file:write(msg, '\n')
         log_file:close()
@@ -101,7 +96,7 @@ function ExecProcess(cmd, timeout)
         cmd = '/bin/sh -c "' .. cmd .. '"'
     end
     local ret = reaper.ExecProcess(cmd, timeout or -2)
-    print('\nExecuting command:\n' .. cmd, debug)
+    print('\nExecuting command:\n' .. cmd)
     if ret then
         -- Remove exit code (first line)
         ret = ret:gsub('^.-\n', '')
@@ -110,7 +105,7 @@ function ExecProcess(cmd, timeout)
         -- Remove all newlines
         ret = ret:gsub('[\r\n]', '')
         if ret ~= '' then
-            print('Return value:\n' .. ret, debug)
+            print('Return value:\n' .. ret)
         end
     end
     return ret
@@ -139,7 +134,7 @@ function ExecInstall(install_cmd)
             Quit reaper and proceed with installation of v%s?'
         local ret = reaper.MB(msg:format(install_version), title, 4)
         if ret == 7 then
-            print('User exit...', debug)
+            print('User exit...')
             return
         end
     end
@@ -284,7 +279,10 @@ function LoadSettings()
         ['notify_rc'] = {idx = 3, default = true},
         ['force_startup'] = {idx = 4, default = false},
         ['dialog_install'] = {idx = 5, default = app:lower():match('osx') ~= nil},
-        ['dialog_dl_cancel'] = {idx = 6, default = true}
+        ['dialog_dl_cancel'] = {idx = 6, default = true},
+        ['debug_startup'] = {idx = 7, default = false},
+        ['debug_console'] = {idx = 8, default = false},
+        ['debug_file'] = {idx = 9, default = false}
     }
     for key, setting in pairs(settings) do
         local ret = reaper.GetExtState(title, key)
@@ -301,7 +299,8 @@ function ShowSettingsMenu()
 
     local menu =
         '>Startup notifications|%1Main|%2Dev|%3RC||<%4Force startup mode\z
-        |>Confirmation dialogs|%5Before installing|%6When cancelling download'
+        |>Confirmation dialogs|%5Before installing|<%6When cancelling download\z
+        |>Debugging|%7Dump startup log|%8Log to console|%9Log to file'
     local function substitute(s)
         return state[tonumber(s)].enabled and '!' or ''
     end
@@ -318,6 +317,46 @@ function ShowSettingsMenu()
         if not settings.notify_dev.enabled and not settings.notify_rc.enabled then
             reaper.SetExtState(title, 'notify_main', 'true', true)
             settings.notify_main.enabled = true
+        end
+
+        if ret == 7 then
+            reaper.SetExtState(title, 'debug_startup', 'false', true)
+            settings.debug_startup.enabled = false
+
+            local path = res_path .. separator .. 'update-utility-startup.log'
+            local log_file = io.open(path, 'w')
+            log_file:write(debug_str, '\n')
+            log_file:close()
+
+            local msg =
+                'Created new file: update-utility-startup.log\n\n\z
+                Please attach this file to your forum post. Thank you for \z
+                testing!\n\nThe containing folder (your resource directory) will \z
+                now automatically open in explorer/finder\n '
+            reaper.MB(msg, title, 0)
+            -- Show REAPER resource path in explorer
+            reaper.Main_OnCommand(40027, 0)
+        end
+
+        if ret == 9 then
+            os.remove(log_path)
+            if enabled then
+                local log_file = io.open(log_path, 'a')
+                log_file:write(debug_str, '\n')
+                log_file:close()
+                local msg =
+                    " \nLogging to file is now enabled!\n\n\z
+                    You can find the file 'update-utility.log' in your resource \z
+                    directory:\n--> Options --> Show REAPER resource path...\n\n\z
+                    Open resource directoy now?\n "
+                local ret = reaper.MB(msg, title, 4)
+                if ret == 6 then
+                    -- Show REAPER resource path in explorer
+                    reaper.Main_OnCommand(40027, 0)
+                end
+            else
+                reaper.MB('Removed log file. Thank you for testing!', title, 0)
+            end
         end
     end
 end
@@ -482,32 +521,6 @@ function DrawButton(x, y, version, dlink, changelog)
     gfx.drawstr(info_text, 1)
 end
 
-function DrawDebugButton()
-    gfx.set(0.22)
-    local is_hover = m_x >= gfx.w - 14 and m_x <= gfx.w - 2 and m_x >= 2 and m_y <= 14
-
-    if is_hover then
-        gfx.set(0.5)
-    end
-
-    -- Left click
-    if is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.8, 0.6, 0.35)
-        click = {action = 'debug'}
-    end
-
-    -- Left click release
-    if click.action == 'debug' and gfx.mouse_cap == 0 then
-        if is_hover then
-            reaper.ClearConsole()
-            reaper.ShowConsoleMsg(debug_str)
-        end
-        click = {}
-    end
-
-    gfx.rect(gfx.w - 8, 4, 3, 3)
-end
-
 function DrawSettingsButton()
     gfx.set(0.40)
 
@@ -549,7 +562,6 @@ function DrawGUI()
     local y = math.floor(gfx.h / 4)
     DrawButton(x, y, dev_version, dev_dlink, dev_changelog)
     DrawSettingsButton()
-    DrawDebugButton()
 end
 
 function ConvertToSeconds(time)
@@ -581,7 +593,7 @@ function Main()
     local step_file = io.open(step_path, 'r')
     if step_file then
         step = step_file:read('*a'):gsub('[^%w_]+', '')
-        print('\n--STEP ' .. tostring(step), debug)
+        print('\n--STEP ' .. tostring(step))
         step_file:close()
         os.remove(step_path)
 
@@ -631,52 +643,52 @@ function Main()
             local saved_main_version = reaper.GetExtState(title, 'main_version')
             local saved_dev_version = reaper.GetExtState(title, 'dev_version')
 
-            print('\nCurr version: ' .. tostring(curr_version), debug)
-            print('\nSaved main version: ' .. tostring(saved_main_version), debug)
-            print('Saved dev version: ' .. tostring(saved_dev_version), debug)
-            print('\nMain version: ' .. tostring(main_version), debug)
-            print('Dev version: ' .. tostring(dev_version), debug)
+            print('\nCurr version: ' .. tostring(curr_version))
+            print('\nSaved main version: ' .. tostring(saved_main_version))
+            print('Saved dev version: ' .. tostring(saved_dev_version))
+            print('\nMain version: ' .. tostring(main_version))
+            print('Dev version: ' .. tostring(dev_version))
 
             -- Check if there's new version
             if saved_main_version ~= main_version then
                 new_version = main_version
-                print('Found new main version', debug)
+                print('Found new main version')
             end
             if saved_dev_version ~= dev_version then
                 -- If both are new, show update to the currently installed version
                 local is_dev_installed = not curr_version:match('^%d+%.%d+%a*$')
                 if (not new_version or is_dev_installed) and dev_version ~= 'none' then
                     new_version = dev_version
-                    print('Found new dev version', debug)
+                    print('Found new dev version')
                 end
             end
             -- Check if the new version is already installed (first script run)
             if new_version == curr_version then
                 new_version = nil
-                print('Newly found version is already installed', debug)
+                print('Newly found version is already installed')
             end
             -- Save latest version numbers in extstate for next check
             reaper.SetExtState(title, 'main_version', main_version, true)
             reaper.SetExtState(title, 'dev_version', dev_version, true)
 
-            print('\nNew version: ' .. tostring(new_version), debug)
+            print('\nNew version: ' .. tostring(new_version))
 
             if startup_mode then
                 if not new_version then
-                    print('No update found! Exiting...', debug)
+                    print('No update found! Exiting...')
                     return
                 elseif new_version:match('dev') then
                     if not settings.notify_dev.enabled then
-                        print('No dev notifications! Exiting...', debug)
+                        print('No dev notifications! Exiting...')
                         return
                     end
                 elseif new_version:match('rc') then
                     if not settings.notify_rc.enabled then
-                        print('No rc notifications! Exiting...', debug)
+                        print('No rc notifications! Exiting...')
                         return
                     end
                 elseif not settings.notify_main.enabled then
-                    print('No main notifications! Exiting...', debug)
+                    print('No main notifications! Exiting...')
                     return
                 end
                 ShowGUI()
@@ -848,11 +860,11 @@ function Main()
                 local msg = 'Quit installation of v%s?'
                 local ret = reaper.MB(msg:format(install_version), title, 4)
                 if ret == 6 then
-                    print('User exit...', debug)
+                    print('User exit...')
                     return
                 end
             else
-                print('User exit...', debug)
+                print('User exit...')
                 return
             end
         end
@@ -892,14 +904,14 @@ function Main()
     reaper.defer(Main)
 end
 
-print('\n-------------------------------------------', debug)
-print('CPU achitecture: ' .. tostring(arch), debug)
-print('Installation path: ' .. tostring(install_path), debug)
-print('Resource path: ' .. tostring(res_path), debug)
-print('Reaper version: ' .. tostring(curr_version), debug)
-print('Portable: ' .. (is_portable and 'yes' or 'no'), debug)
-
 settings = LoadSettings()
+
+print('\n-------------------------------------------')
+print('CPU achitecture: ' .. tostring(arch))
+print('Installation path: ' .. tostring(install_path))
+print('Resource path: ' .. tostring(res_path))
+print('Reaper version: ' .. tostring(curr_version))
+print('Portable: ' .. (is_portable and 'yes' or 'no'))
 
 if not platform:match('Win') then
     -- String escape Unix paths (spaces and brackets)
@@ -965,10 +977,10 @@ end
 -- Check if the script has already run since last restart (using extstate persist)
 local has_already_run = reaper.GetExtState(title, 'startup') == '1'
 reaper.SetExtState(title, 'startup', '1', false)
-print('Startup extstate: ' .. tostring(has_already_run), debug)
+print('Startup extstate: ' .. tostring(has_already_run))
 -- Check if splash is currently visible
 local is_splash_vis = reaper.Splash_GetWnd() ~= nil
-print('Startup splash: ' .. tostring(is_splash_vis), debug)
+print('Startup splash: ' .. tostring(is_splash_vis))
 
 if has_already_run then
     startup_mode = false
@@ -999,37 +1011,37 @@ else
         cmd = cmd .. 'forfiles /M %s /C "cmd /c echo @ftime"'
         cmd = cmd:format(res_path, 'reaper-reginfo2.ini', 'reaper-reginfo2.ini')
         os_time = ExecProcess(cmd, 1000)
-        print('Start time (raw): ' .. start_time, debug)
-        print('Load time (raw): ' .. load_time, debug)
-        print('Curr time (raw): ' .. os_time, debug)
+        print('Start time (raw): ' .. start_time)
+        print('Load time (raw): ' .. load_time)
+        print('Curr time (raw): ' .. os_time)
         -- Convert h:m:s syntax to seconds
         start_time = ConvertToSeconds(start_time)
         load_time = ConvertToSeconds(load_time)
         os_time = ConvertToSeconds(os_time)
     end
-    print('Start time: ' .. start_time, debug)
-    print('Load time: ' .. load_time, debug)
-    print('Curr time: ' .. os_time, debug)
+    print('Start time: ' .. start_time)
+    print('Load time: ' .. load_time)
+    print('Curr time: ' .. os_time)
     -- Check time passed
     local start_diff = math.ceil(os_time - start_time)
     local load_diff = math.ceil(os_time - load_time)
-    print('Start diff: ' .. start_diff .. ' / ' .. start_timeout, debug)
-    print('Load diff: ' .. load_diff .. ' / ' .. load_timeout, debug)
+    print('Start diff: ' .. start_diff .. ' / ' .. start_timeout)
+    print('Load diff: ' .. load_diff .. ' / ' .. load_timeout)
     local is_in_start_window = start_diff >= 0 and start_diff <= start_timeout
     local is_in_load_window = load_diff >= 0 and load_diff <= load_timeout
     local is_same_time = start_time == load_time
-    print('Same start time: ' .. tostring(is_same_time), debug)
+    print('Same start time: ' .. tostring(is_same_time))
     startup_mode = is_in_start_window and (is_in_load_window or is_same_time)
 end
 
-if log then
+if settings.debug_file.enabled then
     local msg =
         " \nLogging to file is enabled!\n\nYou can find the file 'update-utility.log' \z
     in your resource directory:\n--> Options --> Show REAPER resource path...\n "
     reaper.MB(msg, title, 0)
 end
 
-print('Startup Mode: ' .. tostring(startup_mode), debug)
+print('Startup mode: ' .. tostring(startup_mode))
 if not startup_mode then
     ShowGUI()
 end
