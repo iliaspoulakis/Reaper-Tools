@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.2
+  @version 1.6.3
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix detection of linux i686 architecture
+    - Use /ADMIN option on non-portable Windows installs
 ]]
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -721,7 +721,7 @@ function Main()
             -- Windows installer: /S is silent mode, /D specifies directory
             local cmd =
                 'timeout 1 & %s /S %s /D=%s & cd /D %s %s& start reaper.exe & del %s'
-            local portable_str = is_portable and '/PORTABLE' or ''
+            local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
             ExecInstall(
                 cmd:format(
