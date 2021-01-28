@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.4
+  @version 1.5.5
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Avoid closing saved projects, so that they are reopened on restart
+    - Added auto-detection and handling of portable installs
 ]]
 -- Set this to true to show debugging output
 local debug = false
