@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.4
+  @version 1.6.5
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Revert changes to keep open last project on restart
-    - If set as startup action, script will now reopen previously active project
+    - Windows: Added a timeout of 3 seconds before installation to avoid possible failure
 ]]
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -113,6 +112,20 @@ function ExecProcess(cmd, timeout)
     return ret
 end
 
+function CountUnsavedProjects()
+    local cnt = 0
+    local p = 0
+    local proj = reaper.EnumProjects(p)
+    while proj do
+        if reaper.IsProjectDirty(proj) ~= 0 then
+            cnt = cnt + 1
+        end
+        p = p + 1
+        proj = reaper.EnumProjects(p)
+    end
+    return cnt
+end
+
 function ExecInstall(install_cmd)
     if settings.dialog_install.enabled then
         local msg =
@@ -127,18 +140,24 @@ function ExecInstall(install_cmd)
         end
     end
 
-    local _, fn = reaper.EnumProjects(-1)
-    if fn ~= '' then
-        -- Check reaper preference if user wants to open last active project
-        local ret, setting = reaper.get_config_var_string('loadlastproj')
-        local setting = ret and tonumber(setting) & 7 or 0
-        if setting < 2 then
-            reaper.SetExtState(title, 'last_proj', fn, true)
+    if CountUnsavedProjects() > 0 then
+        if reaper.IsProjectDirty(0) == 0 then
+            -- Close all projects but current
+            reaper.Main_OnCommand(41922, 0)
+        else
+            local _, fn = reaper.EnumProjects(-1)
+            if fn ~= '' then
+                -- Check reaper preference if user wants to open last active project
+                local ret, setting = reaper.get_config_var_string('loadlastproj')
+                local setting = ret and tonumber(setting) & 7 or 0
+                if setting < 2 then
+                    reaper.SetExtState(title, 'last_proj', fn, true)
+                end
+            end
+            -- File: Close all projects
+            reaper.Main_OnCommand(40886, 0)
         end
     end
-
-    -- File: Close all projects
-    reaper.Main_OnCommand(40886, 0)
 
     if reaper.IsProjectDirty(0) == 0 then
         if reaper.file_exists(scripts_path .. '__update.lua') then
@@ -264,12 +283,14 @@ function showOldMenu()
 end
 
 function LoadSettings()
+    local show_install_dialog = platform:match('OSX') or platform:match('macOS')
+    show_install_dialog = show_install_dialog or is_portable
     local settings = {
         ['notify_main'] = {idx = 1, default = true},
         ['notify_dev'] = {idx = 2, default = true},
         ['notify_rc'] = {idx = 3, default = true},
         ['force_startup'] = {idx = 4, default = false},
-        ['dialog_install'] = {idx = 5, default = app:lower():match('osx') ~= nil},
+        ['dialog_install'] = {idx = 5, default = show_install_dialog},
         ['dialog_dl_cancel'] = {idx = 6, default = true},
         ['debug_startup'] = {idx = 7, default = false},
         ['debug_console'] = {idx = 8, default = false},
@@ -710,7 +731,7 @@ function Main()
         if step == 'windows_install' then
             -- Windows installer: /S is silent mode, /D specifies directory
             local cmd =
-                'timeout 1 & %s /S %s /D=%s & cd /D %s %s& start reaper.exe & del %s'
+                'timeout 3 & %s /S %s /D=%s & cd /D %s %s& start reaper.exe & del %s'
             local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
             ExecInstall(
