@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.3
+  @version 1.6.4
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Use /ADMIN option on non-portable Windows installs
+    - Revert changes to keep open last project on restart
+    - If set as startup action, script will now reopen previously active project
 ]]
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -112,20 +113,6 @@ function ExecProcess(cmd, timeout)
     return ret
 end
 
-function CountUnsavedProjects()
-    local cnt = 0
-    local p = 0
-    local proj = reaper.EnumProjects(p)
-    while proj do
-        if reaper.IsProjectDirty(proj) ~= 0 then
-            cnt = cnt + 1
-        end
-        p = p + 1
-        proj = reaper.EnumProjects(p)
-    end
-    return cnt
-end
-
 function ExecInstall(install_cmd)
     if settings.dialog_install.enabled then
         local msg =
@@ -140,17 +127,20 @@ function ExecInstall(install_cmd)
         end
     end
 
-    if CountUnsavedProjects() > 0 then
-        if reaper.IsProjectDirty(0) == 0 then
-            -- Close all projects but current
-            reaper.Main_OnCommand(41922, 0)
-        else
-            -- File: Close all projects
-            reaper.Main_OnCommand(40886, 0)
+    local _, fn = reaper.EnumProjects(-1)
+    if fn ~= '' then
+        -- Check reaper preference if user wants to open last active project
+        local ret, setting = reaper.get_config_var_string('loadlastproj')
+        local setting = ret and tonumber(setting) & 7 or 0
+        if setting < 2 then
+            reaper.SetExtState(title, 'last_proj', fn, true)
         end
     end
 
-    if CountUnsavedProjects() == 0 then
+    -- File: Close all projects
+    reaper.Main_OnCommand(40886, 0)
+
+    if reaper.IsProjectDirty(0) == 0 then
         if reaper.file_exists(scripts_path .. '__update.lua') then
             reaper.SetExtState(title, 'lua_hook', '1', true)
         end
@@ -1046,6 +1036,12 @@ end
 print('Startup mode: ' .. tostring(startup_mode))
 if not startup_mode then
     ShowGUI()
+else
+    local last_proj = reaper.GetExtState(title, 'last_proj')
+    if last_proj ~= '' then
+        reaper.Main_openProject(last_proj)
+    end
+    reaper.SetExtState(title, 'last_proj', '', true)
 end
 
 -- Trigger the first step (steps are triggered by writing to the step file)
