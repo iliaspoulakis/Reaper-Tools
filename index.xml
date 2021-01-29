@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="cf2f2078486baa7e1d0fd795545456b4c4054f6e">
+<index version="1" name="FTC Tools" commit="bd1e4e756087da8f784e7e5bed7ac869ec52f3ce">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -1409,6 +1409,11 @@
       <version name="1.6.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-28T20:58:17Z">
         <changelog><![CDATA[- Use /ADMIN option on non-portable Windows installs]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/cf2f2078486baa7e1d0fd795545456b4c4054f6e/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.6.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-29T09:14:03Z">
+        <changelog><![CDATA[- Revert changes to keep open last project on restart
+- If set as startup action, script will now reopen previously active project]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/bd1e4e756087da8f784e7e5bed7ac869ec52f3ce/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
