@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.1.0
   @about Record takes without creating new splits. If possible, existing track items are extended.
+  @changelog
+    - Support editing during recording
 ]]
 -- User configuration
 
@@ -350,6 +352,27 @@ function poll()
     end
 
     if undo_state ~= prev_undo_state then
+        if play_state == 5 then
+            -- Handle editing and other changes during recording
+            tracks_state = {}
+            local tracks = getArmedTracks()
+            for _, track in ipairs(tracks) do
+                local is_updated = false
+                for i, state in ipairs(tracks_state) do
+                    if state.track == track then
+                        -- Update existing states
+                        tracks_state[i] = {track = track, items = getTrackItems(track)}
+                        is_updated = true
+                        break
+                    end
+                end
+                if not is_updated then
+                    -- Add new state
+                    local state = {track = track, items = getTrackItems(track)}
+                    tracks_state[#tracks_state + 1] = state
+                end
+            end
+        end
         local redo = reaper.Undo_CanRedo2(0)
         if redo then
             local idx = tonumber(redo:match(undo_name .. ' %((%d+)'))

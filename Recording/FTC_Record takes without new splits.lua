@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.1.0
   @about Record takes without creating new splits. Recorded takes are split at existing item edges
+  @changelog
+    - Support editing during recording
 ]]
 -- User configuration
 
@@ -152,7 +154,7 @@ function mergeTakes(main_item, item, item_soffs)
     end
 end
 
-function addEmptyTakeLanes(main_item, num, add_at_start)
+function addEmptyTakeLanes(main_item, num, is_add_at_start)
     reaper.PreventUIRefresh(1)
     local sel_items = {}
     -- Save current item selection
@@ -165,11 +167,11 @@ function addEmptyTakeLanes(main_item, num, add_at_start)
     reaper.SetMediaItemSelected(main_item, true)
     local curr_tk = reaper.GetMediaItemInfo_Value(main_item, 'I_CURTAKE')
     local num_takes = reaper.GetMediaItemNumTakes(main_item)
-    local target_tk = add_at_start and 0 or num_takes - 1
+    local target_tk = is_add_at_start and 0 or num_takes - 1
     reaper.SetMediaItemInfo_Value(main_item, 'I_CURTAKE', target_tk)
     for i = 1, num do
         -- Item: Add an empty take lane before/after the active take
-        reaper.Main_OnCommand(add_at_start and 41351 or 41352, 0)
+        reaper.Main_OnCommand(is_add_at_start and 41351 or 41352, 0)
     end
     reaper.SetMediaItemInfo_Value(main_item, 'I_CURTAKE', curr_tk)
     reaper.SetMediaItemSelected(main_item, false)
@@ -327,6 +329,27 @@ function poll()
     end
 
     if undo_state ~= prev_undo_state then
+        if play_state == 5 then
+            -- Handle editing and other changes during recording
+            tracks_state = {}
+            local tracks = getArmedTracks()
+            for _, track in ipairs(tracks) do
+                local is_updated = false
+                for i, state in ipairs(tracks_state) do
+                    if state.track == track then
+                        -- Update existing states
+                        tracks_state[i] = {track = track, items = getTrackItems(track)}
+                        is_updated = true
+                        break
+                    end
+                end
+                if not is_updated then
+                    -- Add new state
+                    local state = {track = track, items = getTrackItems(track)}
+                    tracks_state[#tracks_state + 1] = state
+                end
+            end
+        end
         local redo = reaper.Undo_CanRedo2(0)
         if redo then
             local idx = tonumber(redo:match(undo_name .. ' %((%d+)'))
