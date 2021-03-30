@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="79cbc3bb66b9b0b2a24692fed5fb78511a609151">
+<index version="1" name="FTC Tools" commit="da28bd2d3d171fd5920eec5c38f6698197aa3dd4">
   <category name="Folder Magic">
     <reapack name="FTC_FolderMagic bundle.lua" type="script">
       <metadata>
@@ -908,6 +908,10 @@
         <changelog><![CDATA[- Use SWS zoom to selected items (to also show track envelopes)]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/1f3580ddf0a893d18dd382e3e6fd65350816e0f5/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
+      <version name="1.1.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-03-30T13:54:58Z">
+        <changelog><![CDATA[- Use SWS zoom to selected items (to also show track envelopes)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/da28bd2d3d171fd5920eec5c38f6698197aa3dd4/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
       <metadata>
@@ -947,6 +951,10 @@
       <version name="1.1.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2020-12-02T11:52:35Z">
         <changelog><![CDATA[- Use SWS zoom to selected items (to also show track envelopes)]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/1f3580ddf0a893d18dd382e3e6fd65350816e0f5/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
+      </version>
+      <version name="1.1.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-03-30T13:54:58Z">
+        <changelog><![CDATA[- Use SWS zoom to selected items (to also show track envelopes)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/da28bd2d3d171fd5920eec5c38f6698197aa3dd4/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
       </version>
     </reapack>
   </category>
