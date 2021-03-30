@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.3
+  @version 1.1.4
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
     - Use SWS zoom to selected items (to also show track envelopes)
@@ -16,6 +16,9 @@ local keep_items_selected = true
 
 -- Behavior when double-clicking on audio items
 local zoom_to_audio_items = true
+
+-- Make script close MIDI editor when already open (toggle)
+local toggle_editor = false
 
 ---------------------------------------------------------------------
 
@@ -193,6 +196,16 @@ end
 if not reaper.SNM_GetIntConfigVar then
     reaper.MB('Please install SWS extension', 'Error', 0)
     return
+end
+
+if toggle_editor then
+    local hwnd = reaper.MIDIEditor_GetActive()
+    if hwnd then
+        -- View: Toggle show MIDI editor windows
+        reaper.Main_OnCommand(40716, 0)
+        reaper.Undo_OnStateChange(undo_name)
+        return
+    end
 end
 
 reaper.PreventUIRefresh(1)
