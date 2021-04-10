@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.6
+  @version 1.6.7
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Always close all projects before installation (regression)
+    - Fix case where notification shows when restoring previous project
 ]]
 -- App version & platform architecture
 local platform = reaper.GetOS()
@@ -1036,14 +1036,12 @@ if settings.debug_file.enabled then
 end
 
 print('Startup mode: ' .. tostring(startup_mode))
-if not startup_mode then
-    ShowGUI()
-else
-    local last_proj = reaper.GetExtState(title, 'last_proj')
-    if last_proj ~= '' then
-        reaper.Main_openProject(last_proj)
-    end
+local last_proj = reaper.GetExtState(title, 'last_proj')
+if last_proj ~= '' then
+    reaper.Main_openProject(last_proj)
     reaper.SetExtState(title, 'last_proj', '', true)
+elseif not startup_mode then
+    ShowGUI()
 end
 
 -- Trigger the first step (steps are triggered by writing to the step file)
