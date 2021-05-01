@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.9
+  @version 1.1.0
   @about Contextual zooming & scrolling for the MIDI editor in reaper
 ]]
 ------------------------------ ZOOM MODES -----------------------------
@@ -1028,7 +1028,7 @@ cursor_pos = cursor_pos or getCursorPosition(play_state)
 local hlength, hcenter
 local prev_hzoom_lvl = tonumber(reaper.GetExtState(extname, 'hzoom_lvl'))
 
-if sel_item and editor_take ~= reaper.GetActiveTake(sel_item) or click_mode == 2 then
+if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode == 2) then
     print('Opening selected item in editor')
     local cfg_edit
     if is_valid_take then
