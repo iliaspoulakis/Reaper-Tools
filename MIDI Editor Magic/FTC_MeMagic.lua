@@ -142,7 +142,8 @@ function getClickMode(cmd)
         'MM_CTX_ITEM_CLK',
         'MM_CTX_ITEM_DBLCLK',
         'MM_CTX_ITEMLOWER_CLK',
-        'MM_CTX_ITEMLOWER_DBLCLK'
+        'MM_CTX_ITEMLOWER_DBLCLK',
+        'MM_CTX_AREASEL_CLK'
     }
     for _, modifier in ipairs(modifiers) do
         for i = 0, 15 do
@@ -151,6 +152,7 @@ function getClickMode(cmd)
                 local modifier_cmd = reaper.NamedCommandLookup(action)
                 if modifier_cmd == cmd then
                     local mode_id = modifier:match('DBLCLK') and 2 or 1
+                    mode_id = modifier:match('MM_CTX_AREASEL_CLK') and 2 or mode_id
                     mode = mode | mode_id
                     break
                 end
