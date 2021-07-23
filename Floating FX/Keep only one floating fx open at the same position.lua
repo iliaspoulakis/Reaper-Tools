@@ -142,9 +142,9 @@ function PositionChunkWindows()
     end
 
     local m_track = reaper.GetMasterTrack(0)
-    local _, m_chunk = reaper.GetTrackStateChunk(m_track, '', true)
+    local _, m_chunk = reaper.GetTrackStateChunk(m_track, '', false)
     m_chunk = m_chunk:gsub('(FLOATP?O?S?) (%d+) (%d+) (%d+) (%d+)', SetPosition)
-    reaper.SetTrackStateChunk(m_track, m_chunk, true)
+    reaper.SetTrackStateChunk(m_track, m_chunk, false)
 
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
