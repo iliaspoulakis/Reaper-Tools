@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="0d490969d01436d1b377504205b98994b770c66c">
+<index version="1" name="FTC Tools" commit="77cfa6934990505a31e5dbcb4c84b587e84933d0">
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/0d490969d01436d1b377504205b98994b770c66c/Floating%20FX/Keep%20only%20one%20floating%20fx%20open%20and%20centered%20in%20screen.lua</source>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/77cfa6934990505a31e5dbcb4c84b587e84933d0/Floating%20FX/Keep%20only%20one%20floating%20fx%20open%20and%20centered%20in%20screen.lua</source>
       </version>
     </reapack>
     <reapack name="Keep only one floating fx open at the same position.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/0d490969d01436d1b377504205b98994b770c66c/Floating%20FX/Keep%20only%20one%20floating%20fx%20open%20at%20the%20same%20position.lua</source>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/77cfa6934990505a31e5dbcb4c84b587e84933d0/Floating%20FX/Keep%20only%20one%20floating%20fx%20open%20at%20the%20same%20position.lua</source>
       </version>
     </reapack>
   </category>
