@@ -16,6 +16,8 @@ local active_hwnd
 local wnd_l
 local wnd_t
 
+local set_time = 0
+
 local debug = false
 
 function print(msg)
@@ -49,7 +51,6 @@ function GetWindowPosition(hwnd)
 end
 
 function SetWindowPosition(hwnd, l, t, r, b)
-    if is_mac then t = b end
     reaper.JS_Window_SetPosition(hwnd, l, t, r - l, math.abs(b - t))
 end
 
@@ -129,6 +130,7 @@ function PositionFloatingFXWindow(hwnd)
         local l, t, r, b = GetWindowPosition(hwnd)
         l, t, r, b = KeepTopLeftCorner(r - l, math.abs(b - t))
         SetWindowPosition(hwnd, l, t, r, b)
+        set_time = reaper.time_precise()
     end
 end
 
@@ -227,7 +229,7 @@ function Main()
     end
 
     -- Monitor active window position
-    if reaper.ValidatePtr(active_hwnd, '*') then
+    if reaper.ValidatePtr(active_hwnd, '*') and time > set_time + 0.5 then
         local is_mouse_pressed = reaper.JS_Mouse_GetState(1) == 1
         if not is_mouse_pressed then
             local l, t = GetWindowPosition(active_hwnd)
