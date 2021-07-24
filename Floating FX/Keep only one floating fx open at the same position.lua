@@ -1,7 +1,9 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
+  @changelog
+    - Fixed bug with empty takes
 ]] --
 local prev_proj
 local prev_time = 0
@@ -57,31 +59,37 @@ end
 function GetAllFloatingFXWindows()
     local hwnds = {}
     local projects = GetOpenProjects()
+
+    local TrackFX_GetFloatingWindow = reaper.TrackFX_GetFloatingWindow
+    local TakeFX_GetFloatingWindow = reaper.TakeFX_GetFloatingWindow
+
     for _, proj in ipairs(projects) do
         local master_track = reaper.GetMasterTrack(proj)
         for fx = 0, reaper.TrackFX_GetCount(master_track) - 1 do
-            local hwnd = reaper.TrackFX_GetFloatingWindow(master_track, fx)
+            local hwnd = TrackFX_GetFloatingWindow(master_track, fx)
             if hwnd then hwnds[#hwnds + 1] = hwnd end
         end
         for t = 0, reaper.CountTracks(proj) - 1 do
             local track = reaper.GetTrack(proj, t)
             for fx = 0, reaper.TrackFX_GetCount(track) - 1 do
-                local hwnd = reaper.TrackFX_GetFloatingWindow(track, fx)
+                local hwnd = TrackFX_GetFloatingWindow(track, fx)
                 if hwnd then hwnds[#hwnds + 1] = hwnd end
             end
             for fx = 0, reaper.TrackFX_GetRecCount(track) - 1 do
                 local fx_in = fx + 0x1000000
-                local hwnd = reaper.TrackFX_GetFloatingWindow(track, fx_in)
+                local hwnd = TrackFX_GetFloatingWindow(track, fx_in)
                 if hwnd then hwnds[#hwnds + 1] = hwnd end
             end
             for i = 0, reaper.CountTrackMediaItems(track) - 1 do
                 local item = reaper.GetTrackMediaItem(track, i)
                 for tk = 0, reaper.GetMediaItemNumTakes(item) - 1 do
                     local take = reaper.GetMediaItemTake(item, tk)
-                    for fx = 0, reaper.TakeFX_GetCount(take) - 1 do
-                        local hwnd = reaper.TakeFX_GetFloatingWindow(take, fx)
-                        if hwnd then
-                            hwnds[#hwnds + 1] = hwnd
+                    if reaper.ValidatePtr(take, 'MediaItem_Take*') then
+                        for fx = 0, reaper.TakeFX_GetCount(take) - 1 do
+                            local hwnd = TakeFX_GetFloatingWindow(take, fx)
+                            if hwnd then
+                                hwnds[#hwnds + 1] = hwnd
+                            end
                         end
                     end
                 end
@@ -143,15 +151,16 @@ function PositionChunkWindows()
         return ('%s %d %d %d %d'):format(type, l, t, r - l, b - t)
     end
 
+    local pattern = '(FLOATP?O?S?) (%-?%d+) (%-?%d+) (%-?%d+) (%-?%d+)'
     local m_track = reaper.GetMasterTrack(0)
     local _, m_chunk = reaper.GetTrackStateChunk(m_track, '', false)
-    m_chunk = m_chunk:gsub('(FLOATP?O?S?) (%d+) (%d+) (%d+) (%d+)', SetPosition)
+    m_chunk = m_chunk:gsub(pattern, SetPosition)
     reaper.SetTrackStateChunk(m_track, m_chunk, false)
 
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local _, chunk = reaper.GetTrackStateChunk(track, '', false)
-        chunk = chunk:gsub('(FLOATP?O?S?) (%d+) (%d+) (%d+) (%d+)', SetPosition)
+        chunk = chunk:gsub(pattern, SetPosition)
         reaper.SetTrackStateChunk(track, chunk, false)
     end
 
