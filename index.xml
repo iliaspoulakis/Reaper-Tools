@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="4cd70221f873c9b6c1a740a7c762392498faed93">
+<index version="1" name="FTC Tools" commit="c5d31e24308e5587aff682cb231c6f4623325501">
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
@@ -1231,6 +1231,10 @@
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T01:17:41Z">
         <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/732d7b1d2d1c296a67c8e6fe6430d9d4e8f5aae0/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
       </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T07:59:53Z">
+        <changelog><![CDATA[- Fix issue with samples not showing when using databases]]></changelog>
+        <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/c5d31e24308e5587aff682cb231c6f4623325501/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
+      </version>
     </reapack>
     <reapack name="Link media explorer to active sample player.lua" type="script">
       <metadata>
@@ -1248,6 +1252,10 @@
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T06:50:25Z">
         <changelog><![CDATA[- Limit the number of inserted samples to 64]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/4cd70221f873c9b6c1a740a7c762392498faed93/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T07:59:53Z">
+        <changelog><![CDATA[- Fix issue with samples not showing when using databases]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/c5d31e24308e5587aff682cb231c6f4623325501/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
