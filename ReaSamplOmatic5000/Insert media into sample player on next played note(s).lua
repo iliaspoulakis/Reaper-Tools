@@ -1,11 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
+  @changelog
+    - Fix issue with samples not showing when using databases
 ]]
 
 -- Avoid creating undo points
@@ -107,6 +109,15 @@ function GetAudioFileLength(file)
 end
 
 function MediaExplorer_GetSelectedAudioFiles()
+
+    local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
+    local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
+
+    if not show_full_path then
+        -- Browser: Show full path in databases and searches
+        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
+    end
+
     local path_hwnd = reaper.JS_Window_FindChildByID(mx, 1002)
     local path = reaper.JS_Window_GetTitle(path_hwnd)
 
@@ -121,10 +132,25 @@ function MediaExplorer_GetSelectedAudioFiles()
         index = tonumber(index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
         if IsAudioFile(file_name) then
-            sel_files[#sel_files + 1] = path .. sep .. file_name
+            -- Check if file_name is valid path itself (for searches and DBs)
+            if not reaper.file_exists(file_name) then
+                file_name = path .. sep .. file_name
+            end
+            sel_files[#sel_files + 1] = file_name
             local peak = reaper.JS_ListView_GetItem(mx_list_view, index, 21)
             peaks[#peaks + 1] = tonumber(peak)
         end
+    end
+
+    -- Restore previous settings
+    if not show_full_path then
+        -- Browser: Show full path in databases and searches
+        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
+    end
+
+    if show_leading_path then
+        -- Browser: Show leading path in databases and searches
+        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42134, 0, 0, 0)
     end
 
     return sel_files, peaks
