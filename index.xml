@@ -1229,7 +1229,7 @@
 ]]></description>
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T01:17:41Z">
-        <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/b8c1a0e92633acdcd9bb4424008e14f89104e7d9/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
+        <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/732d7b1d2d1c296a67c8e6fe6430d9d4e8f5aae0/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
       </version>
     </reapack>
     <reapack name="Link media explorer to active sample player.lua" type="script">
@@ -1243,7 +1243,7 @@
 ]]></description>
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T01:17:41Z">
-        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/b8c1a0e92633acdcd9bb4424008e14f89104e7d9/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/732d7b1d2d1c296a67c8e6fe6430d9d4e8f5aae0/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
