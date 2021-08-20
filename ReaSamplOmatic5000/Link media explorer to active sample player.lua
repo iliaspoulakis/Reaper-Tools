@@ -1,11 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
+  @changelog
+    - Limit the number of inserted samples to 64
 ]]
 
 -- Avoid creating undo points
@@ -35,7 +37,6 @@ local GetParamName
 local SetNamedConfigParm
 local SetParamNormalized
 local SetParam
-
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -178,8 +179,9 @@ function Main()
     local files, peaks = MediaExplorer_GetSelectedAudioFiles()
     if #files > 0 then
         SetNamedConfigParm(container, container_idx, '-FILE*', '')
-        for _, file in ipairs(files) do
-            SetNamedConfigParm(container, container_idx, '+FILE0', file)
+        local file_cnt = math.min(64, #files)
+        for f = 1, file_cnt do
+            SetNamedConfigParm(container, container_idx, '+FILE0', files[f])
         end
         SetNamedConfigParm(container, container_idx, 'DONE', '')
     end
