@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="4cb154e04b5d0f18ae1b07cee0d00546b6e9e83f">
+<index version="1" name="FTC Tools" commit="b8c1a0e92633acdcd9bb4424008e14f89104e7d9">
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
@@ -1214,6 +1214,36 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-24T21:31:32Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ebfba4499f1c1689945e97e92cd36d84d03a590/Razor%20edits/Resize%20razor%20edit%20up%20by%20one%20track.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="ReaSamplOmatic5000">
+    <reapack name="Insert media into sample player on next played note(s).lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Links the media explorer file selection, time selection, pitch and volume to the focused sample player. The link is automatically broken when closing either the FX window or the media explorer.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T01:17:41Z">
+        <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/b8c1a0e92633acdcd9bb4424008e14f89104e7d9/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
+      </version>
+    </reapack>
+    <reapack name="Link media explorer to active sample player.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Inserts selected media explorer items into a new sample player on the next played note. Insertion target is either the selected track, or the track open in the MIDI editor (when clicking directly on the piano roll).\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T01:17:41Z">
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/b8c1a0e92633acdcd9bb4424008e14f89104e7d9/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
