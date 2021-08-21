@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.1.0
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Fix issue with samples not showing when using databases
+    - Various performance optimizations
 ]]
 
 -- Avoid creating undo points
@@ -30,6 +30,7 @@ local is_first_run = true
 local prev_file
 local container, container_idx
 
+local GetNamedConfigParm
 local GetFloatingWindow
 local GetChainVisible
 local GetParamName
@@ -75,11 +76,7 @@ function MediaExplorer_GetSelectedAudioFiles()
 
     local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
     local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
-
-    if not show_full_path then
-        -- Browser: Show full path in databases and searches
-        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
-    end
+    local forced_full_path = false
 
     local path_hwnd = reaper.JS_Window_FindChildByID(mx, 1002)
     local path = reaper.JS_Window_GetTitle(path_hwnd)
@@ -99,6 +96,20 @@ function MediaExplorer_GetSelectedAudioFiles()
             if not reaper.file_exists(file_name) then
                 file_name = path .. sep .. file_name
             end
+
+            -- If file does not exist, try enabling option that shows full path
+            if not show_full_path and not reaper.file_exists(file_name) then
+                show_full_path = true
+                forced_full_path = true
+                -- Browser: Show full path in databases and searches
+                reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
+                file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+            end
+
+            -- Check if file_name is valid path itself (for searches and DBs)
+            if not reaper.file_exists(file_name) then
+                file_name = path .. sep .. file_name
+            end
             sel_files[#sel_files + 1] = file_name
             local peak = reaper.JS_ListView_GetItem(mx_list_view, index, 21)
             peaks[#peaks + 1] = tonumber(peak)
@@ -106,14 +117,14 @@ function MediaExplorer_GetSelectedAudioFiles()
     end
 
     -- Restore previous settings
-    if not show_full_path then
+    if forced_full_path then
         -- Browser: Show full path in databases and searches
         reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
-    end
 
-    if show_leading_path then
-        -- Browser: Show leading path in databases and searches
-        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42134, 0, 0, 0)
+        if show_leading_path then
+            -- Browser: Show leading path in databases and searches
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42134, 0, 0, 0)
+        end
     end
 
     return sel_files, peaks
@@ -202,12 +213,37 @@ function Main()
     -- Link files
     local files, peaks = MediaExplorer_GetSelectedAudioFiles()
     if #files > 0 then
-        SetNamedConfigParm(container, container_idx, '-FILE*', '')
+        -- Check if files have changed (SetNamedConfigParm is CPU intensive)
         local file_cnt = math.min(64, #files)
-        for f = 1, file_cnt do
-            SetNamedConfigParm(container, container_idx, '+FILE0', files[f])
+        local have_files_changed = false
+
+        local current_files = {}
+        for f = file_cnt - 1, 0, -1 do
+            local id = ('FILE%d'):format(f)
+            local _, file = GetNamedConfigParm(container, container_idx, id)
+            current_files[#current_files + 1] = file
         end
-        SetNamedConfigParm(container, container_idx, 'DONE', '')
+
+        for f = 1, file_cnt do
+            if files[f] ~= current_files[f] then
+                have_files_changed = true
+                break
+            end
+        end
+
+        -- Check if ReaSamplomatic contains more files
+        local last_id = ('FILE%d'):format(file_cnt)
+        local _, file = GetNamedConfigParm(container, container_idx, last_id)
+        if file ~= '' then have_files_changed = true end
+
+        -- Update files on change
+        if have_files_changed then
+            SetNamedConfigParm(container, container_idx, '-FILE*', '')
+            for f = 1, file_cnt do
+                SetNamedConfigParm(container, container_idx, '+FILE0', files[f])
+            end
+            SetNamedConfigParm(container, container_idx, 'DONE', '')
+        end
     end
 
     -- Link volume
@@ -269,6 +305,7 @@ if container then
         GetFloatingWindow = reaper.TakeFX_GetFloatingWindow
         GetChainVisible = reaper.TakeFX_GetChainVisible
         GetParamName = reaper.TakeFX_GetParamName
+        GetNamedConfigParm = reaper.TakeFX_GetNamedConfigParm
         SetNamedConfigParm = reaper.TakeFX_SetNamedConfigParm
         SetParamNormalized = reaper.TakeFX_SetParamNormalized
         SetParam = reaper.TakeFX_SetParam
@@ -276,6 +313,7 @@ if container then
         GetFloatingWindow = reaper.TrackFX_GetFloatingWindow
         GetChainVisible = reaper.TrackFX_GetChainVisible
         GetParamName = reaper.TrackFX_GetParamName
+        GetNamedConfigParm = reaper.TrackFX_GetNamedConfigParm
         SetNamedConfigParm = reaper.TrackFX_SetNamedConfigParm
         SetParamNormalized = reaper.TrackFX_SetParamNormalized
         SetParam = reaper.TrackFX_SetParam
