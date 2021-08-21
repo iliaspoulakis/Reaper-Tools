@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="c5d31e24308e5587aff682cb231c6f4623325501">
+<index version="1" name="FTC Tools" commit="3e07d214b2a5f63de945d2c116a1451c4c227a76">
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
@@ -1256,6 +1256,10 @@
       <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-20T07:59:53Z">
         <changelog><![CDATA[- Fix issue with samples not showing when using databases]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/c5d31e24308e5587aff682cb231c6f4623325501/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-21T12:35:41Z">
+        <changelog><![CDATA[- Various performance optimizations]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/3e07d214b2a5f63de945d2c116a1451c4c227a76/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
