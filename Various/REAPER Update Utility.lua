@@ -9,9 +9,7 @@
     - Rearranged startup notifications menu options
     - Added dedicated button for installing older versions
     - Added tooltips
-]]
-
--- App version & platform architecture
+]] -- App version & platform architecture
 local platform = reaper.GetOS()
 local app = reaper.GetAppVersion()
 local curr_version = app:gsub('/.-$', '')
@@ -302,12 +300,9 @@ function SetStartupHook(is_enabled)
         if s and e then
             local hook = content:sub(s, e)
             hook_exists = true
-            reaper.ShowConsoleMsg(hook .. '\n')
             local repl = (is_enabled and '' or '-- ') .. 'reaper.Main_OnCommand'
-            reaper.ShowConsoleMsg(tostring(is_enabled) .. '\n')
             hook = hook:gsub('[^\n]*reaper%.Main_OnCommand', repl, 1)
 
-            reaper.ShowConsoleMsg(hook .. '\n')
             content = content:sub(1, s - 1) .. hook .. content:sub(e + 1)
 
             file = io.open(startup_script_path, 'w')
