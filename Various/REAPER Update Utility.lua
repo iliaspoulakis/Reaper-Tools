@@ -1,11 +1,16 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.7
+  @version 1.7.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix case where notification shows when restoring previous project
+    - Removed automatic startup detection
+    - Added option to start script on startup
+    - Rearranged startup notifications menu options
+    - Added dedicated button for installing older versions
+    - Added tooltips
 ]]
+
 -- App version & platform architecture
 local platform = reaper.GetOS()
 local app = reaper.GetAppVersion()
@@ -14,16 +19,12 @@ local main_version, dev_version, new_version, install_version
 
 local arch = app:match('/(.-)$')
 if arch then
-    if arch:match('win') then
-        arch = arch:match('64') and 'x64' or arch
-    end
+    if arch:match('win') then arch = arch:match('64') and 'x64' or arch end
     if arch:match('OSX') then
         arch = arch:match('64') and 'x86_64' or arch
         arch = arch:match('32') and 'i386' or arch
     end
-    if arch:match('macOS') then
-        arch = arch:match('arm') and 'arm64' or arch
-    end
+    if arch:match('macOS') then arch = arch:match('arm') and 'arm64' or arch end
     if arch:match('linux') then
         arch = arch:match('64') and 'x86_64' or arch
         arch = arch:match('686') and 'i686' or arch
@@ -50,12 +51,6 @@ local log_path = res_path .. separator .. 'update-utility.log'
 local dump_path = res_path .. separator .. 'update-utility-startup.log'
 local is_portable = res_path == install_path
 
--- Startup mode
-local startup_mode = false
-local start_timeout = 90
-local load_timeout = 3
-local settings
-
 -- Download variables
 local dl_cmd, browser_cmd, user_dlink, dfile_name
 
@@ -64,9 +59,9 @@ local m_x, m_y
 local step = 0
 local direction = 1
 local opacity = 0.65
+local hover_cnt = 0
 local click = {}
 local is_main_clicked = false
-local main_cl, dev_cl
 local show_buttons = false
 local task = 'Initializing...'
 local title = 'REAPER Update Utility'
@@ -77,6 +72,9 @@ local dev_list = {}
 
 local hook_cmd = ''
 local debug_str = ''
+
+local startup_mode = false
+local settings
 
 function print(msg, force)
     if settings.debug_console.enabled or force then
@@ -105,9 +103,7 @@ function ExecProcess(cmd, timeout)
         ret = ret:gsub('^.-Defaulting to Windows directory%.', '')
         -- Remove all newlines
         ret = ret:gsub('[\r\n]', '')
-        if ret ~= '' then
-            print('Return value:\n' .. ret)
-        end
+        if ret ~= '' then print('Return value:\n' .. ret) end
     end
     return ret
 end
@@ -145,14 +141,10 @@ function ExecInstall(install_cmd)
             reaper.SetExtState(title, 'lua_hook', '1', true)
         end
         -- In Windows execute after quitting to avoid error dialog
-        if not platform:match('Win') then
-            ExecProcess(install_cmd)
-        end
+        if not platform:match('Win') then ExecProcess(install_cmd) end
         -- File: Quit REAPER
         reaper.Main_OnCommand(40004, 0)
-        if platform:match('Win') then
-            ExecProcess(install_cmd)
-        end
+        if platform:match('Win') then ExecProcess(install_cmd) end
     else
         reaper.MB('\nInstallation cancelled!\n ', title, 0)
     end
@@ -164,11 +156,9 @@ function GetFilePattern()
         file_pattern = (arch and '_' .. arch or '') .. '%-install%.exe'
     end
     if platform:match('OSX') then
-        file_pattern = '%d_' .. arch .. '%.dmg'
+        file_pattern = '%d%d%a?_' .. arch .. '%.dmg'
     end
-    if platform:match('macOS') then
-        file_pattern = 'beta_' .. arch .. '%.dmg'
-    end
+    if platform:match('macOS') then file_pattern = 'beta_' .. arch .. '%.dmg' end
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
     end
@@ -187,19 +177,22 @@ function ParseDownloadLink(file, dlink)
     end
 end
 
-function parseOldDownloadLinks(file, old_dlink)
+function ParseHistory(file, dlink)
     local file_pattern = GetFilePattern()
     -- Find matching file download links
     for line in file:lines() do
         local file_name = line:match(file_pattern)
         if file_name and file_name:match('reaper') then
-            local link = old_dlink .. file_name
+            local link = dlink .. file_name
             local main_match = file_name:match('reaper(%d+%a*)_')
             -- Divide matches into separate lists for main and dev releases
             if main_match then
                 main_match = main_match:gsub('^(%d)', '%1.')
                 if main_match ~= main_version then
-                    main_list[#main_list + 1] = {version = main_match, link = link}
+                    main_list[#main_list + 1] = {
+                        version = main_match,
+                        link = link,
+                    }
                 end
             else
                 local dev_match = file_name:match('reaper(.-)_')
@@ -212,7 +205,7 @@ function parseOldDownloadLinks(file, old_dlink)
     end
 end
 
-function showOldMenu()
+function ShowHistoryMenu()
     local list = is_main_clicked and main_list or dev_list
     local prev_group
     local menu_list = {}
@@ -244,9 +237,7 @@ function showOldMenu()
             local group = item.version:match('^[%d.]+')
             sep = sep .. '>' .. group .. '|'
         end
-        if item.is_last then
-            sep = sep .. '<'
-        end
+        if item.is_last then sep = sep .. '<' end
         menu = menu .. sep .. item.version
     end
 
@@ -263,37 +254,117 @@ function showOldMenu()
     end
 end
 
+function CheckStartupHook()
+    local _, _, _, cmd = reaper.get_action_context()
+    local script_id = reaper.ReverseNamedCommandLookup(cmd)
+    local startup_script_path = scripts_path .. '__startup.lua'
+
+    if reaper.file_exists(startup_script_path) then
+
+        local file = io.open(startup_script_path, 'r')
+        local content = file:read('*a')
+        file:close()
+
+        -- Find line that contains script_id (also next line if available)
+        local pattern = '[^\n]+' .. script_id .. '\'?\n?[^\n]+'
+        local s, e = content:find(pattern)
+
+        -- Add/remove comment from existing startup hook
+        if s and e then
+            local hook = content:sub(s, e)
+            local comment = hook:match('[^\n]*%-%-[^\n]*reaper%.Main_OnCommand')
+            if not comment then return true end
+        end
+    end
+    return false
+end
+
+function SetStartupHook(is_enabled)
+    local _, _, _, cmd = reaper.get_action_context()
+    local script_id = reaper.ReverseNamedCommandLookup(cmd)
+    local startup_script_path = scripts_path .. '__startup.lua'
+
+    local content
+    local hook_exists = false
+
+    -- Check startup script for existing hook
+    if reaper.file_exists(startup_script_path) then
+
+        local file = io.open(startup_script_path, 'r')
+        content = file:read('*a')
+        file:close()
+
+        -- Find line that contains script_id (also next line if available)
+        local pattern = '[^\n]+' .. script_id .. '\'?\n?[^\n]+'
+        local s, e = content:find(pattern)
+
+        -- Add/remove comment from existing startup hook
+        if s and e then
+            local hook = content:sub(s, e)
+            hook_exists = true
+            reaper.ShowConsoleMsg(hook .. '\n')
+            local repl = (is_enabled and '' or '-- ') .. 'reaper.Main_OnCommand'
+            reaper.ShowConsoleMsg(tostring(is_enabled) .. '\n')
+            hook = hook:gsub('[^\n]*reaper%.Main_OnCommand', repl, 1)
+
+            reaper.ShowConsoleMsg(hook .. '\n')
+            content = content:sub(1, s - 1) .. hook .. content:sub(e + 1)
+
+            file = io.open(startup_script_path, 'w')
+            file:write(content)
+            file:close()
+        end
+    end
+
+    -- Create startup hook
+    if is_enabled and not hook_exists then
+        local hook =
+            '-- Start script: REAPER Update Utility (check for new versions)\n\z
+            local update_utility_cmd = \'_%s\'\n\z
+            reaper.Main_OnCommand(reaper.NamedCommandLookup(update_utility_cmd), 0)\n\n'
+
+        local file = io.open(startup_script_path, 'w')
+        file:write(hook:format(script_id) .. (content or ''))
+        file:close()
+    end
+end
+
 function LoadSettings()
     local show_install_dialog = platform:match('OSX') or platform:match('macOS')
     show_install_dialog = show_install_dialog or is_portable
-    local settings = {
-        ['notify_main'] = {idx = 1, default = true},
-        ['notify_dev'] = {idx = 2, default = true},
-        ['notify_rc'] = {idx = 3, default = true},
-        ['force_startup'] = {idx = 4, default = false},
-        ['dialog_install'] = {idx = 5, default = show_install_dialog},
-        ['dialog_dl_cancel'] = {idx = 6, default = true},
-        ['debug_startup'] = {idx = 7, default = false},
-        ['debug_console'] = {idx = 8, default = false},
-        ['debug_file'] = {idx = 9, default = false}
+    local default_settings = {
+        ['startup_hook'] = {idx = 1, default = false},
+        ['force_startup'] = {idx = 2, default = false},
+        ['notify_main'] = {idx = 3, default = true},
+        ['notify_dev'] = {idx = 4, default = true},
+        ['notify_rc'] = {idx = 5, default = true},
+        ['dialog_install'] = {idx = 6, default = show_install_dialog},
+        ['dialog_dl_cancel'] = {idx = 7, default = true},
+        ['debug_startup'] = {idx = 8, default = false},
+        ['debug_console'] = {idx = 9, default = false},
+        ['debug_file'] = {idx = 10, default = false},
     }
-    for key, setting in pairs(settings) do
+    for key, setting in pairs(default_settings) do
         local ret = reaper.GetExtState(title, key)
         setting.enabled = ret == 'true' or ret == '' and setting.default
     end
-    return settings
+    return default_settings
 end
 
 function ShowSettingsMenu()
+    -- Check for script startup hook each time menu is clicked
+    settings.startup_hook.enabled = CheckStartupHook()
+
     local state = {}
     for key, setting in pairs(settings) do
         state[setting.idx] = {key = key, enabled = setting.enabled}
     end
 
     local menu =
-        '>Startup notifications|%1Main|%2Dev|%3RC||<%4Force startup mode\z
-        |>Confirmation dialogs|%5Before installing|<%6When cancelling download\z
-        |>Debugging|%7Dump startup log|%8Log to console|%9Log to file'
+        '>Startup notifications|%1Run script on startup||%2Only show window when \z
+        a new version is available|>Check for...|%3Main|%4Dev|<%5RC|<\z
+        |>Confirmation dialogs|%6Before installing|<%7When cancelling download\z
+        |>Debugging|%8Dump startup log|%9Log to console|%10Log to file'
     local function substitute(s)
         return state[tonumber(s)].enabled and '!' or ''
     end
@@ -312,7 +383,9 @@ function ShowSettingsMenu()
             settings.notify_main.enabled = true
         end
 
-        if ret == 7 then
+        if ret == 1 then SetStartupHook(enabled) end
+
+        if ret == 8 then
             reaper.SetExtState(title, 'debug_startup', 'false', true)
             settings.debug_startup.enabled = false
 
@@ -320,8 +393,7 @@ function ShowSettingsMenu()
             log_file:write(debug_str, '\n')
             log_file:close()
 
-            local msg =
-                'Created new file: update-utility-startup.log\n\n\z
+            local msg = 'Created new file: update-utility-startup.log\n\n\z
                 Please attach this file to your forum post. It will be automatically \z
                 deleted the next time this script runs. Thank you for testing!\n\n\z
                 The containing folder (your resource directory) will \z
@@ -331,19 +403,18 @@ function ShowSettingsMenu()
             reaper.Main_OnCommand(40027, 0)
         end
 
-        if ret == 9 then
+        if ret == 10 then
             os.remove(log_path)
             if enabled then
                 local log_file = io.open(log_path, 'a')
                 log_file:write(debug_str, '\n')
                 log_file:close()
-                local msg =
-                    " \nLogging to file is now enabled!\n\n\z
-                    You can find the file 'update-utility.log' in your resource \z
+                local msg = ' \nLogging to file is now enabled!\n\n\z
+                    You can find the file \'update-utility.log\' in your resource \z
                     directory:\n--> Options --> Show REAPER resource path...\n\n\z
-                    Open resource directoy now?\n "
-                local ret = reaper.MB(msg, title, 4)
-                if ret == 6 then
+                    Open resource directoy now?\n '
+                local response = reaper.MB(msg, title, 4)
+                if response == 6 then
                     -- Show REAPER resource path in explorer
                     reaper.Main_OnCommand(40027, 0)
                 end
@@ -366,154 +437,6 @@ function DrawTask()
     gfx.drawstr(task, 1)
 end
 
-function DrawButton(x, y, version, dlink, changelog)
-    local w = math.floor(gfx.w / 7) * 2
-    local h = math.floor(gfx.h / 2)
-
-    local is_new = version == new_version
-    local is_dev = version == dev_version
-    local is_main = version == main_version
-    local is_installed = version == curr_version
-    local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
-
-    gfx.set(0.6)
-
-    if is_new then
-        gfx.set(1.15 * opacity, 0.92 * opacity, 0.55 * opacity)
-    end
-
-    if is_hover then
-        gfx.set(0.72)
-    end
-
-    if is_installed then
-        gfx.set(0.1, 0.65, 0.5)
-    end
-
-    -- Button left click
-    if not is_installed and is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.8, 0.6, 0.35)
-        click = {type = is_main, action = 'install'}
-    end
-
-    -- Button left click release
-    if click.type == is_main and click.action == 'install' and gfx.mouse_cap == 0 then
-        if is_hover and dlink ~= '' then
-            user_dlink = dlink
-            install_version = version
-            ExecProcess('echo download > ' .. step_path)
-            show_buttons = false
-        end
-        click = {}
-    end
-
-    -- Button right click
-    if is_hover and gfx.mouse_cap == 2 then
-        gfx.set(0.8, 0.6, 0.35)
-        click = {type = is_main, action = 'show_old'}
-    end
-
-    -- Button right click release
-    if click.type == is_main and click.action == 'show_old' and gfx.mouse_cap == 0 then
-        if is_hover then
-            is_main_clicked = is_main
-            if #main_list > 0 and #dev_list > 0 then
-                reaper.defer(showOldMenu)
-            else
-                show_buttons = false
-                task = 'Fetching old versions...'
-                ExecProcess('echo get_old_versions > ' .. step_path)
-            end
-        end
-        click = {}
-    end
-
-    -- Border
-    gfx.roundrect(x, y, w, h, 4, 1)
-    gfx.roundrect(x + 1, y, w, h, 4, 1)
-    gfx.roundrect(x, y + 1, w, h, 4, 1)
-
-    -- Version
-    gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
-    local version_text = version:match('^([%d%.]+)') or 'none'
-    local t_w, t_h = gfx.measurestr(version_text)
-    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
-    gfx.y = math.floor(gfx.h / 2 - t_h / 2)
-    gfx.drawstr(version_text, 1)
-
-    -- Subversion
-    gfx.setfont(1, '', 15 * font_factor, string.byte('i'))
-    local subversion_text = version:match('[%d%.]+(.-)$') or ''
-    local t_w = gfx.measurestr(subversion_text)
-    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
-    gfx.y = math.floor(gfx.y + t_h) + 5
-    gfx.drawstr(subversion_text, 1)
-
-    -- Changelog
-    gfx.setfont(1, '', 12 * font_factor)
-    local changelog_text = 'CHANGELOG'
-
-    -- Display animation when main_cl is set
-    if is_main and main_cl then
-        main_cl = main_cl:sub(-1) .. main_cl:sub(1, #main_cl - 1)
-        changelog_text = main_cl
-    end
-
-    -- Display animation when dev_cl is set
-    if is_dev and dev_cl then
-        dev_cl = dev_cl:sub(-1) .. dev_cl:sub(1, #dev_cl - 1)
-        changelog_text = dev_cl
-    end
-
-    local t_w, t_h = gfx.measurestr(changelog_text)
-    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 9
-    gfx.y = math.floor(gfx.h * 3 / 32 + y + h) + 1
-
-    local hov_y = gfx.y - math.floor(h / 16)
-    local hov_h = gfx.y + math.floor(h / 16) + t_h
-    local is_hover = m_x >= x and m_x <= x + w and m_y >= hov_y and m_y <= hov_h
-
-    gfx.set(0.57)
-
-    if is_hover then
-        gfx.set(0.72)
-    end
-
-    -- Changelog left click
-    if is_hover and gfx.mouse_cap == 1 then
-        gfx.set(0.8, 0.6, 0.35)
-        click = {type = is_main, action = 'show_cl'}
-    end
-
-    -- Changelog left click release
-    if click.type == is_main and click.action == 'show_cl' and gfx.mouse_cap == 0 then
-        if is_hover then
-            if is_main then
-                main_cl = 'CHANGELOG'
-                ExecProcess('echo get_main_changelog > ' .. step_path)
-            elseif dev_version ~= 'none' then
-                dev_cl = 'CHANGELOG'
-                ExecProcess('echo get_dev_changelog > ' .. step_path)
-            end
-        end
-        click = {}
-    end
-    gfx.drawstr(changelog_text, 1)
-
-    -- Info icon
-    local c_x = gfx.x - t_w - 16
-    local c_y = gfx.y + math.floor(t_h / 2)
-    gfx.circle(c_x, c_y, 8, 1, 1)
-    gfx.circle(c_x + 1, c_y, 8, 1, 1)
-    gfx.set(0.13)
-    gfx.setfont(0)
-    local info_text = 'i'
-    local i_w, i_h = gfx.measurestr(info_text)
-    gfx.x = c_x - math.floor(i_w / 2) + 1
-    gfx.y = c_y - math.floor(i_h / 2) + 1
-    gfx.drawstr(info_text, 1)
-end
-
 function DrawSettingsButton()
     gfx.set(0.40)
 
@@ -521,6 +444,12 @@ function DrawSettingsButton()
 
     if is_hover then
         gfx.set(0.52)
+        hover_cnt = hover_cnt + 1
+        local tooltip = 'Show menu'
+        local tooltip_x, tooltip_y = reaper.GetMousePosition()
+        if hover_cnt > 12 then
+            reaper.TrackCtl_SetToolTip(tooltip, tooltip_x, tooltip_y, true)
+        end
     end
 
     -- Left click
@@ -533,9 +462,7 @@ function DrawSettingsButton()
     if click.action == 'menu' and gfx.mouse_cap == 0 then
         gfx.x = 4
         gfx.y = 4
-        if is_hover then
-            ShowSettingsMenu()
-        end
+        if is_hover then ShowSettingsMenu() end
         click = {}
     end
 
@@ -544,32 +471,209 @@ function DrawSettingsButton()
     gfx.rect(6, 16, 17, 3)
 end
 
-function DrawGUI()
-    m_x = gfx.mouse_x
-    m_y = gfx.mouse_y
-    task = ''
-    local x = math.floor(gfx.w / 7)
-    local y = math.floor(gfx.h / 4)
-    DrawButton(x, y, main_version, main_dlink, main_changelog)
-    local x = math.floor(gfx.w / 7) * 4
-    local y = math.floor(gfx.h / 4)
-    DrawButton(x, y, dev_version, dev_dlink, dev_changelog)
-    DrawSettingsButton()
+function DrawVersionHistoryButton(x, y, is_main)
+
+    local is_hover =
+        m_x >= x - 10 and m_x <= x + 10 and m_y >= y - 10 and m_y <= y + 10
+    local is_clicked = click.type == is_main and click.action == 'show_hist'
+
+    -- Hover
+    gfx.set(0.57)
+    if is_hover then
+        gfx.set(0.72)
+        hover_cnt = hover_cnt + 1
+        local tooltip = 'List old versions'
+        local tooltip_x, tooltip_y = reaper.GetMousePosition()
+        if hover_cnt > 12 then
+            reaper.TrackCtl_SetToolTip(tooltip, tooltip_x, tooltip_y, true)
+        end
+    end
+
+    -- Left click
+    if is_hover and gfx.mouse_cap == 1 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'show_hist'}
+    end
+
+    --  Left click release
+    if gfx.mouse_cap == 0 and is_clicked then
+        if is_hover then
+            is_main_clicked = is_main
+            if #main_list > 0 and #dev_list > 0 then
+                reaper.defer(ShowHistoryMenu)
+            else
+                show_buttons = false
+                task = 'Fetching old versions...'
+                ExecProcess('echo get_history > ' .. step_path)
+            end
+        end
+        click = {}
+    end
+
+    -- Draw
+    gfx.circle(x, y, 8.3, 0)
+    gfx.line(x, y, x, y - 4)
+    gfx.line(x, y, x + 3, y + 3)
 end
 
-function ConvertToSeconds(time)
-    local res = 0
-    local i = 2
-    for num in time:gmatch('%d+') do
-        res = res + tonumber(num) * 60 ^ i
-        i = i - 1
+function DrawChangelogButton(x, y, is_main)
+
+    local is_hover =
+        m_x >= x - 10 and m_x <= x + 10 and m_y >= y - 10 and m_y <= y + 10
+    local is_clicked = click.type == is_main and click.action == 'show_cl'
+
+    -- Hover
+    gfx.set(0.57)
+    if is_hover then
+        gfx.set(0.72)
+        hover_cnt = hover_cnt + 1
+        local tooltip = 'Open changelog in web browser'
+        local tooltip_x, tooltip_y = reaper.GetMousePosition()
+        if hover_cnt > 12 then
+            reaper.TrackCtl_SetToolTip(tooltip, tooltip_x, tooltip_y, true)
+        end
     end
-    -- Make sure it works shortly before 12
-    res = res % (12 * 60 * 60)
-    if res <= start_timeout then
-        res = res + 12 * 60 * 60
+
+    -- Left click
+    if is_hover and gfx.mouse_cap == 1 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'show_cl'}
     end
-    return res
+
+    -- Left click release
+    if gfx.mouse_cap == 0 and is_clicked then
+        if is_hover and (is_main or dev_version ~= 'none') then
+            show_buttons = false
+            task = 'Checking forum for post...'
+            local type = is_main and 'main' or 'dev'
+            ExecProcess('echo get_' .. type .. '_changelog > ' .. step_path)
+        end
+        click = {}
+    end
+
+    -- Draw
+    gfx.circle(x, y, 8, 1, 1)
+    gfx.circle(x + 1, y, 8, 1, 1)
+    gfx.set(0.13)
+    gfx.setfont(0)
+    local info_text = 'i'
+    local i_w, i_h = gfx.measurestr(info_text)
+    gfx.x = x - math.floor(i_w / 2) + 1
+    gfx.y = y - math.floor(i_h / 2) + 1
+    gfx.drawstr(info_text, 1)
+end
+
+function DrawInstallButton(x, y, w, h, version, dlink)
+
+    local is_new = version == new_version
+    local is_dev = version == dev_version
+    local is_main = version == main_version
+    local is_installed = version == curr_version
+    local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
+
+    gfx.set(0.5)
+
+    -- State
+    gfx.setfont(1, '', 14 * font_factor, string.byte('b'))
+    local branch = is_main and 'MAIN' or 'PRE-RELEASE'
+    local t_w, t_h = gfx.measurestr(branch)
+    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
+    gfx.y = math.floor(y + h) + 13
+    gfx.drawstr(branch, 1)
+
+    gfx.set(0.6)
+
+    if is_new then gfx.set(1.15 * opacity, 0.92 * opacity, 0.55 * opacity) end
+
+    if is_hover then gfx.set(0.72) end
+
+    if is_installed then gfx.set(0.1, 0.65, 0.5) end
+
+    -- Button left click
+    if not is_installed and is_hover and gfx.mouse_cap == 1 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {type = is_main, action = 'install'}
+    end
+
+    -- Button left click release
+    if click.type == is_main and click.action == 'install' and gfx.mouse_cap ==
+        0 then
+        if is_hover and dlink ~= '' then
+            user_dlink = dlink
+            install_version = version
+            ExecProcess('echo download > ' .. step_path)
+            show_buttons = false
+        end
+        click = {}
+    end
+
+    -- Button hover
+    if is_hover then
+        hover_cnt = hover_cnt + 1
+        local tooltip = 'Install v' .. version
+        local tooltip_x, tooltip_y = reaper.GetMousePosition()
+        if hover_cnt > 12 then
+            reaper.TrackCtl_SetToolTip(tooltip, tooltip_x, tooltip_y, true)
+        end
+    end
+
+    -- Border
+    gfx.roundrect(x, y, w, h, 4, 1)
+    gfx.roundrect(x + 1, y, w, h, 4, 1)
+    gfx.roundrect(x, y + 1, w, h, 4, 1)
+
+    --[[   -- State
+    gfx.setfont(1, '', 12 * font_factor, string.byte('b'))
+    if is_new or is_installed then
+        local state = is_installed and 'INSTALLED' or 'NEW!'
+        local t_w, t_h = gfx.measurestr(state)
+        gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
+        gfx.y = math.floor(y + h / 4 - t_h / 2) - 4
+        gfx.drawstr(state, 1)
+    end ]]
+
+    -- Version
+    gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
+    local version_text = version:match('^([%d%.]+)') or 'none'
+    t_w, t_h = gfx.measurestr(version_text)
+    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
+    gfx.y = math.floor(gfx.h / 2 - t_h / 2)
+    gfx.drawstr(version_text, 1)
+
+    -- Subversion
+    gfx.setfont(1, '', 15 * font_factor, string.byte('i'))
+    local subversion_text = version:match('[%d%.]+(.-)$') or ''
+    t_w = gfx.measurestr(subversion_text)
+    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
+    gfx.y = math.floor(gfx.y + t_h) + 5
+    gfx.drawstr(subversion_text, 1)
+
+end
+
+function DrawGUI()
+
+    if gfx.mouse_x ~= m_x or gfx.mouse_y ~= m_y then
+        hover_cnt = 0
+        reaper.TrackCtl_SetToolTip('', 0, 0, true)
+    end
+    m_x = gfx.mouse_x
+    m_y = gfx.mouse_y
+
+    task = ''
+    local x = gfx.w // 7
+    local y = gfx.h // 4
+    local w = gfx.w // 7 * 2
+    local h = gfx.h // 2
+
+    DrawVersionHistoryButton(x + w // 2 - 16, y - 18, true)
+    DrawChangelogButton(x + w // 2 + 16, y - 18, true)
+    DrawInstallButton(x, y, w, h, main_version, main_dlink)
+
+    DrawVersionHistoryButton(x * 4 + w // 2 - 16, y - 18, false)
+    DrawChangelogButton(x * 4 + w // 2 + 16, y - 18, false)
+    DrawInstallButton(x * 4, y, w, h, dev_version, dev_dlink)
+
+    DrawSettingsButton()
 end
 
 function ShowGUI()
@@ -595,7 +699,8 @@ function Main()
             local cmd = dl_cmd .. ' && ' .. dl_cmd
             cmd = cmd:format(main_dlink, main_path, dev_dlink, dev_path)
             -- Show buttons if download succeeds, otherwise show error
-            cmd = cmd .. ' && echo display_update > %s || echo err_internet > %s'
+            cmd = cmd ..
+                      ' && echo display_update > %s || echo err_internet > %s'
             ExecProcess(cmd:format(step_path, step_path))
             task = 'Checking for updates...'
         end
@@ -625,9 +730,10 @@ function Main()
             file:close()
             os.remove(dev_path)
             -- Parse latest versions from download link
-            main_version = main_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
+            local pattern = '/reaper(.-)[_%-]'
+            main_version = main_dlink:match(pattern):gsub('(.)', '%1.', 1)
             if dev_dlink then
-                dev_version = dev_dlink:match('/reaper(.-)[_%-]'):gsub('(.)', '%1.', 1)
+                dev_version = dev_dlink:match(pattern):gsub('(.)', '%1.', 1)
             else
                 dev_dlink = ''
                 dev_version = 'none'
@@ -649,8 +755,8 @@ function Main()
             end
             if saved_dev_version ~= dev_version then
                 -- If both are new, show update to the currently installed version
-                local is_dev_installed = not curr_version:match('^%d+%.%d+%a*$')
-                if (not new_version or is_dev_installed) and dev_version ~= 'none' then
+                local is_installed = not curr_version:match('^%d+%.%d+%a*$')
+                if (not new_version or is_installed) and dev_version ~= 'none' then
                     new_version = dev_version
                     print('Found new dev version')
                 end
@@ -715,31 +821,24 @@ function Main()
                 'timeout 3 & %s /S %s /D=%s & cd /D %s %s& start reaper.exe & del %s'
             local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
-            ExecInstall(
-                cmd:format(
-                    dfile_path,
-                    portable_str,
-                    install_path,
-                    install_path,
-                    hook_cmd,
-                    dfile_path
-                )
-            )
+            ExecInstall(cmd:format(dfile_path, portable_str, install_path,
+                                   install_path, hook_cmd, dfile_path))
             return
         end
 
         if step == 'osx_install' then
             -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
-            local cmd = 'mount_dir=$(yes | hdiutil attach %s%s | grep Volumes | cut -f 3)'
+            local cmd =
+                'mount_dir=$(yes | hdiutil attach %s%s | grep Volumes | cut -f 3)'
             -- Get the .app name
             cmd = cmd .. ' && cd $mount_dir && app_name=$(ls | grep REAPER)'
             -- Copy .app to install path
             cmd = cmd .. ' && cp -rf $app_name %s'
             -- Unmount file and restart reaper
-            cmd = cmd .. ' ; cd && hdiutil unmount $mount_dir %s ; open %s/$app_name'
-            ExecInstall(
-                cmd:format(tmp_path, dfile_name, install_path, hook_cmd, install_path)
-            )
+            cmd = cmd ..
+                      ' ; cd && hdiutil unmount $mount_dir %s ; open %s/$app_name'
+            ExecInstall(cmd:format(tmp_path, dfile_name, install_path, hook_cmd,
+                                   install_path))
             return
         end
 
@@ -752,40 +851,40 @@ function Main()
 
         if step == 'linux_install' then
             -- Run Linux installation and restart
-            local cmd = 'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
+            local cmd =
+                'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
             if not is_portable then
                 cmd = cmd .. ' --integrate-desktop'
                 cmd = cmd .. ' --usr-local-bin-symlink'
             end
-            -- Wrap install command in new shell with sudo privileges (for chaining restart)
-            cmd = "/bin/sh -c '" .. cmd .. "' %s ; %s/reaper"
+            -- Wrap install command in new shell with sudo privileges (chain restart)
+            cmd = '/bin/sh -c \'' .. cmd .. '\' %s ; %s/reaper'
             -- Linux installer will also create a REAPER directory
             local outer_install_path = install_path:gsub('/REAPER$', '')
-            ExecInstall(
-                cmd:format(tmp_path, arch, outer_install_path, hook_cmd, install_path)
-            )
+            ExecInstall(cmd:format(tmp_path, arch, outer_install_path, hook_cmd,
+                                   install_path))
             return
         end
 
-        if step == 'get_old_versions' then
+        if step == 'get_history' then
             -- Show buttons if download succeeds, otherwise show error
             local cmd = dl_cmd
-            cmd = cmd .. ' && echo show_old_versions > %s || echo err_internet > %s'
+            cmd = cmd .. ' && echo show_history > %s || echo err_internet > %s'
             cmd = cmd:format(old_dlink, main_path, step_path, step_path)
             ExecProcess(cmd)
         end
 
-        if step == 'show_old_versions' then
+        if step == 'show_history' then
             local file = io.open(main_path, 'r')
             if not file then
                 reaper.MB('File not found: ' .. main_path, 'Error', 0)
                 return
             end
-            parseOldDownloadLinks(file, old_dlink)
+            ParseHistory(file, old_dlink)
             os.remove(main_path)
             task = ''
             show_buttons = true
-            reaper.defer(showOldMenu)
+            reaper.defer(ShowHistoryMenu)
         end
 
         if step:match('^get_.-_changelog$') then
@@ -807,15 +906,14 @@ function Main()
         if step:match('^open_.-_changelog$') then
             local file_path, version, changelog
             if step:match('main') then
-                main_cl = nil
                 file_path = main_path
                 version = main_version
                 changelog = main_changelog
             else
-                dev_cl = nil
                 file_path = dev_path
                 version = dev_version
-                changelog = version:match('rc') and rc_changelog or dev_changelog
+                changelog = version:match('rc') and rc_changelog or
+                                dev_changelog
             end
             local file = io.open(file_path, 'r')
             if file then
@@ -836,6 +934,7 @@ function Main()
                 ExecProcess(cmd)
                 os.remove(file_path)
             end
+            show_buttons = true
         end
 
         if step == 'err_internet' then
@@ -888,10 +987,8 @@ function Main()
             end
         end
         -- Draw content
-        DrawTask(task)
-        if show_buttons then
-            DrawGUI()
-        end
+        DrawTask()
+        if show_buttons then DrawGUI() end
         gfx.update()
     end
     reaper.defer(Main)
@@ -935,18 +1032,15 @@ os.remove(dump_path)
 -- Set command for downloading from terminal
 dl_cmd = 'curl -L %s -o %s'
 if platform:match('Win') then
-    dl_cmd = 'powershell.exe -windowstyle hidden (new-object System.Net.WebClient)'
-    dl_cmd = dl_cmd .. ".DownloadFile('%s', '%s')"
+    dl_cmd =
+        'powershell.exe -windowstyle hidden (new-object System.Net.WebClient)'
+    dl_cmd = dl_cmd .. '.DownloadFile(\'%s\', \'%s\')'
 end
 
 -- Set command for opening web-pages from terminal
 browser_cmd = 'xdg-open '
-if platform:match('Win') then
-    browser_cmd = 'start '
-end
-if platform:match('OSX') or platform:match('macOS') then
-    browser_cmd = 'open '
-end
+if platform:match('Win') then browser_cmd = 'start ' end
+if platform:match('OSX') or platform:match('macOS') then browser_cmd = 'open ' end
 
 -- Set command for platform-dependent post-install hooks
 if platform:match('Win') then
@@ -972,70 +1066,22 @@ end
 local has_already_run = reaper.GetExtState(title, 'startup') == '1'
 reaper.SetExtState(title, 'startup', '1', false)
 print('Startup extstate: ' .. tostring(has_already_run))
--- Check if splash is currently visible
-local is_splash_vis = reaper.Splash_GetWnd() ~= nil
-print('Startup splash: ' .. tostring(is_splash_vis))
 
 if has_already_run then
     startup_mode = false
 elseif settings.force_startup.enabled then
     print('Forced startup up mode is enabled!')
     startup_mode = true
-elseif is_splash_vis then
-    startup_mode = true
-else
-    -- Get file last modification time
-    local cmd = 'cd %s && date -r %s +%%s'
-    if platform:match('Win') then
-        cmd = 'cd /D %s && forfiles /M %s /C "cmd /c echo @ftime"'
-    end
-    -- The reginfo2.ini file is written to when reaper is started
-    local start_time = ExecProcess(cmd:format(res_path, 'reaper-reginfo2.ini'), 1000)
-    -- The reaper.ini file is written to shortly before startups scripts are loaded
-    local load_time = ExecProcess(cmd:format(res_path, 'reaper.ini'), 1000)
-    if not start_time or not load_time then
-        reaper.MB('Could not get file modification time', 'Error', 0)
-        return
-    end
-    -- Get current OS time
-    local os_time = os.time()
-    if platform:match('Win') then
-        -- Touch file and get it's modification date (os.time format is unreliable)
-        cmd = 'cd /D %s && copy /b %s +,, >nul 2>&1 && '
-        cmd = cmd .. 'forfiles /M %s /C "cmd /c echo @ftime"'
-        cmd = cmd:format(res_path, 'reaper-reginfo2.ini', 'reaper-reginfo2.ini')
-        os_time = ExecProcess(cmd, 1000)
-        print('Start time (raw): ' .. start_time)
-        print('Load time (raw): ' .. load_time)
-        print('Curr time (raw): ' .. os_time)
-        -- Convert h:m:s syntax to seconds
-        start_time = ConvertToSeconds(start_time)
-        load_time = ConvertToSeconds(load_time)
-        os_time = ConvertToSeconds(os_time)
-    end
-    print('Start time: ' .. start_time)
-    print('Load time: ' .. load_time)
-    print('Curr time: ' .. os_time)
-    -- Check time passed
-    local start_diff = math.ceil(os_time - start_time)
-    local load_diff = math.ceil(os_time - load_time)
-    print('Start diff: ' .. start_diff .. ' / ' .. start_timeout)
-    print('Load diff: ' .. load_diff .. ' / ' .. load_timeout)
-    local is_in_start_window = start_diff >= 0 and start_diff <= start_timeout
-    local is_in_load_window = load_diff >= 0 and load_diff <= load_timeout
-    local is_same_time = start_time == load_time
-    print('Same start time: ' .. tostring(is_same_time))
-    startup_mode = is_in_start_window and (is_in_load_window or is_same_time)
 end
+print('Startup mode: ' .. tostring(startup_mode))
 
 if settings.debug_file.enabled then
     local msg =
-        " \nLogging to file is enabled!\n\nYou can find the file 'update-utility.log' \z
-    in your resource directory:\n--> Options --> Show REAPER resource path...\n "
+        ' \nLogging to file is enabled!\n\nYou can find the file \'update-utility.log\' \z
+    in your resource directory:\n--> Options --> Show REAPER resource path...\n '
     reaper.MB(msg, title, 0)
 end
 
-print('Startup mode: ' .. tostring(startup_mode))
 local last_proj = reaper.GetExtState(title, 'last_proj')
 if last_proj ~= '' then
     reaper.Main_openProject(last_proj)
