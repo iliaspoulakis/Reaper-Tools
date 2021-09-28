@@ -1,15 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.0
+  @version 1.7.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Removed automatic startup detection
-    - Added option to start script on startup
-    - Rearranged startup notifications menu options
-    - Added dedicated button for installing older versions
-    - Added tooltips
-]] -- App version & platform architecture
+    - Fixed MacOS not finding RC versions
+]]
+
+-- App version & platform architecture
 local platform = reaper.GetOS()
 local app = reaper.GetAppVersion()
 local curr_version = app:gsub('/.-$', '')
@@ -153,9 +151,7 @@ function GetFilePattern()
     if platform:match('Win') then
         file_pattern = (arch and '_' .. arch or '') .. '%-install%.exe'
     end
-    if platform:match('OSX') then
-        file_pattern = '%d%d%a?_' .. arch .. '%.dmg'
-    end
+    if platform:match('OSX') then file_pattern = '%d%a?_' .. arch .. '%.dmg' end
     if platform:match('macOS') then file_pattern = 'beta_' .. arch .. '%.dmg' end
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
