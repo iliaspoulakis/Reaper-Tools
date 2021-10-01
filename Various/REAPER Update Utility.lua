@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.1
+  @version 1.7.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed MacOS not finding RC versions
+    - Added option to show debugging output when download fails
 ]]
 
 -- App version & platform architecture
@@ -929,8 +929,10 @@ function Main()
         end
 
         if step == 'err_internet' then
+            local msg = 'Download failed!\nShow debugging output in console?'
             if not startup_mode then
-                reaper.MB('Download failed', 'Error', 0)
+                local ret = reaper.MB(msg, 'Error', 4)
+                if ret == 6 then print(debug_str, true) end
             end
             return
         end
