@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="bf446eb7fedfa1d538ad692ec644a0cd03db7972">
+<index version="1" name="FTC Tools" commit="d888c961c39fd86b165013670d60c96dad1869ff">
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
@@ -1539,6 +1539,10 @@
       <version name="1.7.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-09-28T12:33:39Z">
         <changelog><![CDATA[- Fixed MacOS not finding RC versions]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/bf446eb7fedfa1d538ad692ec644a0cd03db7972/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.7.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-10-01T16:23:09Z">
+        <changelog><![CDATA[- Added option to show debugging output when download fails]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/d888c961c39fd86b165013670d60c96dad1869ff/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
