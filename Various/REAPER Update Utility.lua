@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.2
+  @version 1.7.3
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added option to show debugging output when download fails
+    - Added workaround for failed download on old OSX systems due to CA certificate
 ]]
 
 -- App version & platform architecture
@@ -970,12 +970,10 @@ function Main()
             end
             -- User hotkey 'M'
             if char == 77 then
-                main_cl = 'CHANGELOG'
                 ExecProcess('echo get_main_changelog > ' .. step_path)
             end
             -- User hotkey 'D'
             if char == 68 then
-                dev_cl = 'CHANGELOG'
                 ExecProcess('echo get_dev_changelog > ' .. step_path)
             end
         end
@@ -1023,7 +1021,7 @@ os.remove(dev_path)
 os.remove(dump_path)
 
 -- Set command for downloading from terminal
-dl_cmd = 'curl -L %s -o %s'
+dl_cmd = 'curl -k -L %s -o %s'
 if platform:match('Win') then
     dl_cmd =
         'powershell.exe -windowstyle hidden (new-object System.Net.WebClient)'
