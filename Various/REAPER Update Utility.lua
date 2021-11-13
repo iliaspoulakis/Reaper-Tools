@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.3
+  @version 1.7.4
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added workaround for failed download on old OSX systems due to CA certificate
+    - Fixed string path escape issue on MacOS
 ]]
 
 -- App version & platform architecture
@@ -87,6 +87,8 @@ end
 function ExecProcess(cmd, timeout)
     if platform:match('Win') then
         cmd = 'cmd.exe /Q /C "' .. cmd .. '"'
+    elseif platform:match('OSX') or platform:match('macOS') then
+        cmd = '/bin/sh -c \'' .. cmd .. '\''
     else
         cmd = '/bin/sh -c "' .. cmd .. '"'
     end
@@ -822,12 +824,12 @@ function Main()
             local cmd =
                 'mount_dir=$(yes | hdiutil attach %s%s | grep Volumes | cut -f 3)'
             -- Get the .app name
-            cmd = cmd .. ' && cd $mount_dir && app_name=$(ls | grep REAPER)'
+            cmd = cmd .. ' && cd \"$mount_dir\" && app_name=$(ls | grep REAPER)'
             -- Copy .app to install path
             cmd = cmd .. ' && cp -rf $app_name %s'
             -- Unmount file and restart reaper
             cmd = cmd ..
-                      ' ; cd && hdiutil unmount $mount_dir %s ; open %s/$app_name'
+                      ' ; cd && hdiutil unmount \"$mount_dir\" %s ; open %s/$app_name'
             ExecInstall(cmd:format(tmp_path, dfile_name, install_path, hook_cmd,
                                    install_path))
             return
