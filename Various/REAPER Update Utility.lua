@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.4
+  @version 1.7.5
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed string path escape issue on MacOS
+    - Fixed issue where project would reload on first start 
 ]]
 
 -- App version & platform architecture
@@ -265,7 +265,7 @@ function CheckStartupHook()
         local pattern = '[^\n]+' .. script_id .. '\'?\n?[^\n]+'
         local s, e = content:find(pattern)
 
-        -- Add/remove comment from existing startup hook
+        -- Check if line exists and is not commented out
         if s and e then
             local hook = content:sub(s, e)
             local comment = hook:match('[^\n]*%-%-[^\n]*reaper%.Main_OnCommand')
@@ -1077,11 +1077,14 @@ end
 
 local last_proj = reaper.GetExtState(title, 'last_proj')
 if last_proj ~= '' then
-    reaper.Main_openProject(last_proj)
+    -- Restore previously loaded project
+    if not has_already_run and CheckStartupHook() then
+        reaper.Main_openProject(last_proj)
+    end
     reaper.SetExtState(title, 'last_proj', '', true)
-elseif not startup_mode then
-    ShowGUI()
 end
+
+if not startup_mode then ShowGUI() end
 
 -- Trigger the first step (steps are triggered by writing to the step file)
 ExecProcess('echo check_update > ' .. step_path)
