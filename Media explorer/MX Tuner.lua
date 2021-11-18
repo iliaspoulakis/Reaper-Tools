@@ -1,9 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
+  @changelog
+    - Fixed possible crash with FFT algorithm
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -340,7 +342,7 @@ function GetPitchFFT(file)
     buf.fft(window_size, true)
 
     local max_val = 0
-    local max_i = 0
+    local max_i
     for i = 1, window_size do
         local val = buf[i]
         local val_abs = val < 0 and -val or val
@@ -350,11 +352,15 @@ function GetPitchFFT(file)
         end
     end
 
-    -- Use parabolic interpolation to improve precision
-    local prev = buf[max_i - 1] or 0
-    local next = buf[max_i + 1] or 0
-    local diff = (next - prev) / (max_val + prev + next)
-    max_i = max_i + diff
+    if not max_i then return end
+
+    if max_i > 1 and max_i < window_size then
+        -- Use parabolic interpolation to improve precision
+        local prev = buf[max_i - 1]
+        local next = buf[max_i + 1]
+        local diff = (next - prev) / (max_val + prev + next)
+        max_i = max_i + diff
+    end
 
     return max_i * rate / window_size / 4
 end
