@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Use active theme colors
-    - Updated docking logic
+    - Reverted changes to docking logic
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -366,13 +365,13 @@ function GetPitchFFT(file)
     return max_i * rate / window_size / 4
 end
 
-function OpenWindow(dock)
+function OpenWindow()
     -- Show script window in center of screen
     gfx.clear = reaper.ColorToNative(37, 37, 37)
     local w, h = 406, 138
     local x, y = reaper.GetMousePosition()
     local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
-    gfx.init('MX Tuner', w, h, dock or 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
+    gfx.init('MX Tuner', w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
 end
 
 function HexToNormRGB(color)
@@ -615,15 +614,13 @@ function Main()
         local ret = gfx.showmenu(menu)
 
         if ret == 1 then
-            gfx.quit()
             if is_docked then
                 -- Undock window
-                OpenWindow(0)
+                gfx.dock(0)
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
-                last_dock = tonumber(last_dock) or 1
-                OpenWindow(last_dock)
+                gfx.dock(tonumber(last_dock) or 1)
             end
         end
 
