@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
+  @version 1.1.3
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Add safety logic to docking
+    - More improvements to docking logic
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -556,9 +556,8 @@ function Main()
     local dock = gfx.dock(-1)
     if prev_dock ~= dock then
         prev_dock = dock
-        local is_docked = dock > 0 and 1 or 0
-        reaper.SetExtState('FTC.MXTuner', 'is_docked', is_docked, true)
-        if dock > 0 then
+        reaper.SetExtState('FTC.MXTuner', 'is_docked', dock & 1, true)
+        if dock & 1 == 1 then
             reaper.SetExtState('FTC.MXTuner', 'dock', dock, true)
         end
     end
@@ -598,7 +597,7 @@ function Main()
         local menu = '%sDock window|>Pitch snap|%sContinuous|%sQuarter \z
             tones|<%sSemitones|>Algorithm|%sFTC|%sFFT'
 
-        local is_docked = dock > 0
+        local is_docked = dock & 1 == 1
         local menu_dock_state = is_docked and '!' or ''
         local menu_pitch_continuous = pitch_mode == 1 and '!' or ''
         local menu_pitch_quarter = pitch_mode == 2 and '!' or ''
@@ -620,11 +619,8 @@ function Main()
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
-                last_dock = tonumber(last_dock)
-                if not last_dock or last_dock == 0 then
-                    last_dock = 513
-                end
-                gfx.dock(last_dock)
+                last_dock = tonumber(last_dock) or 0
+                gfx.dock(last_dock | 1)
             end
         end
 
