@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.1.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Changed inital dock position
+    - Use active theme colors
+    - Updated docking logic
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -28,7 +29,7 @@ local prev_dock
 
 local prev_mx_pitch
 local prev_file_pitch
-local highlighted_note_name
+local sel_note_name
 local prev_file
 
 local locked_key
@@ -365,13 +366,20 @@ function GetPitchFFT(file)
     return max_i * rate / window_size / 4
 end
 
-function OpenWindow()
+function OpenWindow(dock)
     -- Show script window in center of screen
     gfx.clear = reaper.ColorToNative(37, 37, 37)
     local w, h = 406, 138
     local x, y = reaper.GetMousePosition()
     local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
-    gfx.init('MX Tuner', w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
+    gfx.init('MX Tuner', w, h, dock or 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
+end
+
+function HexToNormRGB(color)
+    local r = color & 0xFF0000 >> 16
+    local g = color & 0x00FF00 >> 8
+    local b = color & 0x0000FF
+    return {r / 255, g / 255, b / 255}
 end
 
 function DrawPiano()
@@ -383,6 +391,12 @@ function DrawPiano()
     local f_h = gfx.h
     local m = 1
 
+    local nat_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey1'))
+    local flat_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey2'))
+    local hover_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey3'))
+    local sel_color = {0.61, 0.75, 0.38}
+    local lock_color = {0.7, 0.43, 0.4}
+
     for i = 1, 7 do
         keys[#keys + 1] = {
             title = flat[i],
@@ -390,8 +404,8 @@ function DrawPiano()
             y = m,
             w = f_w - 2 * m,
             h = f_h - 2 * m,
-            bg_color = {0.79, 0.79, 0.79},
-            text_color = {0.14, 0.14, 0.14},
+            bg_color = nat_color,
+            text_color = flat_color,
         }
     end
 
@@ -413,8 +427,8 @@ function DrawPiano()
             y = m,
             w = s_w,
             h = s_h - 2 * m,
-            bg_color = {0.14, 0.14, 0.14},
-            text_color = {0.82, 0.82, 0.82},
+            bg_color = flat_color,
+            text_color = nat_color,
         }
     end
 
@@ -428,10 +442,10 @@ function DrawPiano()
         local x, y, w, h = key.x, key.y, key.w, key.h
         local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
 
-        if key.title == highlighted_note_name and not locked_key then
-            key.bg_color = {0.61, 0.75, 0.38}
+        if key.title == sel_note_name and not locked_key then
+            key.bg_color = sel_color
         end
-        if key.title == locked_key then key.bg_color = {0.7, 0.43, 0.4} end
+        if key.title == locked_key then key.bg_color = lock_color end
 
         if not hovered_key and is_hover then
             if gfx.mouse_cap & 1 == 1 then
@@ -444,14 +458,14 @@ function DrawPiano()
                         OnLock()
                     end
                     prev_file = nil
-                    key.bg_color = {0.7, 0.43, 0.4}
+                    key.bg_color = lock_color
                 end
                 is_pressed = true
             end
 
             hovered_key = key
-            if key.title ~= locked_key and key.title ~= highlighted_note_name then
-                key.bg_color = {0.74, 0.62, 0.44}
+            if key.title ~= locked_key and key.title ~= sel_note_name then
+                key.bg_color = hover_color
             end
         end
     end
@@ -496,7 +510,7 @@ function Main()
     if mx_pitch ~= prev_mx_pitch then
         prev_mx_pitch = mx_pitch
         if prev_file_pitch then
-            highlighted_note_name = FrequencyToName(prev_file_pitch, mx_pitch)
+            sel_note_name = FrequencyToName(prev_file_pitch, mx_pitch)
         end
         -- Redraw UI when pitch changes
         is_redraw = true
@@ -515,7 +529,7 @@ function Main()
         prev_file_pitch = file_pitch
 
         if file_pitch then
-            highlighted_note_name = FrequencyToName(file_pitch, mx_pitch)
+            sel_note_name = FrequencyToName(file_pitch, mx_pitch)
         end
 
         if file_pitch and locked_key then
@@ -536,7 +550,7 @@ function Main()
         is_redraw = true
     end
 
-    if not files[1] then highlighted_note_name = nil end
+    if not files[1] then sel_note_name = nil end
     prev_file = files[1]
 
     -- Monitor changes to window dock state
@@ -601,14 +615,15 @@ function Main()
         local ret = gfx.showmenu(menu)
 
         if ret == 1 then
+            gfx.quit()
             if is_docked then
                 -- Undock window
-                gfx.dock(0)
+                OpenWindow(0)
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
-                last_dock = tonumber(last_dock) or 513
-                gfx.dock(tonumber(last_dock))
+                last_dock = tonumber(last_dock) or 1
+                OpenWindow(last_dock)
             end
         end
 
