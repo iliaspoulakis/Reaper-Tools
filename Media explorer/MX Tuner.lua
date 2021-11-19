@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Fixed possible crash with FFT algorithm
+    - Changed inital dock position
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -607,7 +607,7 @@ function Main()
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
-                last_dock = tonumber(last_dock) or 0x801
+                last_dock = tonumber(last_dock) or 513
                 gfx.dock(tonumber(last_dock))
             end
         end
