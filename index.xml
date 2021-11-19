@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="89dff08c798a222725ba48e63341d0f85c960797">
+<index version="1" name="FTC Tools" commit="f0f9e8beeb4f4f3991f687680ae7a1de93cac60b">
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
@@ -174,6 +174,10 @@
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-18T21:13:06Z">
         <changelog><![CDATA[- Fixed possible crash with FFT algorithm]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/50589a11fd28c6446bf12e356956500fc9f4dbac/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-19T10:08:33Z">
+        <changelog><![CDATA[- Changed inital dock position]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/f0f9e8beeb4f4f3991f687680ae7a1de93cac60b/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
