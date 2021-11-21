@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.3
+  @version 1.2.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - More improvements to docking logic
+    - Avoid stopping preview on tuning changes
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -41,6 +41,8 @@ local pitch_mode
 local algo_mode
 
 local is_option_bypassed = false
+
+local trigger_pitch_rescan = false
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -143,7 +145,7 @@ function MediaExplorer_GetPitch()
     return tonumber(pitch)
 end
 
-function MediaExplorer_SetPitch(pitch)
+function MediaExplorer_SetPitch(pitch, stop_preview)
     local is_auto_play = reaper.GetToggleCommandStateEx(32063, 1011) == 1
     if is_auto_play then
         local pitch_rnd = math.floor(pitch + 0.5)
@@ -158,8 +160,11 @@ function MediaExplorer_SetPitch(pitch)
             reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42162, 0, 0, 0)
         end
 
-        -- Preview: Stop
-        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 1009, 0, 0, 0)
+        -- Note: Workaround for avoiding double triggers on selection change
+        if stop_preview then
+            -- Preview: Stop
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 1009, 0, 0, 0)
+        end
     end
 
     -- Set precise pitch to pitch textfield
@@ -456,7 +461,7 @@ function DrawPiano()
                     else
                         OnLock()
                     end
-                    prev_file = nil
+                    trigger_pitch_rescan = true
                     key.bg_color = lock_color
                 end
                 is_pressed = true
@@ -517,13 +522,14 @@ function Main()
 
     -- Monitor media explorer file selection
     local files = MediaExplorer_GetSelectedAudioFiles()
+    local new_file = files[1]
 
-    if files[1] and prev_file ~= files[1] then
+    if new_file and prev_file ~= new_file or trigger_pitch_rescan then
 
         local file_pitch
 
-        if algo_mode == 1 then file_pitch = GetPitchFTC(files[1]) end
-        if algo_mode == 2 then file_pitch = GetPitchFFT(files[1]) end
+        if algo_mode == 1 then file_pitch = GetPitchFTC(new_file) end
+        if algo_mode == 2 then file_pitch = GetPitchFFT(new_file) end
 
         prev_file_pitch = file_pitch
 
@@ -542,15 +548,16 @@ function Main()
                 if pitch_mode == 3 then
                     dist = math.floor(dist + 0.5)
                 end
-                MediaExplorer_SetPitch(dist)
+                MediaExplorer_SetPitch(dist, not trigger_pitch_rescan)
             end
         end
         -- Redraw UI when file changes
         is_redraw = true
+        trigger_pitch_rescan = false
     end
 
-    if not files[1] then sel_note_name = nil end
-    prev_file = files[1]
+    if not new_file then sel_note_name = nil end
+    prev_file = new_file
 
     -- Monitor changes to window dock state
     local dock = gfx.dock(-1)
@@ -631,7 +638,7 @@ function Main()
         if ret == 6 then algo_mode = 2 end
 
         -- Retrigger pitch detection when algorithm changes
-        if ret >= 5 and ret <= 6 then prev_file = nil end
+        if ret >= 5 and ret <= 6 then trigger_pitch_rescan = true end
 
         reaper.SetExtState('FTC.MXTuner', 'pitch_mode', pitch_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, true)
@@ -650,7 +657,7 @@ function OnLock()
 end
 
 function OnUnlock()
-    MediaExplorer_SetPitch(0)
+    MediaExplorer_SetPitch(0, false)
     -- Turn option back on to reset pitch when changing media
     if is_option_bypassed then
         -- Options: Reset pitch and rate when changing media
