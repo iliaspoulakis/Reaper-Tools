@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="c38007cec9cc836b4eb1cf61495ec5f86281d8c6">
+<index version="1" name="FTC Tools" commit="2d81990c06336f9be73a1d2027f6ba65c92db4ea">
   <category name="Auto-Hide">
     <reapack name="Auto-hide silent tracks in MCP during playback.lua" type="script">
       <metadata>
@@ -13,6 +13,20 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-28T10:47:18Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c38007cec9cc836b4eb1cf61495ec5f86281d8c6/Auto-Hide/Auto-hide%20silent%20tracks%20in%20MCP%20during%20playback.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Auto-hide tracks in TCP that have no items in current measure.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Hides tracks in the TCP that have no items in the current measure\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-28T11:09:40Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2d81990c06336f9be73a1d2027f6ba65c92db4ea/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20current%20measure.lua</source>
       </version>
     </reapack>
   </category>
