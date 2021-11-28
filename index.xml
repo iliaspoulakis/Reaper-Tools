@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="df1384b718dae5db84efc24b9ba109e32dfe970a">
+<index version="1" name="FTC Tools" commit="c38007cec9cc836b4eb1cf61495ec5f86281d8c6">
+  <category name="Auto-Hide">
+    <reapack name="Auto-hide silent tracks in MCP during playback.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Hides silent tracks from MCP during playback\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-28T10:47:18Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c38007cec9cc836b4eb1cf61495ec5f86281d8c6/Auto-Hide/Auto-hide%20silent%20tracks%20in%20MCP%20during%20playback.lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="Floating FX">
     <reapack name="Keep only one floating fx open and centered in screen.lua" type="script">
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-23T15:37:41Z">
