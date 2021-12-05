@@ -1,5 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="2d81990c06336f9be73a1d2027f6ba65c92db4ea">
+<index version="1" name="FTC Tools" commit="101462f54be60e9fde356912a0fd9bb8634a7442">
+  <category name="Adaptive grid">
+    <reapack name="Adaptive grid.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A fully featured adaptive grid tool for REAPER\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-05T08:10:02Z">
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source main="main midi_editor" file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/101462f54be60e9fde356912a0fd9bb8634a7442/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="Auto-Hide">
     <reapack name="Auto-hide silent tracks in MCP during playback.lua" type="script">
       <metadata>
@@ -27,6 +51,20 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-28T11:09:40Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2d81990c06336f9be73a1d2027f6ba65c92db4ea/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20current%20measure.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Auto-hide tracks in TCP that have no items in time selection.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Hides tracks in the TCP that have no items in the time selection\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-30T13:33:19Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/fcabb7b4a6e0bff7cf63d3c4dae4331bdb482c9d/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20time%20selection.lua</source>
       </version>
     </reapack>
   </category>
