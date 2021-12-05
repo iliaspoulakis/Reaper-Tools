@@ -21,11 +21,6 @@ else
     if reaper.GetToggleCommandState(40145) == 0 then return end
 end
 
--- Return when script is run by custom action while background service is active
-if not _G.mode and reaper.GetExtState(extname, 'is_service_running') == 'yes' then
-    return
-end
-
 function AdaptGrid(spacing)
     local zoom_lvl = reaper.GetHZoomLevel()
 
