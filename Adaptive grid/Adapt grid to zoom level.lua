@@ -193,12 +193,17 @@ function UpdateToolbarToggleStates(section, multiplier)
     end
 end
 
+-- Load minimum grid spacing
 local spacing
--- Set grid spacing to minimum by default
-if reaper.SNM_GetIntConfigVar then
-    spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
+if is_midi then
+    -- Note: The minimum grid spacing for the MIDI editor is fixed
+    spacing = 15
 else
-    spacing = tonumber(reaper.GetExtState(extname, 'projgridmin')) or 8
+    if reaper.SNM_GetIntConfigVar then
+        spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
+    else
+        spacing = tonumber(reaper.GetExtState(extname, 'projgridmin')) or 8
+    end
 end
 
 -- Get multiplier for section
