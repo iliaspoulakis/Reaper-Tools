@@ -223,7 +223,7 @@ function CreateCustomAction(name, section, command, adapt_command)
     if not adapt_command then return '' end
     local pattern = 'ACT 3 %s "%s" "Custom: %s" %s _%s\n'
     local adapt_command_name = reaper.ReverseNamedCommandLookup(adapt_command)
-    local hash = GetStringHash(name, 32)
+    local hash = GetStringHash(name .. section, 32)
     return pattern:format(section, hash, name, command, adapt_command_name)
 end
 
