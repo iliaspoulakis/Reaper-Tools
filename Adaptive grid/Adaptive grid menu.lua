@@ -3,7 +3,9 @@
   @license MIT
   @noindex
   @about User settings for adaptive grid
-]] local extname = 'FTC.AdaptiveGrid'
+]]
+
+local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, cmd = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
 
@@ -440,11 +442,14 @@ function GetUserCustomGridSpacing(is_midi)
         reaper.MB('Value not permitted!', 'Error', 0)
         return false
     else
+        min_spacing = is_midi and 15 or min_spacing
         if spacing < min_spacing then
+            local status = ' (Currently: %s pixels in grid settings)'
+            status = is_midi and ' (15px)' or status:format(min_spacing)
             local msg = 'The value you set is smaller than the minimum \z
-                 grid line spacing (Currently: %s pixels in grid settings).\n\z
+                 grid line spacing%s.\n\z
                  This might have unwanted side effects.'
-            reaper.MB(msg:format(min_spacing), 'Warning', 0)
+            reaper.MB(msg:format(status), 'Warning', 0)
         end
         reaper.SetExtState(extname, key, spacing, true)
         return true

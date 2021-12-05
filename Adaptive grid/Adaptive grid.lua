@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -10,5 +10,5 @@
     [main=main,midi_editor] Adapt grid to zoom level.lua
     [main=main,midi_editor] Set grid to * (adaptive).lua
   @changelog
-    - Use a fixed minimum grid line spacing for the MIDI editor.
+    - Change custom spacing warning for MIDI editor
 ]]
