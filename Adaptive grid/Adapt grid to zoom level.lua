@@ -212,9 +212,13 @@ if mult == 0 then return end
 if mult == -1 then
     key = is_midi and 'midi_custom_spacing' or 'custom_spacing'
     spacing = tonumber(reaper.GetExtState(extname, key)) or spacing
+    -- Account for grid line of 1 px
+    spacing = spacing + 1
 else
     -- Use multiple of minimum grid spacing
-    spacing = spacing * mult + mult
+    spacing = spacing * mult
+    -- Account for grid lines
+    spacing = spacing + mult
 end
 
 if not _G.mode then
