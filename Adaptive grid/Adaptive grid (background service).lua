@@ -49,6 +49,7 @@ function GetTakeChunkHZoom(chunk)
 end
 
 local adapt_script_path = ConcatPath(path, 'Adapt grid to zoom level.lua')
+local run_adapt_scipt = loadfile(adapt_script_path)
 
 local main_mult
 local midi_mult
@@ -67,7 +68,7 @@ function Main()
             prev_hzoom_lvl = hzoom_lvl
             -- Run adapt script in mode 1
             _G.mode = 1
-            dofile(adapt_script_path)
+            run_adapt_scipt()
         end
     end
 
@@ -85,7 +86,7 @@ function Main()
                 prev_midi_hzoom_lvl = midi_hzoom_lvl
                 -- Run adapt script in mode 2
                 _G.mode = 2
-                dofile(adapt_script_path)
+                run_adapt_scipt()
             end
         end
     end
