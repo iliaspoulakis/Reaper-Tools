@@ -683,6 +683,11 @@ local midi_menu = {
             OnReturn = SetUserCustomGridSpacing,
             arg = true,
         },
+        {
+            title = 'Set limits for MIDI editor',
+            OnReturn = SetUserGridLimits,
+            arg = true,
+        },
     },
 }
 
