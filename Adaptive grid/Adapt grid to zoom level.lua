@@ -9,7 +9,7 @@ local extname = 'FTC.AdaptiveGrid'
 local _, _, sec = reaper.get_action_context()
 local is_midi = sec == 32060 or _G.mode == 2
 
-function AdaptGrid(spacing)
+function AdaptGrid(spacing, min_grid_div, max_grid_div)
     local zoom_lvl = reaper.GetHZoomLevel()
 
     local start_time, end_time = reaper.GetSet_ArrangeView2(0, false, 0, 0)
@@ -33,9 +33,15 @@ function AdaptGrid(spacing)
 
     -- How often can current grid fit into max_grid?
     local exp = math.log(max_grid / grid, 2)
-    grid = grid * 2 ^ math.floor(exp)
+    local new_grid = grid * 2 ^ math.floor(exp)
 
-    reaper.GetSetProjectGrid(0, true, 1 / grid, swing, swing_amt)
+    local new_grid_div = 1 / new_grid
+
+    -- Check if new grid division exceeds user limits
+    if min_grid_div ~= 0 and new_grid_div < min_grid_div then return end
+    if max_grid_div ~= 0 and new_grid_div > max_grid_div then return end
+
+    reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
 end
 
 function GetTakeChunk(take)
@@ -126,7 +132,7 @@ function GetMIDIEditorView(hwnd)
     return start_time, end_time, hzoom_lvl
 end
 
-function AdaptMIDIGrid(spacing)
+function AdaptMIDIGrid(spacing, min_grid_div, max_grid_div)
     local hwnd = reaper.MIDIEditor_GetActive()
 
     local start_pos, end_pos, hzoom_lvl = GetMIDIEditorView(hwnd)
@@ -152,9 +158,15 @@ function AdaptMIDIGrid(spacing)
 
     -- How often can current grid fit into max_grid?
     local exp = math.log(max_grid / grid, 2)
-    grid = grid * 2 ^ math.floor(exp)
+    local new_grid = grid * 2 ^ math.floor(exp)
 
-    reaper.SetMIDIEditorGrid(0, 1 / grid)
+    local new_grid_div = 1 / new_grid
+
+    -- Check if new grid division exceeds user limits
+    if min_grid_div ~= 0 and new_grid_div < min_grid_div then return end
+    if max_grid_div ~= 0 and new_grid_div > max_grid_div then return end
+
+    reaper.SetMIDIEditorGrid(0, new_grid_div)
     if swing ~= 0 then
         -- Grid: Set grid type to swing
         reaper.MIDIEditor_OnCommand(hwnd, 41006)
@@ -239,8 +251,14 @@ else
     spacing = spacing + mult
 end
 
+local min_key = is_midi and 'midi_min_limit' or 'min_limit'
+local max_key = is_midi and 'midi_max_limit' or 'max_limit'
+
+local min_limit = tonumber(reaper.GetExtState(extname, min_key)) or 0
+local max_limit = tonumber(reaper.GetExtState(extname, max_key)) or 0
+
 if not is_midi then
-    AdaptGrid(spacing)
+    AdaptGrid(spacing, min_limit, max_limit)
 else
-    AdaptMIDIGrid(spacing)
+    AdaptMIDIGrid(spacing, min_limit, max_limit)
 end

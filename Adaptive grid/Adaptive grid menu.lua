@@ -456,6 +456,54 @@ function GetUserCustomGridSpacing(is_midi)
     end
 end
 
+function SetUserGridLimits(is_midi)
+    local min_key = is_midi and 'midi_min_limit' or 'min_limit'
+    local max_key = is_midi and 'midi_max_limit' or 'max_limit'
+    local min_val = reaper.GetExtState(extname, min_key .. '_str')
+    local max_val = reaper.GetExtState(extname, max_key .. '_str')
+    local ret_vals = min_val .. ',' .. max_val
+    local captions = 'Min grid size: (e.g. 1/128),Max grid size: (e.g. 1)'
+    local title = is_midi and 'MIDI editor limits' or 'Arrange view limits'
+    local ret, limits = reaper.GetUserInputs(title, 2, captions, ret_vals)
+    if not ret then return end
+
+    local str_vals = {}
+    local vals = {}
+    for limit in (limits .. ','):gmatch('(.-),') do
+        local fraction
+        local nom, denom = limit:match('(%d+)/(%d+)')
+        if nom then
+            fraction = nom / denom
+        else
+            fraction = tonumber(limit)
+        end
+        if (not fraction or fraction < 0) and limit ~= '' then
+            local msg = 'Value \'%s\' not permitted!'
+            reaper.MB(msg:format(limit), 'Error', 0)
+            return false
+        end
+        str_vals[#str_vals + 1] = limit
+        vals[#vals + 1] = fraction or 0
+    end
+
+    if #vals ~= 2 then
+        reaper.MB('Invalid input', 'Error', 0)
+        return false
+    end
+
+    if vals[1] > vals[2] and vals[2] ~= 0 then
+        reaper.MB('Max can\'t be smaller than min!', 'Error', 0)
+        return false
+    end
+
+    reaper.SetExtState(extname, min_key .. '_str', str_vals[1], true)
+    reaper.SetExtState(extname, max_key .. '_str', str_vals[2], true)
+    reaper.SetExtState(extname, min_key, vals[1], true)
+    reaper.SetExtState(extname, max_key, vals[2], true)
+
+    return true
+end
+
 function CheckUserCustomGridSpacing(is_midi)
     local key = is_midi and 'midi_custom_spacing' or 'custom_spacing'
     local curr_spacing = tonumber(reaper.GetExtState(extname, key))
@@ -539,6 +587,17 @@ local options_menu = {
     {
         title = 'Set custom size for MIDI editor',
         OnReturn = SetUserCustomGridSpacing,
+        arg = true,
+    },
+    {separator = true},
+    {
+        title = 'Set limits for arrange view',
+        OnReturn = SetUserGridLimits,
+        arg = false,
+    },
+    {
+        title = 'Set limits for MIDI editor',
+        OnReturn = SetUserGridLimits,
         arg = true,
     },
     {separator = true},
