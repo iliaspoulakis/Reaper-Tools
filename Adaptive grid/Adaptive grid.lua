@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -10,5 +10,6 @@
     [main=main,midi_editor] Adapt grid to zoom level.lua
     [main=main,midi_editor] Set grid to * (adaptive).lua
   @changelog
-    - Added limits option to MIDI editor menu
-]]
+    - Allow settings limits to triplets using T or t
+    - Fix limits of triplets being set incorrectly (floating point issue)
+]] 
