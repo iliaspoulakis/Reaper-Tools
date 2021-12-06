@@ -471,9 +471,10 @@ function SetUserGridLimits(is_midi)
     local vals = {}
     for limit in (limits .. ','):gmatch('(.-),') do
         local fraction
-        local nom, denom = limit:match('(%d+)/(%d+)')
+        local nom, denom, triplet = limit:match('(%d+)/(%d+)([Tt]?)')
         if nom then
-            fraction = nom / denom
+            local triplet_factor = triplet == '' and 1 or 2 / 3
+            fraction = nom / denom * triplet_factor
         else
             fraction = tonumber(limit)
         end
@@ -498,8 +499,8 @@ function SetUserGridLimits(is_midi)
 
     reaper.SetExtState(extname, min_key .. '_str', str_vals[1], true)
     reaper.SetExtState(extname, max_key .. '_str', str_vals[2], true)
-    reaper.SetExtState(extname, min_key, vals[1], true)
-    reaper.SetExtState(extname, max_key, vals[2], true)
+    reaper.SetExtState(extname, min_key, ('%.32f'):format(vals[1]), true)
+    reaper.SetExtState(extname, max_key, ('%.32f'):format(vals[2]), true)
 
     return true
 end
