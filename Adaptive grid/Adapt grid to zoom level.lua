@@ -9,18 +9,6 @@ local extname = 'FTC.AdaptiveGrid'
 local _, _, sec = reaper.get_action_context()
 local is_midi = sec == 32060 or _G.mode == 2
 
--- Create undo point when script is not run by dofile
-if not _G.mode then reaper.Undo_OnStateChange('Adapt grid to zoom level') end
-
--- Return when grid is not visible
-if is_midi then
-    -- View: Toggle grid
-    if reaper.GetToggleCommandStateEx(32060, 1017) == 0 then return end
-else
-    -- Options: Toggle grid lines
-    if reaper.GetToggleCommandState(40145) == 0 then return end
-end
-
 function AdaptGrid(spacing)
     local zoom_lvl = reaper.GetHZoomLevel()
 
@@ -188,6 +176,43 @@ function UpdateToolbarToggleStates(section, multiplier)
     end
 end
 
+-- Get adaptive mode multipliers
+local main_mult = tonumber(reaper.GetExtState(extname, 'main_mult')) or 0
+local midi_mult = tonumber(reaper.GetExtState(extname, 'midi_mult')) or 0
+local mult = is_midi and midi_mult or main_mult
+
+if not _G.mode then
+    -- Create undo point when script is run by custom action
+    if not _G.mode then reaper.Undo_OnStateChange('Adapt grid to zoom level') end
+
+    -- Update toolbars when using first custom action after reaper restart
+    local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
+    if not has_run then
+        reaper.SetExtState(extname, 'has_run', 'yes', false)
+        UpdateToolbarToggleStates(0, main_mult)
+        UpdateToolbarToggleStates(32060, midi_mult)
+    end
+end
+
+-- Multiplier 0: Grid is fixed
+if mult == 0 then return end
+
+-- Skip arrangeview when using same grid division option
+if main_mult > 0 and midi_mult > 0 and not is_midi then
+    -- Grid: Use the same grid division in arrange view and MIDI editor
+    local is_grid_synced = reaper.GetToggleCommandState(42010) == 1
+    if is_grid_synced and reaper.MIDIEditor_GetActive() then return end
+end
+
+-- Return when grid is not visible
+if is_midi then
+    -- View: Toggle grid
+    if reaper.GetToggleCommandStateEx(32060, 1017) == 0 then return end
+else
+    -- Options: Toggle grid lines
+    if reaper.GetToggleCommandState(40145) == 0 then return end
+end
+
 -- Load minimum grid spacing
 local spacing
 if is_midi then
@@ -201,16 +226,9 @@ else
     end
 end
 
--- Get multiplier for section
-local key = is_midi and 'midi_mult' or 'main_mult'
-local mult = tonumber(reaper.GetExtState(extname, key)) or 0
-
--- Multiplier 0: Grid is fixed
-if mult == 0 then return end
-
 -- Multiplier -1: Custom grid spacing
 if mult == -1 then
-    key = is_midi and 'midi_custom_spacing' or 'custom_spacing'
+    local key = is_midi and 'midi_custom_spacing' or 'custom_spacing'
     spacing = tonumber(reaper.GetExtState(extname, key)) or spacing
     -- Account for grid line of 1 px
     spacing = spacing + 1
@@ -219,17 +237,6 @@ else
     spacing = spacing * mult
     -- Account for grid lines
     spacing = spacing + mult
-end
-
-if not _G.mode then
-    local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
-    if not has_run then
-        reaper.SetExtState(extname, 'has_run', 'yes', false)
-        local main_mult = reaper.GetExtState(extname, 'main_mult')
-        local midi_mult = reaper.GetExtState(extname, 'midi_mult')
-        UpdateToolbarToggleStates(0, tonumber(main_mult) or 0)
-        UpdateToolbarToggleStates(32060, tonumber(midi_mult) or 0)
-    end
 end
 
 if not is_midi then
