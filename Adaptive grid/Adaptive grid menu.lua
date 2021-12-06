@@ -642,6 +642,18 @@ local main_menu = {
     {separator = true},
     {
         {
+            title = '1/128',
+            IsChecked = CheckFixedGrid,
+            OnReturn = SetFixedGrid,
+            arg = 0.0078125,
+        },
+        {
+            title = '1/64',
+            IsChecked = CheckFixedGrid,
+            OnReturn = SetFixedGrid,
+            arg = 0.015625,
+        },
+        {
             title = '1/32',
             IsChecked = CheckFixedGrid,
             OnReturn = SetFixedGrid,
