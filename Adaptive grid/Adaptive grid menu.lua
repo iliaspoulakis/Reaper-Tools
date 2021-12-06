@@ -535,6 +535,7 @@ end
 function CheckFixedGrid(grid_div)
     if not IsGridVisible() or GetGridMultiplier() ~= 0 then return false end
     local _, curr_grid_div = reaper.GetSetProjectGrid(0, false)
+    if IsGridInTriplets(curr_grid_div) then grid_div = grid_div * 2 / 3 end
     return grid_div == curr_grid_div
 end
 
