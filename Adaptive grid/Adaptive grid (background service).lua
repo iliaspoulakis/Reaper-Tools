@@ -28,9 +28,11 @@ function GetMIDIGridMultiplier()
     return tonumber(reaper.GetExtState(extname, 'midi_mult')) or 0
 end
 
-function GetTakeChunk(take)
-    local item = reaper.GetMediaItemTake_Item(take)
-    local _, chunk = reaper.GetItemStateChunk(item, '', false)
+function GetTakeChunk(take, chunk)
+    if not chunk then
+        local item = reaper.GetMediaItemTake_Item(take)
+        chunk = select(2, reaper.GetItemStateChunk(item, '', false))
+    end
     local tk = reaper.GetMediaItemTakeInfo_Value(take, 'IP_TAKENUMBER')
 
     local take_start_ptr = 0
@@ -56,6 +58,7 @@ local midi_mult
 
 local prev_hzoom_lvl
 local prev_midi_hzoom_lvl
+local prev_chunk
 
 function Main()
 
@@ -79,14 +82,20 @@ function Main()
         local hwnd = reaper.MIDIEditor_GetActive()
         local take = reaper.MIDIEditor_GetTake(hwnd)
         if reaper.ValidatePtr(take, 'MediaItem_Take*') then
-            local chunk = GetTakeChunk(take)
-            local _, midi_hzoom_lvl = GetTakeChunkHZoom(chunk)
-            -- Check if zoom level changed
-            if prev_midi_hzoom_lvl ~= midi_hzoom_lvl then
-                prev_midi_hzoom_lvl = midi_hzoom_lvl
-                -- Run adapt script in mode 2
-                _G.mode = 2
-                run_adapt_scipt()
+            local item = reaper.GetMediaItemTake_Item(take)
+            local _, chunk = reaper.GetItemStateChunk(item, '', false)
+            -- Check if item chunk changed (string comparison is fast)
+            if chunk ~= prev_chunk then
+                prev_chunk = chunk
+                local take_chunk = GetTakeChunk(take, chunk)
+                local _, midi_hzoom_lvl = GetTakeChunkHZoom(take_chunk)
+                -- Check if zoom level in chunk changed
+                if prev_midi_hzoom_lvl ~= midi_hzoom_lvl then
+                    prev_midi_hzoom_lvl = midi_hzoom_lvl
+                    -- Run adapt script in mode 2
+                    _G.mode = 2
+                    run_adapt_scipt()
+                end
             end
         end
     end
