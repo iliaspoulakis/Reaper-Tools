@@ -153,7 +153,7 @@ function AdaptMIDIGrid(spacing, min_grid_div, max_grid_div)
 
     -- Get current grid
     local take = reaper.MIDIEditor_GetTake(hwnd)
-    local grid_div, swing = reaper.MIDI_GetGrid(take)
+    local grid_div, swing, note_len = reaper.MIDI_GetGrid(take)
     local grid = 1 / grid_div
 
     -- How often can current grid fit into max_grid?
@@ -170,6 +170,60 @@ function AdaptMIDIGrid(spacing, min_grid_div, max_grid_div)
     if swing ~= 0 then
         -- Grid: Set grid type to swing
         reaper.MIDIEditor_OnCommand(hwnd, 41006)
+    end
+
+    -- Check if new note length is set to grid and if grid changed
+    if note_len == 0 and new_grid_div ~= grid_div / 4 then
+        -- Options: Drawing or selecting a note sets the new note length
+        local is_draw_length = reaper.GetToggleCommandStateEx(32060, 40479) == 1
+
+        -- Try to keep length of next inserted note (if set to grid)
+        if is_draw_length then
+            -- These are the command ids to set next inserted note to a division
+            local cmds = {
+                {id = 41081, div = 1},
+                {id = 41079, div = 1 / 2},
+                {id = 41076, div = 1 / 4},
+                {id = 41073, div = 1 / 8},
+                {id = 41070, div = 1 / 16},
+                {id = 41068, div = 1 / 32},
+                {id = 41064, div = 1 / 64},
+                {id = 41062, div = 1 / 128},
+            }
+
+            local set_note_length_cmd
+
+            local straight_div = grid_div / 4
+            local triplet_div = straight_div * 3 / 2
+            local dotted_div = straight_div * 4 / 3 / 2
+
+            -- Go through all divisions and check if they match previous grid
+            for _, cmd in ipairs(cmds) do
+                local is_straight = cmd.div == straight_div
+                local is_triplet = cmd.div == triplet_div
+                local is_dotted = cmd.div == dotted_div
+                if is_straight or is_triplet or is_dotted then
+                    set_note_length_cmd = cmd
+                end
+            end
+
+            if not set_note_length_cmd then return end
+
+            -- Set note length
+            reaper.MIDIEditor_OnCommand(hwnd, set_note_length_cmd.id)
+
+            -- Set type of next inserted note to current grid type
+            if reaper.GetToggleCommandStateEx(32060, 41004) == 1 then
+                -- Set length for next inserted note: triplet...
+                reaper.MIDIEditor_OnCommand(hwnd, 41713)
+            elseif reaper.GetToggleCommandStateEx(32060, 41005) == 1 then
+                -- Set length for next inserted note: dotted...
+                reaper.MIDIEditor_OnCommand(hwnd, 41712)
+            else
+                -- Set length for next inserted note: straight...
+                reaper.MIDIEditor_OnCommand(hwnd, 41711)
+            end
+        end
     end
 end
 

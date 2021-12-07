@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.3
+  @version 1.2.0
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -10,5 +10,5 @@
     [main=main,midi_editor] Adapt grid to zoom level.lua
     [main=main,midi_editor] Set grid to * (adaptive).lua
   @changelog
-    - Fixed checkmark not showing for triplets
+    - Respect option: Drawing or selecting a note sets the new note length
 ]] 
