@@ -46,7 +46,7 @@ end
 
 function GetTakeChunk(take)
     local item = reaper.GetMediaItemTake_Item(take)
-    local _, chunk = reaper.GetItemStateChunk(item, '', false)
+    local _, item_chunk = reaper.GetItemStateChunk(item, '', false)
     local tk = reaper.GetMediaItemTakeInfo_Value(take, 'IP_TAKENUMBER')
 
     local take_start_ptr = 0
@@ -54,9 +54,9 @@ function GetTakeChunk(take)
 
     for _ = 0, tk do
         take_start_ptr = take_end_ptr
-        take_end_ptr = chunk:find('\nTAKE[%s\n]', take_start_ptr + 1)
+        take_end_ptr = item_chunk:find('\nTAKE[%s\n]', take_start_ptr + 1)
     end
-    return chunk:sub(take_start_ptr, take_end_ptr)
+    return item_chunk:sub(take_start_ptr, take_end_ptr)
 end
 
 function GetTakeChunkHZoom(chunk)
@@ -64,9 +64,9 @@ function GetTakeChunkHZoom(chunk)
     return chunk:match(pattern)
 end
 
-function GetTakeChunkTimeBase(chunk)
+function GetTakeChunkTimeBase(take_chunk)
     local pattern = 'CFGEDIT ' .. ('.- '):rep(18) .. '(.-) '
-    return tonumber(chunk:match(pattern))
+    return tonumber(take_chunk:match(pattern))
 end
 
 function GetMIDIEditorView(hwnd)
@@ -75,11 +75,11 @@ function GetMIDIEditorView(hwnd)
 
     local GetProjTimeFromPPQ = reaper.MIDI_GetProjTimeFromPPQPos
 
-    local chunk = GetTakeChunk(take)
-    local start_ppq, hzoom_lvl = GetTakeChunkHZoom(chunk)
+    local take_chunk = GetTakeChunk(take)
+    local start_ppq, hzoom_lvl = GetTakeChunkHZoom(take_chunk)
     if not start_ppq then return end
 
-    local timebase = GetTakeChunkTimeBase(chunk) or 0
+    local timebase = GetTakeChunkTimeBase(take_chunk) or 0
     -- 0 = Beats (proj) 1 = Project synced 2 = Time (proj) 4 = Beats (source)
 
     local end_ppq
@@ -107,8 +107,8 @@ function GetMIDIEditorView(hwnd)
         reaper.MIDIEditor_OnCommand(hwnd, 40141)
 
         -- After scrolling right, the new start_ppq is our end_ppq
-        chunk = GetTakeChunk(take)
-        end_ppq = GetTakeChunkHZoom(chunk)
+        take_chunk = GetTakeChunk(take)
+        end_ppq = GetTakeChunkHZoom(take_chunk)
 
         -- Cmd: Scroll view left
         reaper.MIDIEditor_OnCommand(hwnd, 40140)
