@@ -40,6 +40,8 @@ local is_window_hover = false
 
 local pitch_mode
 local algo_mode
+local parse_meta_mode
+local parse_name_mode
 
 local is_option_bypassed = false
 
@@ -96,7 +98,6 @@ function MediaExplorer_GetSelectedAudioFiles()
 
     local sep = package.config:sub(1, 1)
     local sel_files = {}
-    local peaks = {}
 
     for index in string.gmatch(sel_indexes, '[^,]+') do
         index = tonumber(index)
@@ -125,8 +126,6 @@ function MediaExplorer_GetSelectedAudioFiles()
                 file_name = path .. sep .. file_name
             end
             sel_files[#sel_files + 1] = file_name
-            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, 21)
-            peaks[#peaks + 1] = tonumber(peak)
         end
     end
 
@@ -141,7 +140,7 @@ function MediaExplorer_GetSelectedAudioFiles()
         end
     end
 
-    return sel_files, peaks
+    return sel_files
 end
 
 function MediaExplorer_GetPitch()
@@ -381,6 +380,31 @@ function GetPitchFFT(file)
     return max_i * rate / window_size / 4
 end
 
+function GetPitchFromFileName(file)
+    -- Parse note name from file name
+    local note_name = file:match('[%s[(]([CDEFGAB]%d?#?)[])]?%.[^.]+$')
+    if not note_name then return end
+    -- Remove digit from result
+    note_name = note_name:gsub('%d', '')
+    return NameToFrequency(note_name)
+end
+
+function GetPitchFromMetadata(file)
+    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+    local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
+
+    for index in string.gmatch(sel_indexes, '[^,]+') do
+        index = tonumber(index)
+        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        if file:match(file_name) then
+            local key = reaper.JS_ListView_GetItem(mx_list_view, index, 12)
+            -- Remove any digits from key
+            key = key:gsub('%d', '')
+            return NameToFrequency(key)
+        end
+    end
+end
+
 function OpenWindow()
     -- Show script window in center of screen
     gfx.clear = reaper.ColorToNative(37, 37, 37)
@@ -541,9 +565,19 @@ function Main()
 
         local file_pitch
 
-        if algo_mode == 1 then file_pitch = GetPitchFTC(new_file) end
-        if algo_mode == 2 then file_pitch = GetPitchFFT(new_file) end
-
+        -- Check metadata for pitch
+        if parse_meta_mode == 1 then
+            file_pitch = GetPitchFromMetadata(new_file)
+        end
+        -- Check file name for pitch
+        if not file_pitch and parse_name_mode == 1 then
+            file_pitch = GetPitchFromFileName(new_file)
+        end
+        -- Use chosen pitch detection algorithm to find pitch
+        if not file_pitch then
+            if algo_mode == 1 then file_pitch = GetPitchFTC(new_file) end
+            if algo_mode == 2 then file_pitch = GetPitchFFT(new_file) end
+        end
         prev_file_pitch = file_pitch
 
         if file_pitch then
@@ -615,7 +649,8 @@ function Main()
     if gfx.mouse_cap & 2 == 2 then
 
         local menu = '%sDock window|>Pitch snap|%sContinuous|%sQuarter \z
-            tones|<%sSemitones|>Algorithm|%sFTC|%sFFT'
+            tones|<%sSemitones|>Algorithm|%sFTC|<%sFFT|>Parsing|%sUse \z
+            metadata tag \'key\'|<%sSearch filename for key'
 
         local is_docked = dock & 1 == 1
         local menu_dock_state = is_docked and '!' or ''
@@ -624,10 +659,13 @@ function Main()
         local menu_pitch_semitones = pitch_mode == 3 and '!' or ''
         local menu_algo_ftc = algo_mode == 1 and '!' or ''
         local menu_algo_fft = algo_mode == 2 and '!' or ''
+        local menu_parse_meta = parse_meta_mode == 1 and '!' or ''
+        local menu_parse_name = parse_name_mode == 1 and '!' or ''
 
         menu = menu:format(menu_dock_state, menu_pitch_continuous,
                            menu_pitch_quarter, menu_pitch_semitones,
-                           menu_algo_ftc, menu_algo_fft)
+                           menu_algo_ftc, menu_algo_fft, menu_parse_meta,
+                           menu_parse_name)
 
         gfx.x, gfx.y = m_x, m_y
         local ret = gfx.showmenu(menu)
@@ -649,12 +687,16 @@ function Main()
         if ret == 4 then pitch_mode = 3 end
         if ret == 5 then algo_mode = 1 end
         if ret == 6 then algo_mode = 2 end
+        if ret == 7 then parse_meta_mode = 1 - parse_meta_mode end
+        if ret == 8 then parse_name_mode = 1 - parse_name_mode end
 
-        -- Retrigger pitch detection when algorithm changes
-        if ret >= 5 and ret <= 6 then trigger_pitch_rescan = true end
+        -- Retrigger pitch detection when detection type changes
+        if ret >= 5 and ret <= 8 then trigger_pitch_rescan = true end
 
         reaper.SetExtState('FTC.MXTuner', 'pitch_mode', pitch_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, true)
+        reaper.SetExtState('FTC.MXTuner', 'meta_mode', parse_meta_mode, true)
+        reaper.SetExtState('FTC.MXTuner', 'name_mode', parse_name_mode, true)
     end
 
     reaper.defer(Main)
@@ -708,6 +750,8 @@ end
 
 pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 3
 algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 1
+parse_meta_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'meta_mode')) or 1
+parse_name_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'name_mode')) or 1
 
 -- Turn toolbar icon on
 reaper.SetToggleCommandState(sec, cmd, 1)
