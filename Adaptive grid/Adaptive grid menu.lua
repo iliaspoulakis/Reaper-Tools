@@ -32,7 +32,10 @@ function MenuCreateRecursive(menu)
             end
 
             if menu.title and i == #menu then str = str .. '<' end
-            str = str .. (entry.title or '') .. '|'
+
+            if entry.title or entry.separator then
+                str = str .. (entry.title or '') .. '|'
+            end
         end
     end
     return str:sub(1, #str - 1)
@@ -693,6 +696,30 @@ local midi_menu = {
     },
 }
 
+local under_items_menu = {}
+local under_cmd = reaper.NamedCommandLookup('_BR_OPTIONS_GRID_Z_UNDER_ITEMS')
+
+if under_cmd > 0 then
+    under_items_menu = {
+        {separator = true},
+        {
+            title = 'Below items',
+            IsChecked = function()
+                return reaper.GetToggleCommandState(under_cmd) == 1
+            end,
+
+            OnReturn = function()
+                if reaper.GetToggleCommandState(under_cmd) == 1 then
+                    local cmd_name = '_BR_OPTIONS_GRID_Z_THROUGH_ITEMS'
+                    reaper.Main_OnCommand(reaper.NamedCommandLookup(cmd_name), 0)
+                else
+                    reaper.Main_OnCommand(under_cmd, 0)
+                end
+            end,
+        },
+    }
+end
+
 local main_menu = {
     {title = 'Straight', IsChecked = IsGridStraight, OnReturn = SetGridStraight},
     {
@@ -814,6 +841,7 @@ local main_menu = {
         OnReturn = ShowGrid,
         arg = false,
     },
+    under_items_menu,
     {separator = true},
     {
         title = 'MIDI editor',
