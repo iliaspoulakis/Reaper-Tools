@@ -1,12 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.1
+  @version 1.3.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Fix crash with long audio files. (Analyze 1 sec max)
-    - Update toolbar toggle state in media explorer section
+    - Added option to search filename for key information
+    - Added option to use the 'key' metadata tag
+    - Fix crash with option to hide file extensions
+    - Exit script when media explorer window is closed 
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
