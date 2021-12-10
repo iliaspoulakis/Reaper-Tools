@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="9a90e4c6e886200a9e0ca8a1c68399d6477bc03e">
+<index version="1" name="FTC Tools" commit="9d79d5cc7b9cb1db56fa799751d82fac3747f646">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -369,6 +369,11 @@
       <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-11-21T13:30:06Z">
         <changelog><![CDATA[- Avoid stopping preview on tuning changes]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/df1384b718dae5db84efc24b9ba109e32dfe970a/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-10T18:03:07Z">
+        <changelog><![CDATA[- Fix crash with long audio files. (Analyze 1 sec max)
+- Update toolbar toggle state in media explorer section]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/9d79d5cc7b9cb1db56fa799751d82fac3747f646/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
@@ -1450,6 +1455,10 @@
         <changelog><![CDATA[- Fix issue with samples not showing when using databases]]></changelog>
         <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/c5d31e24308e5587aff682cb231c6f4623325501/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
       </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-10T18:03:07Z">
+        <changelog><![CDATA[- Update toolbar toggle state in media explorer section]]></changelog>
+        <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/9d79d5cc7b9cb1db56fa799751d82fac3747f646/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
+      </version>
     </reapack>
     <reapack name="Link media explorer to active sample player.lua" type="script">
       <metadata>
@@ -1475,6 +1484,10 @@
       <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-08-21T12:35:41Z">
         <changelog><![CDATA[- Various performance optimizations]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/3e07d214b2a5f63de945d2c116a1451c4c227a76/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.1.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-10T18:03:07Z">
+        <changelog><![CDATA[- Update toolbar toggle state in media explorer section]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/9d79d5cc7b9cb1db56fa799751d82fac3747f646/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
