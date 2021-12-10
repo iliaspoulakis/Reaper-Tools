@@ -516,6 +516,8 @@ function DrawPiano()
 end
 
 function Main()
+    -- Exit script when media explorer is closed
+    if not reaper.JS_Window_IsVisible(mx) then return end
 
     local is_redraw = false
 
