@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Avoid stopping preview on tuning changes
+    - Fix crash with long audio files. (Analyze 1 sec max)
+    - Update toolbar toggle state in media explorer section
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -181,6 +182,9 @@ function GetPitchFTC(file)
     local src_len = reaper.GetMediaSourceLength(src)
     if src_len == 0 then return end
 
+    -- Limit length of analyzed sample to 1 sec
+    src_len = math.min(1, src_len)
+
     local rate = reaper.GetMediaSourceSampleRate(src)
     local spl_cnt = math.ceil(src_len * rate)
     local buf = reaper.new_array(spl_cnt * 2)
@@ -330,6 +334,9 @@ function GetPitchFFT(file)
 
     local src_len = reaper.GetMediaSourceLength(src)
     if src_len == 0 then return end
+
+    -- Limit length of analyzed sample to 1 sec
+    src_len = math.min(1, src_len)
 
     local rate = reaper.GetMediaSourceSampleRate(src)
     local spl_cnt = math.ceil(src_len * rate)
@@ -666,10 +673,17 @@ function OnUnlock()
     end
 end
 
+function RefreshMXToolbar()
+    -- Toggle any option to refresh MX toolbar
+    reaper.JS_Window_OnCommand(mx, 42171)
+    reaper.JS_Window_OnCommand(mx, 42171)
+end
+
 function Exit()
     -- Turn toolbar icon off
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
+    RefreshMXToolbar()
 
     -- Turn option back on to reset pitch when changing media
     if is_option_bypassed then
@@ -692,6 +706,7 @@ algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 1
 -- Turn toolbar icon on
 reaper.SetToggleCommandState(sec, cmd, 1)
 reaper.RefreshToolbar2(sec, cmd)
+RefreshMXToolbar()
 
 Main()
 reaper.atexit(Exit)

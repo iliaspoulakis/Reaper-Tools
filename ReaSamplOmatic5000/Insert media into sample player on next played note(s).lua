@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Fix issue with samples not showing when using databases
+    - Update toolbar toggle state in media explorer section
 ]]
 
 -- Avoid creating undo points
@@ -425,9 +425,16 @@ function Main()
     reaper.defer(Main)
 end
 
+function RefreshMXToolbar()
+    -- Toggle any option to refresh MX toolbar
+    reaper.JS_Window_OnCommand(mx, 42171)
+    reaper.JS_Window_OnCommand(mx, 42171)
+end
+
 function Exit()
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
+    RefreshMXToolbar()
     if reaper.ValidatePtr(editor_track, 'MediaTrack*') then
         reaper.RemoveTrackSend(editor_track, 0, editor_send)
     end
@@ -446,6 +453,7 @@ end
 reaper.atexit(Exit)
 reaper.SetToggleCommandState(sec, cmd, 1)
 reaper.RefreshToolbar2(sec, cmd)
+RefreshMXToolbar()
 
 jsfx_path = CreateJSFX()
 record_track = CreateHiddenRecordTrack()

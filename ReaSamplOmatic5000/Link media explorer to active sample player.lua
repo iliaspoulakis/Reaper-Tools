@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Various performance optimizations
+    - Update toolbar toggle state in media explorer section
 ]]
 
 -- Avoid creating undo points
@@ -287,14 +287,22 @@ function Main()
     reaper.defer(Main)
 end
 
+function RefreshMXToolbar()
+    -- Toggle any option to refresh MX toolbar
+    reaper.JS_Window_OnCommand(mx, 42171)
+    reaper.JS_Window_OnCommand(mx, 42171)
+end
+
 function Exit()
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
+    RefreshMXToolbar()
 end
 
 reaper.atexit(Exit)
 reaper.SetToggleCommandState(sec, cmd, 1)
 reaper.RefreshToolbar2(sec, cmd)
+RefreshMXToolbar()
 
 --  Get the track ot take that "contains" the last touched fx
 container, container_idx = GetLastFocusedFXContainer()
