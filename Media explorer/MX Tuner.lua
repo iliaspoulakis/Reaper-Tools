@@ -101,6 +101,10 @@ function MediaExplorer_GetSelectedAudioFiles()
     for index in string.gmatch(sel_indexes, '[^,]+') do
         index = tonumber(index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+        if not file_name:match('%.' .. ext .. '$') then
+            file_name = file_name .. '.' .. ext
+        end
         if IsAudioFile(file_name) then
             -- Check if file_name is valid path itself (for searches and DBs)
             if not reaper.file_exists(file_name) then
