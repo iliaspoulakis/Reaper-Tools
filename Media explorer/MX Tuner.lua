@@ -184,14 +184,9 @@ function MediaExplorer_SetPitch(pitch, stop_preview)
         local pitch_rnd = math.floor(pitch + 0.5)
         local set_pitch_cmd = 42150 + pitch_rnd
         if pitch_rnd > 0 then set_pitch_cmd = set_pitch_cmd - 1 end
+        if pitch_rnd == 0 then set_pitch_cmd = 42193 end
         -- Preview: set pitch to XX semitones
         reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', set_pitch_cmd, 0, 0, 0)
-
-        -- Workaround for setting pitch to zero (action is missing)
-        if pitch_rnd == 0 then
-            -- Preview: adjust pitch by -01 semitones
-            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42162, 0, 0, 0)
-        end
 
         -- Note: Workaround for avoiding double triggers on selection change
         if stop_preview then
