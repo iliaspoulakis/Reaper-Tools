@@ -145,8 +145,8 @@ function MediaExplorer_GetSelectedFileInfo(sel_file, id)
             file_name = file_name .. '.' .. ext
         end
         if file_name == sel_file_name then
-            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, id)
-            return tonumber(peak)
+            local info = reaper.JS_ListView_GetItem(mx_list_view, index, id)
+            return info ~= '' and info
         end
     end
 end
