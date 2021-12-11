@@ -1,12 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Support parsing minor keys
-    - Properly check if media explorer is closed (for custom actions)
+    - Support more file name patterns
+    - Fix bug with reading metadata
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -404,7 +404,7 @@ end
 
 function GetPitchFromFileName(file)
     -- Parse note name from file name
-    local note_name = file:match('[%s_[(]([CDEFGAB]%d?[#b]?)[])]?%.[^.]+$')
+    local note_name = file:match('[%s_[(]([CDEFGAB]%d?[#b]?)[])_]?%d*%.[^.]+$')
     if not note_name then return end
     -- Remove digit from result
     note_name = note_name:gsub('%d', '')
