@@ -20,7 +20,7 @@ end
 -- Check if media explorer is open
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.JS_Window_Find(mx_title, true)
-if not mx then return end
+if not mx or reaper.GetToggleCommandState(50124) == 0 then return end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -563,7 +563,7 @@ end
 
 function Main()
     -- Exit script when media explorer is closed
-    if not reaper.JS_Window_IsVisible(mx) then return end
+    if reaper.GetToggleCommandState(50124) == 0 then return end
 
     local is_redraw = false
 
@@ -760,6 +760,7 @@ function Exit()
         -- Options: Reset pitch and rate when changing media
         reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42014, 0, 0, 0)
     end
+    gfx.quit()
 end
 
 OpenWindow()

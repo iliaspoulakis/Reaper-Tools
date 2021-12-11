@@ -22,7 +22,7 @@ end
 -- Check if media explorer is open
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.JS_Window_Find(mx_title, true)
-if not mx then return end
+if not mx or reaper.GetToggleCommandState(50124) == 0 then return end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -219,7 +219,7 @@ end
 
 function Main()
     -- Stop link when media explorer is closed
-    if not reaper.JS_Window_IsVisible(mx) then return end
+    if reaper.GetToggleCommandState(50124) == 0 then return end
 
     -- Stop link when container is invalid (project changes or delete)
     local is_container_take = reaper.ValidatePtr(container, 'MediaItem_Take*')

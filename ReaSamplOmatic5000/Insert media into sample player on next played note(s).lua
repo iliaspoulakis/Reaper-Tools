@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.0.3
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Update toolbar toggle state in media explorer section
+    - Fixed issue with media explorer option to hide file extensions
 ]]
 
 -- Avoid creating undo points
@@ -22,7 +22,7 @@ end
 -- Check if media explorer is open
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.JS_Window_Find(mx_title, true)
-if not mx then return end
+if not mx or reaper.GetToggleCommandState(50124) == 0 then return end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -473,6 +473,7 @@ function Exit()
         reaper.DeleteTrack(record_track)
     end
     os.remove(jsfx_path)
+    gfx.quit()
 end
 
 local sel_files = MediaExplorer_GetSelectedAudioFiles()
