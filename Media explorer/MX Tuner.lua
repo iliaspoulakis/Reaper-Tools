@@ -69,6 +69,13 @@ end
 
 function NameToFrequency(name)
     local n = {'A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'}
+
+    if name == 'Db' then name = 'C#' end
+    if name == 'Eb' then name = 'D#' end
+    if name == 'Gb' then name = 'F#' end
+    if name == 'Ab' then name = 'G#' end
+    if name == 'Bb' then name = 'A#' end
+
     for i = 1, #n do
         if name == n[i] then
             return 440 * math.exp((i - 1) * math.log(2) / 12)
@@ -404,7 +411,7 @@ end
 
 function GetPitchFromFileName(file)
     -- Parse note name from file name
-    local note_name = file:match('[%s[(]([CDEFGAB]%d?#?)[])]?%.[^.]+$')
+    local note_name = file:match('[%s_[(]([CDEFGAB]%d?[#b]?)[])]?%.[^.]+$')
     if not note_name then return end
     -- Remove digit from result
     note_name = note_name:gsub('%d', '')
