@@ -1,14 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Added option to search filename for key information
-    - Added option to use the 'key' metadata tag
-    - Fix crash with option to hide file extensions
-    - Exit script when media explorer window is closed 
+    - Support parsing minor keys
+    - Properly check if media explorer is closed (for custom actions)
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
