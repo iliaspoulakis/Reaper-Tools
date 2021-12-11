@@ -583,7 +583,7 @@ function Main()
     local files = MediaExplorer_GetSelectedAudioFiles()
     local new_file = files[1]
 
-    if new_file and prev_file ~= new_file or trigger_pitch_rescan then
+    if new_file and (prev_file ~= new_file or trigger_pitch_rescan) then
 
         local file_pitch
 
