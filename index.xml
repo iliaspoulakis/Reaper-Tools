@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="f5d2f2876a5368a35e7ac0e6ce726a6bd4b2c736">
+<index version="1" name="FTC Tools" commit="458cfa03c42401741c15baeb6bb57a6955d3dcd1">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -398,6 +398,11 @@
         <changelog><![CDATA[- Support parsing minor keys
 - Properly check if media explorer is closed (for custom actions)]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/f5d2f2876a5368a35e7ac0e6ce726a6bd4b2c736/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.3.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-11T13:10:01Z">
+        <changelog><![CDATA[- Support more file name patterns
+- Fix bug with reading metadata]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/458cfa03c42401741c15baeb6bb57a6955d3dcd1/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
