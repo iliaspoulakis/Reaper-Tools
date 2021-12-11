@@ -112,11 +112,7 @@ function MediaExplorer_GetSelectedAudioFiles()
 
     local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
     local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
-
-    if not show_full_path then
-        -- Browser: Show full path in databases and searches
-        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
-    end
+    local forced_full_path = false
 
     local path_hwnd = reaper.JS_Window_FindChildByID(mx, 1002)
     local path = reaper.JS_Window_GetTitle(path_hwnd)
@@ -126,34 +122,69 @@ function MediaExplorer_GetSelectedAudioFiles()
 
     local sep = package.config:sub(1, 1)
     local sel_files = {}
-    local peaks = {}
 
     for index in string.gmatch(sel_indexes, '[^,]+') do
         index = tonumber(index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        -- File name might not include extension, due to MX option
+        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+        if not file_name:match('%.' .. ext .. '$') then
+            file_name = file_name .. '.' .. ext
+        end
         if IsAudioFile(file_name) then
             -- Check if file_name is valid path itself (for searches and DBs)
             if not reaper.file_exists(file_name) then
                 file_name = path .. sep .. file_name
             end
+
+            -- If file does not exist, try enabling option that shows full path
+            if not show_full_path and not reaper.file_exists(file_name) then
+                show_full_path = true
+                forced_full_path = true
+                -- Browser: Show full path in databases and searches
+                reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
+                file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+            end
+
+            -- Check if file_name is valid path itself (for searches and DBs)
+            if not reaper.file_exists(file_name) then
+                file_name = path .. sep .. file_name
+            end
             sel_files[#sel_files + 1] = file_name
-            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, 21)
-            peaks[#peaks + 1] = tonumber(peak)
         end
     end
 
     -- Restore previous settings
-    if not show_full_path then
+    if forced_full_path then
         -- Browser: Show full path in databases and searches
         reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
+
+        if show_leading_path then
+            -- Browser: Show leading path in databases and searches
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42134, 0, 0, 0)
+        end
     end
 
-    if show_leading_path then
-        -- Browser: Show leading path in databases and searches
-        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42134, 0, 0, 0)
-    end
+    return sel_files
+end
 
-    return sel_files, peaks
+function MediaExplorer_GetSelectedFileInfo(sel_file, id)
+    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+    local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
+    local sel_file_name = sel_file:match('([^\\/]+)$')
+    for index in string.gmatch(sel_indexes, '[^,]+') do
+        index = tonumber(index)
+        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        -- File name might not include extension, due to MX option
+        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+        if not file_name:match('%.' .. ext .. '$') then
+            file_name = file_name .. '.' .. ext
+        end
+        if file_name == sel_file_name then
+            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, id)
+            return tonumber(peak)
+        end
+    end
 end
 
 function MediaExplorer_GetVolume()
@@ -331,7 +362,7 @@ function Main()
 
             if not track then return end
 
-            local files, peaks = MediaExplorer_GetSelectedAudioFiles()
+            local files = MediaExplorer_GetSelectedAudioFiles()
             if not files[1] then return end
 
             reaper.Undo_BeginBlock()
@@ -388,11 +419,11 @@ function Main()
             -- Set volume
             local vol = MediaExplorer_GetVolume()
             if vol then
-                if peaks[1] then
-                    -- Normalize preview volume if peak volume has been calculated
-                    local normalize = reaper.GetToggleCommandStateEx(32063,
-                                                                     42182) == 1
-                    if normalize then vol = vol - peaks[1] end
+                -- Normalize preview volume if peak volume has been calculated
+                local norm = reaper.GetToggleCommandStateEx(32063, 42182) == 1
+                if norm then
+                    local peak = MediaExplorer_GetSelectedFileInfo(files[1], 21)
+                    if peak then vol = vol - peak end
                 end
                 reaper.TrackFX_SetParamNormalized(track, fx, 0, DB2Slider(vol))
             end
@@ -450,7 +481,6 @@ if #sel_files == 0 then
     return
 end
 
-reaper.atexit(Exit)
 reaper.SetToggleCommandState(sec, cmd, 1)
 reaper.RefreshToolbar2(sec, cmd)
 RefreshMXToolbar()
@@ -482,4 +512,3 @@ end
 OpenWindow()
 Main()
 reaper.atexit(Exit)
-

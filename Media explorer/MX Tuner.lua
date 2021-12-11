@@ -104,6 +104,7 @@ function MediaExplorer_GetSelectedAudioFiles()
     for index in string.gmatch(sel_indexes, '[^,]+') do
         index = tonumber(index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        -- File name might not include extension, due to MX option
         local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
         if not file_name:match('%.' .. ext .. '$') then
             file_name = file_name .. '.' .. ext
@@ -143,6 +144,25 @@ function MediaExplorer_GetSelectedAudioFiles()
     end
 
     return sel_files
+end
+
+function MediaExplorer_GetSelectedFileInfo(sel_file, id)
+    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+    local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
+    local sel_file_name = sel_file:match('([^\\/]+)$')
+    for index in string.gmatch(sel_indexes, '[^,]+') do
+        index = tonumber(index)
+        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        -- File name might not include extension, due to MX option
+        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+        if not file_name:match('%.' .. ext .. '$') then
+            file_name = file_name .. '.' .. ext
+        end
+        if file_name == sel_file_name then
+            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, id)
+            return tonumber(peak)
+        end
+    end
 end
 
 function MediaExplorer_GetPitch()
@@ -392,18 +412,11 @@ function GetPitchFromFileName(file)
 end
 
 function GetPitchFromMetadata(file)
-    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
-    local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
-
-    for index in string.gmatch(sel_indexes, '[^,]+') do
-        index = tonumber(index)
-        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
-        if file:match(file_name) then
-            local key = reaper.JS_ListView_GetItem(mx_list_view, index, 12)
-            -- Remove any digits from key
-            key = key:gsub('%d', '')
-            return NameToFrequency(key)
-        end
+    local key = MediaExplorer_GetSelectedFileInfo(file, 12)
+    if key then
+        -- Remove any digits from key
+        key = key:gsub('%d', '')
+        return NameToFrequency(key)
     end
 end
 

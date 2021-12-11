@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Update toolbar toggle state in media explorer section
+    - Fixed issue with media explorer option to hide file extensions
 ]]
 
 -- Avoid creating undo points
@@ -86,11 +86,15 @@ function MediaExplorer_GetSelectedAudioFiles()
 
     local sep = package.config:sub(1, 1)
     local sel_files = {}
-    local peaks = {}
 
     for index in string.gmatch(sel_indexes, '[^,]+') do
         index = tonumber(index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        -- File name might not include extension, due to MX option
+        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+        if not file_name:match('%.' .. ext .. '$') then
+            file_name = file_name .. '.' .. ext
+        end
         if IsAudioFile(file_name) then
             -- Check if file_name is valid path itself (for searches and DBs)
             if not reaper.file_exists(file_name) then
@@ -111,8 +115,6 @@ function MediaExplorer_GetSelectedAudioFiles()
                 file_name = path .. sep .. file_name
             end
             sel_files[#sel_files + 1] = file_name
-            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, 21)
-            peaks[#peaks + 1] = tonumber(peak)
         end
     end
 
@@ -127,7 +129,26 @@ function MediaExplorer_GetSelectedAudioFiles()
         end
     end
 
-    return sel_files, peaks
+    return sel_files
+end
+
+function MediaExplorer_GetSelectedFileInfo(sel_file, id)
+    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+    local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
+    local sel_file_name = sel_file:match('([^\\/]+)$')
+    for index in string.gmatch(sel_indexes, '[^,]+') do
+        index = tonumber(index)
+        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        -- File name might not include extension, due to MX option
+        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+        if not file_name:match('%.' .. ext .. '$') then
+            file_name = file_name .. '.' .. ext
+        end
+        if file_name == sel_file_name then
+            local peak = reaper.JS_ListView_GetItem(mx_list_view, index, id)
+            return tonumber(peak)
+        end
+    end
 end
 
 function MediaExplorer_GetVolume()
@@ -211,7 +232,7 @@ function Main()
     if not (floating_wnd or chain_idx == container_idx) then return end
 
     -- Link files
-    local files, peaks = MediaExplorer_GetSelectedAudioFiles()
+    local files = MediaExplorer_GetSelectedAudioFiles()
     if #files > 0 then
         -- Check if files have changed (SetNamedConfigParm is CPU intensive)
         local file_cnt = math.min(64, #files)
@@ -249,10 +270,11 @@ function Main()
     -- Link volume
     local vol = MediaExplorer_GetVolume()
     if vol then
-        if peaks[1] then
-            -- Normalize preview volume if peak volume has been calculated
-            local normalize = reaper.GetToggleCommandStateEx(32063, 42182) == 1
-            if normalize then vol = vol - peaks[1] end
+        -- Normalize preview volume if peak volume has been calculated
+        local norm = reaper.GetToggleCommandStateEx(32063, 42182) == 1
+        if norm then
+            local peak = MediaExplorer_GetSelectedFileInfo(files[1], 21)
+            if peak then vol = vol - peak end
         end
         SetParamNormalized(container, container_idx, 0, DB2Slider(vol))
     end
