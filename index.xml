@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="458cfa03c42401741c15baeb6bb57a6955d3dcd1">
+<index version="1" name="FTC Tools" commit="8148c4e9f665e23a77d1625dbba56a8de336c07c">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -403,6 +403,10 @@
         <changelog><![CDATA[- Support more file name patterns
 - Fix bug with reading metadata]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/458cfa03c42401741c15baeb6bb57a6955d3dcd1/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.3.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-26T12:24:31Z">
+        <changelog><![CDATA[- Show warning when media explorer is not open]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/8148c4e9f665e23a77d1625dbba56a8de336c07c/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
@@ -1492,6 +1496,10 @@
         <changelog><![CDATA[- Fixed issue with media explorer option to hide file extensions]]></changelog>
         <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/f5d2f2876a5368a35e7ac0e6ce726a6bd4b2c736/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
       </version>
+      <version name="1.0.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-26T12:24:31Z">
+        <changelog><![CDATA[- Show warning when media explorer is not open]]></changelog>
+        <source main="main mediaexplorer midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/8148c4e9f665e23a77d1625dbba56a8de336c07c/ReaSamplOmatic5000/Insert%20media%20into%20sample%20player%20on%20next%20played%20note(s).lua</source>
+      </version>
     </reapack>
     <reapack name="Link media explorer to active sample player.lua" type="script">
       <metadata>
@@ -1525,6 +1533,10 @@
       <version name="1.1.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-11T09:27:20Z">
         <changelog><![CDATA[- Fixed issue with media explorer option to hide file extensions]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/f5d2f2876a5368a35e7ac0e6ce726a6bd4b2c736/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.1.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-26T12:24:31Z">
+        <changelog><![CDATA[- Show warning when media explorer is not open]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/8148c4e9f665e23a77d1625dbba56a8de336c07c/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
