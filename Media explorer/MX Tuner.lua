@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.2
+  @version 1.3.3
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Support more file name patterns
-    - Fix bug with reading metadata
+    - Show warning when media explorer is not open
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -18,7 +17,15 @@ end
 -- Check if media explorer is open
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.JS_Window_Find(mx_title, true)
-if not mx or reaper.GetToggleCommandState(50124) == 0 then return end
+if not mx then
+    reaper.MB('Could not find media explorer window', 'Error', 0)
+    return
+end
+
+if reaper.GetToggleCommandState(50124) == 0 then
+    reaper.MB('Media explorer not open', 'Error', 0)
+    return
+end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -152,6 +159,7 @@ function MediaExplorer_GetSelectedAudioFiles()
 end
 
 function MediaExplorer_GetSelectedFileInfo(sel_file, id)
+    if not sel_file or not id then return end
     local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
     local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
     local sel_file_name = sel_file:match('([^\\/]+)$')
