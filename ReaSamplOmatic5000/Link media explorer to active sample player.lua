@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.3
+  @version 1.1.4
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Show warning when media explorer is not open
+    - Open media explorer on start if not open already
 ]]
 
 -- Avoid creating undo points
@@ -19,18 +19,11 @@ if not reaper.JS_Window_Find then
     return
 end
 
--- Check if media explorer is open
+-- Get media explorer window
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.JS_Window_Find(mx_title, true)
-if not mx then
-    reaper.MB('Could not find media explorer window', 'Error', 0)
-    return
-end
-
-if reaper.GetToggleCommandState(50124) == 0 then
-    reaper.MB('Media explorer not open', 'Error', 0)
-    return
-end
+-- Open media explorer if not found
+if not mx then mx = reaper.OpenMediaExplorer('', false) end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
