@@ -53,17 +53,26 @@ end
 local adapt_script_path = ConcatPath(path, 'Adapt grid to zoom level.lua')
 local run_adapt_scipt = loadfile(adapt_script_path)
 
-local main_mult
-local midi_mult
-
+local prev_grid_state
 local prev_hzoom_lvl
 local prev_midi_hzoom_lvl
 local prev_chunk
 
 function Main()
+    -- Options: Toggle grid lines
+    local grid_state = reaper.GetToggleCommandState(40145)
+
+    -- Check if grid visibility changed
+    if grid_state ~= prev_grid_state then
+        prev_grid_state = grid_state
+        -- Reset values to trigger running the adapt script
+        prev_hzoom_lvl = nil
+        prev_midi_hzoom_lvl = nil
+        prev_chunk = nil
+    end
 
     -- Check if arrange view grid is set to adaptive
-    main_mult = GetGridMultiplier()
+    local main_mult = GetGridMultiplier()
     if main_mult ~= 0 then
         -- Check if zoom level changed
         local hzoom_lvl = reaper.GetHZoomLevel()
@@ -76,7 +85,7 @@ function Main()
     end
 
     -- Check if MIDI editor grid is set to adaptive
-    midi_mult = GetMIDIGridMultiplier()
+    local midi_mult = GetMIDIGridMultiplier()
     if midi_mult ~= 0 then
         -- Check if MIDI editor is open
         local hwnd = reaper.MIDIEditor_GetActive()
