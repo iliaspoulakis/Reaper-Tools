@@ -351,11 +351,20 @@ function GetIniConfigValue(key, default)
 end
 
 function ShowMenu(menu_str)
-    -- On Windows a dummy window is required to show menu
-    if reaper.GetOS():match('Win') then
+    -- Toggle fullscreen
+    local is_full_screen = reaper.GetToggleCommandState(40346) == 1
+
+    -- Determine operating system
+    local os = reaper.GetOS()
+    local is_windows = os:match('Win')
+    local is_mac = os:match('OSX') or os:match('macOS')
+
+    -- On Windows and MacOS (fullscreen), a dummy window is required to show menu
+    if is_windows or is_mac and is_full_screen then
+        local offs = is_windows and {x = 10, y = 20} or {x = 0, y = 0}
         local x, y = reaper.GetMousePosition()
-        gfx.init('AG', 0, 0, 0, x + 10, y + 20)
-        gfx.x, gfx.y = gfx.screentoclient(x + 5, y + 10)
+        gfx.init('AG', 0, 0, 0, x + offs.x, y + offs.y)
+        gfx.x, gfx.y = gfx.screentoclient(x + offs.x / 2, y + offs.y / 2)
         if reaper.JS_Window_Find then
             local hwnd = reaper.JS_Window_Find('AG', true)
             reaper.JS_Window_Show(hwnd, 'HIDE')

@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.2
+  @version 1.2.3
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -10,5 +10,5 @@
     [main=main,midi_editor] Adapt grid to zoom level.lua
     [main=main,midi_editor] Set grid to * (adaptive).lua
   @changelog
-    - Adapt grid when hiding/showing grid lines
+    - Fix issue with menu not showing on macOS when in fullscreen
 ]]
