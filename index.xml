@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="43dd192c8b74eec12f5d65e4260678d428748edf">
+<index version="1" name="FTC Tools" commit="57c4a26b01e76fa9a84b495e760b7c1af3b2f817">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -435,6 +435,13 @@
       <version name="1.3.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-12-26T17:01:17Z">
         <changelog><![CDATA[- Open media explorer on start if not open already]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/8a7ba426e0445d06131e3078422ae142dd5c56fe/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.4.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-01-20T22:50:28Z">
+        <changelog><![CDATA[- Remember undocked window position
+- Added option to avoid keyboard focus (enabled by default)
+- Added option to hide window frame
+- Locked key now adapts to pitch dial changes]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/57c4a26b01e76fa9a84b495e760b7c1af3b2f817/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
