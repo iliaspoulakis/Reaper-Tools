@@ -694,7 +694,7 @@ function Main()
     if gfx.mouse_cap & 2 == 2 then
 
         local menu =
-            '%sDock window|%sFrameless window|%sAvoid focus||>Pitch snap|\z
+            '%sDock window|%sHide frame|%sAvoid focus||>Pitch snap|\z
             %sContinuous|%sQuarter tones|<%sSemitones|>Algorithm|%sFTC|<%sFFT\z
             |>Parsing|%sUse metadata tag \'key\'|<%sSearch filename for key'
 
