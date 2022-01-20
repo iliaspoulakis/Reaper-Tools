@@ -1,14 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.4.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Remember undocked window position
-    - Added option to avoid keyboard focus (enabled by default)
-    - Added option to hide window frame
-    - Locked key now adapts to pitch dial changes
+    - Fix focus behavior on windows
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -23,7 +20,6 @@ local mx = reaper.JS_Window_Find(mx_title, true)
 -- Open media explorer if not found
 if not mx then mx = reaper.OpenMediaExplorer('', false) end
 
-local is_mac = reaper.GetOS():match('OSX') or reaper.GetOS():match('macOS')
 local _, _, sec, cmd = reaper.get_action_context()
 
 local w_x, w_y, w_w, w_h
@@ -443,7 +439,11 @@ function OpenWindow()
         gfx.init('MX Tuner', w_w, w_h, 0, w_x, w_y)
     end
     gfx.clear = reaper.ColorToNative(37, 37, 37)
-    if focus_mode == 1 then reaper.JS_Window_SetFocus(mx) end
+
+    if focus_mode == 1 then
+        local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+        reaper.JS_Window_SetFocus(mx_list_view)
+    end
 end
 
 function HexToNormRGB(color)
@@ -574,6 +574,11 @@ end
 function Main()
     -- Exit script when media explorer is closed
     if reaper.GetToggleCommandState(50124) == 0 then return end
+
+    if not reaper.ValidatePtr(mx, 'HWND') then
+        mx = reaper.JS_Window_Find(mx_title, true)
+        if not mx then mx = reaper.OpenMediaExplorer('', false) end
+    end
 
     local is_redraw = false
 
@@ -726,24 +731,27 @@ function Main()
         end
 
         if ret == 2 then
+            local SetWindowPosition = reaper.JS_Window_SetPosition
+            local is_linux = reaper.GetOS():match('Other')
             local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+
             if frameless_mode == 1 then
+                if is_linux then
+                    local bar_h = reaper.GetExtState('FTC.MXTuner', 'bar_h')
+                    if tonumber(bar_h) then
+                        SetWindowPosition(hwnd, w_x, w_y, w_w, w_h - bar_h)
+                    end
+                end
                 reaper.JS_Window_SetStyle(hwnd, 'CAPTION,SIZEBOX,SYSMENU')
                 frameless_mode = 0
-
-                local bar_h = reaper.GetExtState('FTC.MXTuner', 'bar_h')
-                if not is_mac and tonumber(bar_h) then
-                    reaper.JS_Window_Move(hwnd, w_x, w_y - bar_h)
-                end
             else
-                local _, s_y = gfx.clienttoscreen(0, 0)
-                local titlebar_height = s_y - w_y
-                reaper.SetExtState('FTC.MXTuner', 'bar_h', titlebar_height, true)
-
-                reaper.JS_Window_SetStyle(hwnd, 'POPUP')
-                if not is_mac then
-                    reaper.JS_Window_Move(hwnd, w_x, w_y + titlebar_height)
+                if is_linux then
+                    local _, s_y = gfx.clienttoscreen(0, 0)
+                    local bar_h = s_y - w_y
+                    reaper.SetExtState('FTC.MXTuner', 'bar_h', bar_h, true)
+                    SetWindowPosition(hwnd, w_x, w_y, w_w, w_h + bar_h)
                 end
+                reaper.JS_Window_SetStyle(hwnd, 'POPUP')
                 frameless_mode = 1
             end
             reaper.SetExtState('FTC.MXTuner', 'has_frame', frameless_mode, true)
@@ -772,7 +780,8 @@ function Main()
     end
 
     if gfx.getchar(65536) & 2 == 2 and focus_mode == 1 then
-        reaper.JS_Window_SetFocus(mx)
+        local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+        reaper.JS_Window_SetFocus(mx_list_view)
     end
 
     reaper.defer(Main)
