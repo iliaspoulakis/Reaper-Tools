@@ -1,11 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.4
+  @version 1.4.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Open media explorer on start if not open already
+    - Remember undocked window position
+    - Added option to avoid keyboard focus (enabled by default)
+    - Added option to hide window frame
+    - Locked key now adapts to pitch dial changes
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -20,7 +23,10 @@ local mx = reaper.JS_Window_Find(mx_title, true)
 -- Open media explorer if not found
 if not mx then mx = reaper.OpenMediaExplorer('', false) end
 
+local is_mac = reaper.GetOS():match('OSX') or reaper.GetOS():match('macOS')
 local _, _, sec, cmd = reaper.get_action_context()
+
+local w_x, w_y, w_w, w_h
 
 local prev_mouse_x, prev_mouse_y
 local prev_mouse_cap
@@ -42,6 +48,9 @@ local pitch_mode
 local algo_mode
 local parse_meta_mode
 local parse_name_mode
+
+local frameless_mode
+local focus_mode
 
 local is_option_bypassed = false
 
@@ -422,12 +431,19 @@ function GetPitchFromMetadata(file)
 end
 
 function OpenWindow()
-    -- Show script window in center of screen
+    local pos = reaper.GetExtState('FTC.MXTuner', 'pos')
+    if pos == '' then
+        -- Show script window in center of screen
+        local w, h = 406, 138
+        local x, y = reaper.GetMousePosition()
+        local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
+        gfx.init('MX Tuner', w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
+    else
+        w_x, w_y, w_w, w_h = pos:match('(%d+) (%d+) (%d+) (%d+)')
+        gfx.init('MX Tuner', w_w, w_h, 0, w_x, w_y)
+    end
     gfx.clear = reaper.ColorToNative(37, 37, 37)
-    local w, h = 406, 138
-    local x, y = reaper.GetMousePosition()
-    local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
-    gfx.init('MX Tuner', w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
+    if focus_mode == 1 then reaper.JS_Window_SetFocus(mx) end
 end
 
 function HexToNormRGB(color)
@@ -568,6 +584,7 @@ function Main()
         prev_mx_pitch = mx_pitch
         if prev_file_pitch then
             sel_note_name = FrequencyToName(prev_file_pitch, mx_pitch)
+            if locked_key then locked_key = sel_note_name end
         end
         -- Redraw UI when pitch changes
         is_redraw = true
@@ -623,13 +640,20 @@ function Main()
     prev_file = new_file
 
     -- Monitor changes to window dock state
-    local dock = gfx.dock(-1)
+    local dock, x, y, w, h = gfx.dock(-1, 0, 0, 0, 0)
     if prev_dock ~= dock then
         prev_dock = dock
         reaper.SetExtState('FTC.MXTuner', 'is_docked', dock & 1, true)
         if dock & 1 == 1 then
             reaper.SetExtState('FTC.MXTuner', 'dock', dock, true)
         end
+    end
+
+    -- Monitor changes to window position
+    if not (x == w_x and y == w_y and w == w_w and h == w_h) then
+        w_x, w_y, w_w, w_h = x, y, w, h
+        local pos = ('%d %d %d %d'):format(x, y, w, h)
+        reaper.SetExtState('FTC.MXTuner', 'pos', pos, true)
     end
 
     -- Redraw UI when mouse_cap changes
@@ -664,12 +688,15 @@ function Main()
     -- Open settings menu on right click
     if gfx.mouse_cap & 2 == 2 then
 
-        local menu = '%sDock window|>Pitch snap|%sContinuous|%sQuarter \z
-            tones|<%sSemitones|>Algorithm|%sFTC|<%sFFT|>Parsing|%sUse \z
-            metadata tag \'key\'|<%sSearch filename for key'
+        local menu =
+            '%sDock window|%sFrameless window|%sAvoid focus||>Pitch snap|\z
+            %sContinuous|%sQuarter tones|<%sSemitones|>Algorithm|%sFTC|<%sFFT\z
+            |>Parsing|%sUse metadata tag \'key\'|<%sSearch filename for key'
 
         local is_docked = dock & 1 == 1
         local menu_dock_state = is_docked and '!' or ''
+        local menu_frameless = frameless_mode == 1 and '!' or ''
+        local menu_focus = focus_mode == 1 and '!' or ''
         local menu_pitch_continuous = pitch_mode == 1 and '!' or ''
         local menu_pitch_quarter = pitch_mode == 2 and '!' or ''
         local menu_pitch_semitones = pitch_mode == 3 and '!' or ''
@@ -678,10 +705,10 @@ function Main()
         local menu_parse_meta = parse_meta_mode == 1 and '!' or ''
         local menu_parse_name = parse_name_mode == 1 and '!' or ''
 
-        menu = menu:format(menu_dock_state, menu_pitch_continuous,
-                           menu_pitch_quarter, menu_pitch_semitones,
-                           menu_algo_ftc, menu_algo_fft, menu_parse_meta,
-                           menu_parse_name)
+        menu = menu:format(menu_dock_state, menu_frameless, menu_focus,
+                           menu_pitch_continuous, menu_pitch_quarter,
+                           menu_pitch_semitones, menu_algo_ftc, menu_algo_fft,
+                           menu_parse_meta, menu_parse_name)
 
         gfx.x, gfx.y = m_x, m_y
         local ret = gfx.showmenu(menu)
@@ -698,21 +725,54 @@ function Main()
             end
         end
 
-        if ret == 2 then pitch_mode = 1 end
-        if ret == 3 then pitch_mode = 2 end
-        if ret == 4 then pitch_mode = 3 end
-        if ret == 5 then algo_mode = 1 end
-        if ret == 6 then algo_mode = 2 end
-        if ret == 7 then parse_meta_mode = 1 - parse_meta_mode end
-        if ret == 8 then parse_name_mode = 1 - parse_name_mode end
+        if ret == 2 then
+            local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+            if frameless_mode == 1 then
+                reaper.JS_Window_SetStyle(hwnd, 'CAPTION,SIZEBOX,SYSMENU')
+                frameless_mode = 0
+
+                local bar_h = reaper.GetExtState('FTC.MXTuner', 'bar_h')
+                if not is_mac and tonumber(bar_h) then
+                    reaper.JS_Window_Move(hwnd, w_x, w_y - bar_h)
+                end
+            else
+                local _, s_y = gfx.clienttoscreen(0, 0)
+                local titlebar_height = s_y - w_y
+                reaper.SetExtState('FTC.MXTuner', 'bar_h', titlebar_height, true)
+
+                reaper.JS_Window_SetStyle(hwnd, 'POPUP')
+                if not is_mac then
+                    reaper.JS_Window_Move(hwnd, w_x, w_y + titlebar_height)
+                end
+                frameless_mode = 1
+            end
+            reaper.SetExtState('FTC.MXTuner', 'has_frame', frameless_mode, true)
+        end
+
+        if ret == 3 then
+            focus_mode = 1 - focus_mode
+            reaper.SetExtState('FTC.MXTuner', 'avoid_focus', focus_mode, true)
+        end
+
+        if ret == 4 then pitch_mode = 1 end
+        if ret == 5 then pitch_mode = 2 end
+        if ret == 6 then pitch_mode = 3 end
+        if ret == 7 then algo_mode = 1 end
+        if ret == 8 then algo_mode = 2 end
+        if ret == 9 then parse_meta_mode = 1 - parse_meta_mode end
+        if ret == 10 then parse_name_mode = 1 - parse_name_mode end
 
         -- Retrigger pitch detection when detection type changes
-        if ret >= 5 and ret <= 8 then trigger_pitch_rescan = true end
+        if ret >= 7 and ret <= 10 then trigger_pitch_rescan = true end
 
         reaper.SetExtState('FTC.MXTuner', 'pitch_mode', pitch_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'meta_mode', parse_meta_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'name_mode', parse_name_mode, true)
+    end
+
+    if gfx.getchar(65536) & 2 == 2 and focus_mode == 1 then
+        reaper.JS_Window_SetFocus(mx)
     end
 
     reaper.defer(Main)
@@ -757,12 +817,20 @@ function Exit()
     gfx.quit()
 end
 
+focus_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'avoid_focus')) or 1
+
 OpenWindow()
 
 local is_docked = reaper.GetExtState('FTC.MXTuner', 'is_docked') == '1'
 if is_docked then
     prev_dock = tonumber(reaper.GetExtState('FTC.MXTuner', 'dock'))
     if prev_dock then gfx.dock(prev_dock) end
+end
+
+frameless_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'has_frame')) or 0
+if frameless_mode == 1 then
+    local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+    reaper.JS_Window_SetStyle(hwnd, 'POPUP')
 end
 
 pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 3
