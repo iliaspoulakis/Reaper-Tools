@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.1
+  @version 1.4.2
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Fix focus behavior on windows
+    - Add option to keep window on top
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -47,6 +47,7 @@ local parse_name_mode
 
 local frameless_mode
 local focus_mode
+local ontop_mode
 
 local is_option_bypassed = false
 
@@ -469,7 +470,7 @@ function DrawPiano()
     local lock_color = {0.7, 0.43, 0.4}
 
     for i = 1, 7 do
-        keys[#keys + 1] = {
+        keys[i] = {
             title = flat[i],
             x = (i - 1) * f_w + m,
             y = m,
@@ -478,6 +479,10 @@ function DrawPiano()
             bg_color = nat_color,
             text_color = flat_color,
         }
+        if i == 7 then
+            local rest = gfx.w - f_w * 7
+            keys[7].w = keys[7].w + rest
+        end
     end
 
     local sharp = {'C#', 'D#', 'F#', 'G#', 'A#'}
@@ -492,7 +497,7 @@ function DrawPiano()
     }
 
     for i = 1, 5 do
-        keys[#keys + 1] = {
+        keys[7 + i] = {
             title = sharp[i],
             x = s_x[i],
             y = m,
@@ -694,14 +699,15 @@ function Main()
     if gfx.mouse_cap & 2 == 2 then
 
         local menu =
-            '%sDock window|%sHide frame|%sAvoid focus||>Pitch snap|\z
-            %sContinuous|%sQuarter tones|<%sSemitones|>Algorithm|%sFTC|<%sFFT\z
-            |>Parsing|%sUse metadata tag \'key\'|<%sSearch filename for key'
+            '>Window|%sDock window|%sHide frame|%sAvoid focus|<%sAlways on top\z
+            |>Pitch snap|%sContinuous|%sQuarter tones|<%sSemitones|>Algorithm|\z
+            %sFTC|<%sFFT|>Parsing|%sUse metadata tag \'key\'|<%sSearch filename for key'
 
         local is_docked = dock & 1 == 1
         local menu_dock_state = is_docked and '!' or ''
         local menu_frameless = frameless_mode == 1 and '!' or ''
         local menu_focus = focus_mode == 1 and '!' or ''
+        local menu_ontop = ontop_mode == 1 and '!' or ''
         local menu_pitch_continuous = pitch_mode == 1 and '!' or ''
         local menu_pitch_quarter = pitch_mode == 2 and '!' or ''
         local menu_pitch_semitones = pitch_mode == 3 and '!' or ''
@@ -711,9 +717,10 @@ function Main()
         local menu_parse_name = parse_name_mode == 1 and '!' or ''
 
         menu = menu:format(menu_dock_state, menu_frameless, menu_focus,
-                           menu_pitch_continuous, menu_pitch_quarter,
-                           menu_pitch_semitones, menu_algo_ftc, menu_algo_fft,
-                           menu_parse_meta, menu_parse_name)
+                           menu_ontop, menu_pitch_continuous,
+                           menu_pitch_quarter, menu_pitch_semitones,
+                           menu_algo_ftc, menu_algo_fft, menu_parse_meta,
+                           menu_parse_name)
 
         gfx.x, gfx.y = m_x, m_y
         local ret = gfx.showmenu(menu)
@@ -762,16 +769,25 @@ function Main()
             reaper.SetExtState('FTC.MXTuner', 'avoid_focus', focus_mode, true)
         end
 
-        if ret == 4 then pitch_mode = 1 end
-        if ret == 5 then pitch_mode = 2 end
-        if ret == 6 then pitch_mode = 3 end
-        if ret == 7 then algo_mode = 1 end
-        if ret == 8 then algo_mode = 2 end
-        if ret == 9 then parse_meta_mode = 1 - parse_meta_mode end
-        if ret == 10 then parse_name_mode = 1 - parse_name_mode end
+        if ret == 4 then
+            ontop_mode = 1 - ontop_mode
+            reaper.SetExtState('FTC.MXTuner', 'is_ontop', ontop_mode, true)
+
+            local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+            local zorder = ontop_mode == 1 and 'TOPMOST' or 'NOTOPMOST'
+            reaper.JS_Window_SetZOrder(hwnd, zorder)
+        end
+
+        if ret == 5 then pitch_mode = 1 end
+        if ret == 6 then pitch_mode = 2 end
+        if ret == 7 then pitch_mode = 3 end
+        if ret == 8 then algo_mode = 1 end
+        if ret == 9 then algo_mode = 2 end
+        if ret == 10 then parse_meta_mode = 1 - parse_meta_mode end
+        if ret == 11 then parse_name_mode = 1 - parse_name_mode end
 
         -- Retrigger pitch detection when detection type changes
-        if ret >= 7 and ret <= 10 then trigger_pitch_rescan = true end
+        if ret >= 8 and ret <= 11 then trigger_pitch_rescan = true end
 
         reaper.SetExtState('FTC.MXTuner', 'pitch_mode', pitch_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, true)
@@ -840,6 +856,12 @@ frameless_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'has_frame')) or 0
 if frameless_mode == 1 then
     local hwnd = reaper.JS_Window_Find('MX Tuner', true)
     reaper.JS_Window_SetStyle(hwnd, 'POPUP')
+end
+
+ontop_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'is_ontop')) or 0
+if ontop_mode == 1 then
+    local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+    reaper.JS_Window_SetZOrder(hwnd, 'TOPMOST')
 end
 
 pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 3
