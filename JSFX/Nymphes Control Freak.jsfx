@@ -1,0 +1,1060 @@
+desc:Nymphes Control Freak
+version: 1.00
+author: Ilias-Timon Poulakis
+license: MIT
+
+slider1:0<0,127,1>-HPF cutoff
+slider2:0<0,127,1>-LPF Cutoff
+slider3:0<0,127,1>-Glide
+slider4:0<0,127,1>-LPF Tracking
+slider5:127<0,127,1>-AMP Level
+slider6:0<0,127,1>-Resonance
+slider7:0<0,127,1>-LPF EG Depth
+slider8:0<0,127,1>-LPF Cutoff LFO Depth
+slider9:0<0,127,1>-Pulse Width
+slider10:0<0,127,1>-OSC Wave
+slider11:0<0,127,1>-OSC Level
+slider12:0<0,127,1>-Sub Level
+slider13:0<0,127,1>-Noise Level
+slider14:0<0,127,1>-LFO Pitch Deptch
+slider15:0<0,127,1>-EG Pitch Depth
+slider16:0<0,127,1>-Detune
+slider17:0<0,127,1>-Chord Selector 
+slider18:0<0,127,1>-Filter EG Attack
+slider19:0<0,127,1>-Filter EG Decay
+slider20:0<0,127,1>-Filter EG Sustain
+slider21:0<0,127,1>-Filter EG Release
+slider22:0<0,127,1>-AMP EG Attack
+slider23:0<0,127,1>-AMP EG Decay
+slider24:0<0,127,1>-AMP EG Sustain
+slider25:0<0,127,1>-AMP EG Release
+slider26:0<0,5,1>-Play MODE
+slider27:0<0,127,1>-LFO 1 Rate
+slider28:0<0,127,1>-LFO 1 Wave
+slider29:0<0,127,1>-LFO 1 Delay
+slider30:0<0,127,1>-LFO 1 Fade
+slider31:0<0,3,1>-LFO 1 TYPE
+slider32:0<0,1,1>-LFO 1 SYNC
+slider33:0<0,127,1>-LFO 2 Rate Depth 
+slider34:0<0,127,1>-LFO 2 Wave
+slider35:0<0,127,1>-LFO 2 Delay Depth
+slider36:0<0,127,1>-LFO 2 Fade Depth
+slider37:0<0,3,1>-LFO 2 TYPE
+slider38:0<0,1,1>-LFO 2 SYNC
+slider39:0<0,127,1>-Reverb Size
+slider40:0<0,127,1>-Reverb Decay
+slider41:0<0,127,1>-Reverb Filter
+slider42:0<0,127,1>-Reverb Mix
+
+@init
+
+ext_noinit = 1;
+
+channel = 0;
+
+sliders = 0;
+values = 128;
+mod_values = 512;
+
+// Assign each slider to its CC value
+
+function AssignSliders(cc, max_cc) local(i) ( 
+  i = 0;
+  while (cc + i <= max_cc) (
+    slider_num = slider_num + 1;
+    sliders[cc + i] = slider_num;
+    i = i + 1;
+  );
+);
+
+AssignSliders(3, 27);
+AssignSliders(30, 42);
+AssignSliders(44, 47);
+
+// Initialize values (Make sure that CC is send when plugin is loaded)
+
+function InitModValues() local(i) (
+  i = 0;
+  while (i <= 33 * 4) (
+    //mod_values[i] = -1;
+    i = i + 1;
+  );
+);
+
+function InitInternalSliderValues() local(i) (
+  i = 0;
+  while (i <= 50) (
+    values[i] = -1;
+    i = i + 1;
+  );
+);
+
+//InitModValues();
+//InitInternalSliderValues();
+
+//has_int_mod_changed = 1;
+//has_slider_changed = 1;
+
+// Set initial preset
+
+//slider2 = 127;
+//slider11 = 127;
+//slider24 = 127;
+
+// Declare functions to manage internal plugin state
+
+function GetSliderValue(cc) (
+  slider(sliders[cc]);
+);
+
+function SetSliderValue(cc, value) (
+  sliders[cc] > 0 ? (
+    slider_automate(
+      slider(sliders[cc]) = value;
+    );
+  );
+);
+
+function GetInternalSliderValue(cc) (
+  sliders[cc] > 0 || cc == 50 ? (
+    values[cc];
+  );
+);
+
+function SetInternalSliderValue(cc, value) (
+  sliders[cc] > 0 || cc == 50 ? (
+    values[cc] = value;
+  );
+);
+
+function GetModValue(cc, mod_select) (
+  cc >= 51 && cc <= 84 ? (
+    mod_values[cc - 51 + mod_select * 33];
+  );
+);
+
+function SetModValue(cc, value, mod_select) ( 
+  cc >= 51 && cc <= 84 ? (
+    mod_values[cc - 51 + mod_select * 33] = value;
+  );
+);
+
+function GetInternalModValue(cc, mod_select) (
+  cc >= 51 && cc <= 84 ? (
+    values[cc + mod_select * 33];
+  );
+);
+
+function SetInternalModValue(cc, value, mod_select) (
+  cc >= 51 && cc <= 84 ? (
+    values[cc + mod_select * 33] = value;
+  );
+);
+
+// ------------------------------- GUI ------------------------------------
+
+function CreateElement(x, y, w, h) (
+  id = id + 1;
+  this.id = id;
+
+  this.x = x;
+  this.y = y;
+  this.w = w;
+  this.h = h; 
+);
+
+function CreateColor(r, g, b) (
+  this.r = r;
+  this.g = g;
+  this.b = b;
+);
+
+function SetColor(color*) local(hover_offs, r, g, b) (
+  r = color.r;
+  g = color.g;
+  b = color.b;
+  
+  this.is_hover && pressed_id == 0 || this.is_pressed ? (
+    hover_offs = 1.1;
+    r = r * hover_offs;
+    g = g * hover_offs;
+    b = b * hover_offs;
+  );
+  gfx_set(r, g, b);
+);
+
+function MouseInteract() local(t) (
+  this.is_hover = 0;
+  this.is_clicked = 0;
+  this.is_double_clicked = 0;
+  this.scroll_dir = 0;
+
+  // Check if mouse is hovered over element
+  mouse_x >= this.x && mouse_x <= this.x + this.w &&
+      mouse_y >= this.y && mouse_y < this.y + this.h ? (
+    this.is_hover = 1;
+    // Element is pressed (only one at a time)
+    pressed_id == 0 && mouse_cap & 1 == 1 ? (
+      pressed_id = this.id;
+      this.is_pressed = 1;
+    );
+  );
+  
+  // Pressed element is released
+  this.is_pressed && mouse_cap & 1 == 0 ? (
+    time_precise(t);
+    // Determine whether event is single or double click
+    this.click_time == 0 || t - this.click_time > 0.3 ? (
+      this.is_clicked = 1;
+    ) : (
+      this.is_double_clicked = 1;
+    );
+    this.click_time = t;
+    this.is_pressed = 0;
+    pressed_id = 0;
+  );
+  
+  // Catch scroll events on hovered element
+  this.is_hover && mouse_wheel != 0 ? (
+    this.scroll_dir = 0;
+    mouse_wheel % 120 == 0 ? (
+      this.scroll_dir = floor(mouse_wheel / 120);
+    ) : (
+      this.scroll_dir = floor(mouse_wheel / abs(mouse_wheel));
+    );
+    mouse_wheel = 0;
+  );
+);
+
+// ------------------------------ LABEL -----------------------------------
+
+function CreateLabel(x, y, w, h, label) (
+  this.CreateElement(x, y, w, h);
+  this.label = label;
+  this.text_color.CreateColor(1, 1, 1);
+);
+
+function DrawLabel() (
+  gfx_x = this.x;
+  gfx_y = this.y;
+  this.SetColor(this.text_color);
+  gfx_setfont(1, "Arial", 16);
+  gfx_drawstr(this.label, 5, this.x + this.w, this.y + this.h);
+);
+
+function UpdateLabel()  (
+  this.DrawLabel();
+);
+
+// ------------------------------ SLIDER -----------------------------------
+
+function CreateSlider(x, y, w, h, label, min_val, max_val, default) (
+
+  this.CreateElement(x, y, w, h);
+
+  this.label = label;
+  
+  this.min_val = min_val;
+  this.max_val = max_val;
+  this.default = default;
+
+  this.bg_color.CreateColor(0.176, 0.165, 0.165);
+  this.fg_color.CreateColor(0.976, 0.749, 0.828);
+  this.text_color.CreateColor(1, 1, 1);
+);
+
+function DrawSlider() local(val_h) (
+  // Draw background
+  this.SetColor(this.bg_color);
+  gfx_rect(this.x, this.y, this.w, this.h);
+  
+  // Draw foreground
+  this.SetColor(this.fg_color);
+  
+  val_h = floor(this.norm_val * this.h + 0.5);
+  gfx_rect(this.x, this.y + this.h - val_h, this.w, val_h);
+  
+  // Draw text
+  this.SetColor(this.text_color);
+  
+  gfx_x = this.x - m;
+  gfx_y = this.y + this.h;
+  gfx_setfont(0);
+  gfx_drawstr(this.label, 5, this.x + this.w + m, gfx_y + 32);
+);
+
+// ------------------------------ BUTTON -----------------------------------
+
+function CreateButton(x, y, w, h, label) (
+  this.CreateElement(x, y, w, h);
+
+  this.label = label;
+  
+  this.bg_color.CreateColor(0.176, 0.165, 0.165);
+  this.text_color.CreateColor(1, 1, 1);
+  
+  this.armed_bg_color.CreateColor(0.976, 0.5, 0.4);
+  this.armed_text_color.CreateColor(0.16, 0.16, 0.16); 
+);
+
+function DrawButton() (
+  // Draw background
+  this.is_armed ? (
+    this.SetColor(this.armed_bg_color);
+  ) : (
+    this.SetColor(this.bg_color);
+  );
+  gfx_rect(this.x, this.y, this.w, this.h);
+  
+  // Draw text
+  this.is_armed ? (
+    this.SetColor(this.armed_text_color);
+  ) : (
+    this.SetColor(this.text_color);
+  );
+  gfx_x = this.x;
+  gfx_y = this.y;
+  gfx_setfont(0);
+  gfx_drawstr(this.label, 5, this.x + this.w, this.y + this.h);
+);
+
+// ---------------------------- CC SLIDER ---------------------------------
+
+function CreateCCSlider(x, y, w, h, label, cc, mod_cc) (
+  this.CreateSlider(x, y, w, h, label, 0, 127, 0);
+  this.cc = cc;
+  this.mod_cc = mod_cc;
+);
+
+function SetSliderValue(norm_val) local(val) (
+  norm_val != this.norm_val ? (
+    this.norm_val = norm_val;
+    val = floor(norm_val * 127 + 0.5);
+    this.is_mod_mode ? (
+      SetInternalModValue(this.mod_cc, val, values[50]);
+      has_int_mod_changed = 1;
+    ) : (
+      SetInternalSliderValue(this.cc, val);
+      has_int_slider_changed = 1;
+    );
+    is_update_ui = 1;
+  );
+);
+
+function OnCCSliderPress() local(offs, m_y, norm_val) (
+  offs = mouse_cap & 4 == 4 ? this.h * 3 : 0;
+  m_y = max(this.y - offs, min(this.y + this.h + offs, mouse_y));
+  norm_val = (this.y + this.h + offs - m_y) / (this.h + offs * 2);
+  this.SetSliderValue(norm_val);
+);
+
+function OnCCSliderDoubleClick() (
+  this.SetSliderValue(this.default / (this.max_val - this.min_val))
+);
+
+function OnCCSliderScroll() local(mult, val) (
+  gfx_getchar();
+  mult = mouse_cap & 4 == 4 ? 1 : 5;
+  val = floor(this.norm_val * 127 + 0.5);
+  val = val + this.scroll_dir * mult;
+  val = val > 127 ? 127 : val < 0 ? 0 : val;
+  this.SetSliderValue(val / 127);
+);
+
+function UpdateCCSlider() local(is_mod_mode) (
+
+  // Get state
+  this.is_mod_mode = this.mod_cc && mod_mode > 0;
+  this.is_mod_mode && values[50] == 0 && this.cc >= 31 && this.cc <= 34 ? (
+    this.is_mod_mode = 0;
+  );
+  
+  this.is_mod_mode ? (
+    this.norm_val = GetInternalModValue(this.mod_cc, values[50]) / 127;
+  ) : (
+    this.norm_val = GetInternalSliderValue(this.cc) / 127;
+  );
+
+  // Handle mouse interaction
+  this.MouseInteract();
+
+  this.is_pressed ? (
+    this.OnCCSliderPress();
+  );
+
+  this.is_double_clicked ? (
+    this.OnCCSliderDoubleClick()
+  );
+  
+  this.scroll_dir ? (
+    this.OnCCSliderScroll();
+  );
+  
+  this.is_mod_mode ? (
+    this.bg_color.CreateColor(0.2, 0.2, 0.2);
+    this.fg_color.CreateColor(0.976, 0.5, 0.4);
+  ) : (
+    this.bg_color.CreateColor(0.176, 0.165, 0.165);
+    this.fg_color.CreateColor(0.976, 0.749, 0.828);
+  );
+
+  this.DrawSlider();
+);
+
+
+// -------------------- MODULATION MODE BUTTON ---------------------------
+
+function CreateModModeButton(x, y, w, h, label, mode) (
+  this.CreateButton(x, y, w, h, label);
+  this.mode = mode;
+);
+
+function UpdateModModeButton() local(new_mode) (
+
+  // Get state
+  this.is_armed = mod_mode > 0 && values[50] == this.mode;
+
+  // Handle mouse interaction
+  this.MouseInteract();
+
+  this.is_clicked ? (
+    this.is_armed ? (
+      mod_mode = 0;
+    ) : (
+      mod_mode = 1;
+      values[50] = this.mode;
+    );
+    is_update_ui = 1;
+  );
+  
+  this.scroll_dir ? (
+    mod_mode = 1;
+    new_mode = values[50] + this.scroll_dir;
+    values[50] = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
+    is_update_ui = 1;
+  );
+
+  this.DrawButton();
+);
+
+
+// ------------------------ PLAY MODE BUTTON ---------------------------
+
+function CreatePlayModeButton(x, y, w, h, label, mode) (
+  this.CreateButton(x, y, w, h, label);
+  this.mode = mode;
+  this.armed_bg_color.CreateColor(0.5, 0.92, 0.4);
+);
+
+function UpdatePlayModeButton() local(new_mode) (
+
+  // Get state
+  this.is_armed = slider26 == this.mode;
+  
+  // Handle mouse interaction
+  this.MouseInteract();
+
+  this.is_clicked ? (
+    slider26 = this.mode;
+    has_slider_changed = 1;
+    is_update_ui = 1;
+  );
+  
+  this.scroll_dir ? (
+    new_mode = slider26 + this.scroll_dir;
+    slider26 = new_mode > 5 ? 5 : new_mode < 0 ? 0 : new_mode;
+    is_update_ui = 1;
+  );
+
+  this.DrawButton();
+);
+
+// ------------------------ LFO TYPE BUTTON ---------------------------
+
+function CreateLFOTypeButton(x, y, w, h, label, lfo_num, type) (
+  this.CreateButton(x, y, w, h, label);
+  this.lfo_num = lfo_num;
+  this.type = type;
+  this.armed_bg_color.CreateColor(0.5, 0.8, 0.9);
+);
+
+function UpdateLFOTypeButton() local(new_mode) (
+  // Get state
+  this.is_armed =  (this.lfo_num == 1 ? slider31 : slider37) == this.type;
+
+  // Handle mouse interaction
+  this.MouseInteract();
+
+  this.is_clicked ? (
+    this.lfo_num == 1 ? (
+      slider31 = this.type
+    ) : (
+      slider37 = this.type;
+    ); 
+    has_slider_changed = 1;
+    is_update_ui = 1;
+  );
+  
+  this.scroll_dir ? (
+    this.lfo_num == 1 ? (
+      new_mode = slider31 - this.scroll_dir;
+      slider31 = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
+    ) : (
+      new_mode = slider37 - this.scroll_dir;
+      slider37 = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
+    ); 
+    is_update_ui = 1;
+  );
+
+  this.DrawButton();
+);
+
+// ------------------------ LFO SYNC BUTTON ---------------------------
+
+function CreateLFOSyncButton(x, y, w, h, label, lfo_num) (
+  this.CreateButton(x, y, w, h, label);
+  this.lfo_num = lfo_num;
+  this.armed_bg_color.CreateColor(0.85, 0.85, 0.3);
+);
+
+function UpdateLFOSyncButton() (
+  // Get state
+  this.is_armed =  (this.lfo_num == 1 ? slider32 : slider38) == 1;
+
+  // Handle mouse interaction
+  this.MouseInteract();
+
+  this.is_clicked ? (
+    this.lfo_num == 1 ? (
+      slider32 = !slider32;
+    ) : (
+      slider38 = !slider38;
+    ); 
+    has_slider_changed = 1;
+    is_update_ui = 1;
+  );
+
+  this.DrawButton();
+);
+
+// -------------------------- BUILD GUI ------------------------------
+
+function BuildGUI() local(m_y, m_x, x, y, w, h, g) (
+
+  gfx_clear = 25 + 74 * 256 + 115 * 65536;
+  is_update_ui = 1;
+
+  label1.CreateLabel(22, 15, 120, 30, "OSCILLATOR");
+  label2.CreateLabel(244, 15, 120, 30, "FILTER");
+  label3.CreateLabel(415, 15, 120, 30, "ENVELOPE");
+  label4.CreateLabel(592, 15, 120, 30, "LFO1");
+  label5.CreateLabel(737, 15, 120, 30, "LFO2");
+  label6.CreateLabel(900, 15, 120, 30, "REVERB");
+  label7.CreateLabel(14, 336, 120, 30, "PLAY MODE");
+  label8.CreateLabel(426, 336, 120, 30, "MODULATION");
+
+  m = 20;
+  m_y = 52;
+  m_x = 32;
+  
+  x = m_x;
+  y = m_y;
+  w = 24;
+  h = 102;
+  g = 24;
+
+  s15.CreateCCSlider(x, y, w, h, "PW", 11, 56);
+  
+  x = x + w + m;
+
+  s16.CreateCCSlider(x, y, w, h, "GLD", 5, 57);
+  
+  x = x + w + m;
+
+  s17.CreateCCSlider(x, y, w, h, "DTN", 18, 58);
+
+  x = x + w + m;
+  
+  s18.CreateCCSlider(x, y, w, h, "CHORD", 19, 59);
+
+  x = x + w + m;
+
+  s19.CreateCCSlider(x, y, w, h, "EG", 17, 60);
+
+  x = x + w + m;
+  x = x + g;
+
+  s20.CreateCCSlider(x, y, w, h, "HPF", 3, 65);
+
+  x = x + w + m;
+
+  s21.CreateCCSlider(x, y, w, h, "TRACK", 6, 66);
+
+  x = x + w + m;
+  
+  s22.CreateCCSlider(x, y, w, h, "LFO", 10, 67);
+
+  x = x + w + m;
+  x = x + g;
+
+  s23.CreateCCSlider(x, y, w, h, "A", 24, 73);
+
+  x = x + w + m;
+  
+  s24.CreateCCSlider(x, y, w, h, "D", 25, 74);
+
+  x = x + w + m;
+    
+  s25.CreateCCSlider(x, y, w, h, "S", 26, 75);
+
+  x = x + w + m;
+    
+  s26.CreateCCSlider(x, y, w, h, "R", 27, 76);
+
+  x = x + w + m;
+  x = x + g;
+    
+  s27.CreateCCSlider(x, y, w, h, "DELAY", 33, 79);
+
+  x = x + w + m;
+    
+  s28.CreateCCSlider(x, y, w, h, "FADE", 34, 80);
+  
+  x = x + w + m + 32;
+  x = x + g;
+   
+  s35.CreateCCSlider(x, y, w, h, "DELAY", 39, 83);
+  
+  x = x + w + m;
+   
+  s36.CreateCCSlider(x, y, w, h, "FADE", 40, 84);
+  
+  x = x + w + m + 62;
+  
+  s29.CreateCCSlider(x, y, w, h, "SIZE", 44, 0);
+    
+  x = x + w + m;
+     
+  s30.CreateCCSlider(x, y, w, h, "DEC", 45, 0);
+
+  x = m_x;
+  y = y + h + m + 20;
+  
+  s1.CreateCCSlider(x, y, w, h, "WAVE", 12, 51);
+  
+  x = x + w + m;
+  
+  s2.CreateCCSlider(x, y, w, h, "LVL", 13, 52);
+  
+  x = x + w + m;
+  
+  s3.CreateCCSlider(x, y, w, h, "SUB", 14, 53);
+  
+  x = x + w + m;
+  
+  s4.CreateCCSlider(x, y, w, h, "NOISE", 15, 54);
+  
+  x = x + w + m;
+  
+  s5.CreateCCSlider(x, y, w, h, "LFO", 16, 55);
+  
+  x = x + w + m;
+  x = x + g;
+  
+  s6.CreateCCSlider(x, y, w, h, "CUT", 4, 61);
+  
+  x = x + w + m;
+  
+  s7.CreateCCSlider(x, y, w, h, "RES", 8, 62);
+  
+  x = x + w + m;
+  
+  s8.CreateCCSlider(x, y, w, h, "EG", 9, 63);
+  
+  x = x + w + m;
+  x = x + g;
+  
+  s9.CreateCCSlider(x, y, w, h, "A", 20, 69);
+  
+  x = x + w + m;
+  
+  s10.CreateCCSlider(x, y, w, h, "D", 21, 70);
+  
+  x = x + w + m;
+   
+  s11.CreateCCSlider(x, y, w, h, "S", 22, 71);
+  
+  x = x + w + m;
+   
+  s12.CreateCCSlider(x, y, w, h, "R", 23, 72);
+  
+  x = x + w + m;
+  x = x + g;
+   
+  s13.CreateCCSlider(x, y, w, h, "RATE", 31, 77);
+  
+  x = x + w + m;
+   
+  s14.CreateCCSlider(x, y, w, h, "WAVE", 32, 78);
+  
+  x = x + w + m + 32;
+  x = x + g;
+   
+  s33.CreateCCSlider(x, y, w, h, "RATE", 37, 81);
+  
+  x = x + w + m;
+   
+  s34.CreateCCSlider(x, y, w, h, "WAVE", 38, 82);
+
+  x = x + w + m + 62;
+   
+  s31.CreateCCSlider(x, y, w, h, "FILT", 46, 0);
+  
+  x = x + w + m;
+   
+  s32.CreateCCSlider(x, y, w, h, "MIX", 47, 0);
+  
+  x = 715;
+  y = 61;
+  
+  w = 45;
+  h = 20;
+  m = 8;
+  
+  lfo2_sync.CreateLFOSyncButton(x, y, w, h, "SYNC", 2);
+
+  y = y + h + 120;
+
+  lfo1_type1.CreateLFOTypeButton(x, y, w, h, "LOW", 1, 0);
+     
+  y = y + h + m;
+    
+  lfo1_type2.CreateLFOTypeButton(x, y, w, h, "HIGH", 1, 1);
+  
+  y = y + h + m;
+  
+  lfo1_type3.CreateLFOTypeButton(x, y, w, h, "TRACK", 1, 2);
+  
+  y = y + h + m;
+  
+  lfo1_type4.CreateLFOTypeButton(x, y, w, h, "BPM", 1, 3);
+
+  x = 858;
+  y = 61;
+
+  lfo1_sync.CreateLFOSyncButton(x, y, w, h, "SYNC", 1);
+  
+  y = y + h + 120;
+
+  lfo2_type1.CreateLFOTypeButton(x, y, w, h, "LOW", 2, 0);
+     
+  y = y + h + m;
+    
+  lfo2_type2.CreateLFOTypeButton(x, y, w, h, "HIGH", 2, 1);
+  
+  y = y + h + m;
+  
+  lfo2_type3.CreateLFOTypeButton(x, y, w, h, "TRACK", 2, 2);
+  
+  y = y + h + m;
+  
+  lfo2_type4.CreateLFOTypeButton(x, y, w, h, "BPM", 2, 3);
+
+  x = x + w + m;
+  x = x + 8;
+
+  x = m_x - 6;
+  y = y + h + m + 61;
+  
+  w = 45;
+  h = 22;
+  m = 10;
+  
+  play1.CreatePlayModeButton(x, y, w, h, "POLY", 0);
+    
+  x = x + w + m;
+    
+  play2.CreatePlayModeButton(x, y, w, h, "UNI A", 1);
+  
+  x = x + w + m;
+  
+  play3.CreatePlayModeButton(x, y, w, h, "UNI B", 2);
+  
+  x = x + w + m;
+  
+  play4.CreatePlayModeButton(x, y, w, h, "TRI", 3);
+  
+  x = x + w + m;
+    
+  play5.CreatePlayModeButton(x, y, w, h, "DUO", 4);
+  
+  x = x + w + m;
+  
+  play6.CreatePlayModeButton(x, y, w, h, "MONO", 5);
+  
+  x = x + w + m + 76;
+  
+  mod1.CreateModModeButton(x, y, w, h, "LFO2", 0);
+  
+  x = x + w + m;
+    
+  mod2.CreateModModeButton(x, y, w, h, "MOD W", 1);
+  
+  x = x + w + m;
+  
+  mod3.CreateModModeButton(x, y, w, h, "Velo", 2);
+  
+  x = x + w + m;
+  
+  mod4.CreateModModeButton(x, y, w, h, "After", 3);
+);
+
+BuildGUI();
+
+@gfx 1024 413
+
+// Update GUI when mouse position changes
+mouse_x != prev_mouse_x || mouse_y != prev_mouse_y ? (
+  prev_mouse_x = mouse_x;
+  prev_mouse_y = mouse_y;
+  is_update_ui = 1;
+);
+
+// Update GUI on mouse interaction
+mouse_cap != prev_mouse_cap || mouse_wheel != prev_mouse_wheel ? (
+  prev_mouse_cap = mouse_cap;
+  prev_mouse_wheel = mouse_wheel;
+  is_update_ui = 1;
+);
+
+// Update GUI when window size changes
+gfx_w != prev_gfx_w || gfx_h != prev_gfx_h ? (
+  prev_gfx_w = gfx_w;
+  prev_gfx_h = gfx_h;
+  is_update_ui = 1;
+);
+
+is_update_ui ? (
+  is_update_ui = 0;
+  
+  label1.UpdateLabel();
+  label2.UpdateLabel(); 
+  label3.UpdateLabel(); 
+  label4.UpdateLabel(); 
+  label5.UpdateLabel(); 
+  label6.UpdateLabel();
+  label7.UpdateLabel(); 
+  label8.UpdateLabel(); 
+  
+  s1.UpdateCCSlider();
+  s2.UpdateCCSlider();
+  s3.UpdateCCSlider();
+  s4.UpdateCCSlider();
+  s5.UpdateCCSlider();
+  s6.UpdateCCSlider();
+  s7.UpdateCCSlider();
+  s8.UpdateCCSlider();
+  s9.UpdateCCSlider();
+  s10.UpdateCCSlider();
+  s11.UpdateCCSlider();
+  s12.UpdateCCSlider();
+  s13.UpdateCCSlider();
+  s14.UpdateCCSlider();
+  s15.UpdateCCSlider();
+  s16.UpdateCCSlider();
+  s17.UpdateCCSlider();
+  s18.UpdateCCSlider();
+  s19.UpdateCCSlider();
+  s20.UpdateCCSlider();
+  s21.UpdateCCSlider();
+  s22.UpdateCCSlider();
+  s23.UpdateCCSlider();
+  s24.UpdateCCSlider();
+  s25.UpdateCCSlider();
+  s26.UpdateCCSlider();
+  s27.UpdateCCSlider();
+  s28.UpdateCCSlider();
+  s29.UpdateCCSlider();
+  s30.UpdateCCSlider();
+  s31.UpdateCCSlider();
+  s32.UpdateCCSlider();
+  s33.UpdateCCSlider();
+  s34.UpdateCCSlider();
+  s35.UpdateCCSlider();
+  s36.UpdateCCSlider();
+  
+  mod1.UpdateModModeButton();
+  mod2.UpdateModModeButton();
+  mod3.UpdateModModeButton();
+  mod4.UpdateModModeButton();
+
+  play1.UpdatePlayModeButton();
+  play2.UpdatePlayModeButton();
+  play3.UpdatePlayModeButton();
+  play4.UpdatePlayModeButton();
+  play5.UpdatePlayModeButton();
+  play6.UpdatePlayModeButton();
+
+  lfo1_type1.UpdateLFOTypeButton();
+  lfo1_type2.UpdateLFOTypeButton();
+  lfo1_type3.UpdateLFOTypeButton();
+  lfo1_type4.UpdateLFOTypeButton();
+  lfo2_type1.UpdateLFOTypeButton();
+  lfo2_type2.UpdateLFOTypeButton();
+  lfo2_type3.UpdateLFOTypeButton();
+  lfo2_type4.UpdateLFOTypeButton();
+  
+  lfo1_sync.UpdateLFOSyncButton();
+  lfo2_sync.UpdateLFOSyncButton();
+);
+
+mouse_wheel = 0;
+
+@serialize
+
+preset_version = 1.00;
+file_var(0, preset_version);
+file_mem(0, mod_values, 33 * 4);
+
+is_update_ui = 1;
+
+file_avail(0)>=0 ? (
+  has_mod_changed = 1;
+  has_slider_changed = 1;
+);
+
+
+@slider
+
+has_slider_changed = 1;
+
+@block
+
+offset = 0;
+
+function CheckSliderValues() local(cc, slider_value) (
+  cc = 3;
+  while(cc <= 47) (
+    sliders[cc] > 0 ? (
+      slider_value = GetSliderValue(cc);
+      slider_value != GetInternalSliderValue(cc) ? (
+        SetInternalSliderValue(cc, slider_value);
+        a2_slider_send_cnt = a2_slider_send_cnt + 1;
+        midisend(0, 0xB0 | channel, cc, slider_value);
+        offset = offset + 1;
+        is_update_ui = 1;
+      );
+    );
+    cc = cc + 1;
+  );
+);
+
+function CheckInternalSliderValues() local(cc, int_value) (
+  cc = 3;
+  while(cc <= 47) (
+    sliders[cc] > 0 ? (
+      int_value = GetInternalSliderValue(cc);
+      int_value != GetSliderValue(cc) ? (
+        SetSliderValue(cc, int_value);
+        a2_int_slider_send_cnt = a2_int_slider_send_cnt + 1;
+        midisend(0, 0xB0 | channel, cc, int_value);
+        offset = offset + 1;
+      );
+    );
+    cc = cc + 1;
+  );
+);
+
+function CheckModValues() local(cc, mod_value, mod_select) (
+  mod_select = 0;
+  while (mod_select < 4) (
+    cc = 51;
+    midisend(0, 0xB0 | channel, 50, mod_select);
+    offset = offset + 1;
+    while (cc <= 84) (
+      mod_value = GetModValue(cc, mod_select);
+      mod_value != GetInternalModValue(cc, mod_select)  ? (
+        a2_mod_send_cnt = a2_mod_send_cnt + 1;
+        SetInternalModValue(cc, mod_value, mod_select);
+        midisend(0, 0xB0 | channel, cc, mod_value);
+        offset = offset + 1;
+      );
+      cc = cc + 1;
+    );
+    mod_select = mod_select + 1;
+  );
+);
+
+function CheckInternalModValues() local(cc, int_value, mod_select) (
+  mod_select = 0;
+  while (mod_select < 4) (
+    cc = 51;
+    midisend(0, 0xB0 | channel, 50, mod_select);
+    offset = offset + 1;
+    while (cc <= 84) (
+      int_value = GetInternalModValue(cc, mod_select);
+      int_value != GetModValue(cc, mod_select)  ? (
+        a2_int_mod_send_cnt = a2_int_mod_send_cnt + 1;
+        SetModValue(cc, int_value, mod_select);
+        midisend(0, 0xB0 | channel, cc, int_value);
+        offset = offset + 1;
+      );
+      cc = cc + 1;
+    );
+    mod_select = mod_select + 1;
+  );
+);
+
+has_slider_changed ? (
+  a1_slider_cnt = a1_slider_cnt + 1;
+  CheckSliderValues();
+  has_slider_changed = 0;
+);
+
+has_int_slider_changed ? (
+  a1_int_slider_cnt = a1_int_slider_cnt + 1;
+  CheckInternalSliderValues();
+  has_int_slider_changed = 0;
+);
+
+has_mod_changed ? (
+  a1_mod_cnt = a1_mod_cnt + 1;
+  CheckModValues();
+  has_mod_changed = 0;
+);
+
+has_int_mod_changed ? (
+  a1_int_mod_cnt = a1_int_mod_cnt + 1;
+  CheckInternalModValues();
+  has_int_mod_changed = 0;
+);
+
+while(midirecv(offset, msg1, msg2, msg3)) (
+  msg1 == 0xB0 | channel ? (
+    is_slider_cc = sliders[msg2] || msg2 == 50;
+    is_slider_cc ? (
+      is_slider_cc ? (
+        SetSliderValue(msg2, msg3);
+        SetInternalSliderValue(msg2, msg3);
+        is_update_ui = 1;
+        a1_midi_cnt = a1_midi_cnt + 1;
+      );
+    ) : (
+      is_mod_cc =  msg2 >= 51 && msg2 <= 84;
+      is_mod_cc ? (
+        SetModValue(msg2, msg3, values[50]);
+        SetInternalModValue(msg2, msg3, values[50]);
+        is_update_ui = 1;
+        a1_midi_cnt = a1_midi_cnt + 1;
+      );
+    );
+  );
+  midisend(offset, msg1, msg2, msg3);
+);
+
+
+
+
+
+
+
