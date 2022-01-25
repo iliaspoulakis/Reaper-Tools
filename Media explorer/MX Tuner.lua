@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.2
+  @version 1.5.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Add option to keep window on top
+    - Detect and allow tuning via rate knob
+    - Added themes
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -29,7 +30,10 @@ local prev_mouse_cap
 local prev_h, prev_w
 local prev_dock
 
+local prev_color_theme
 local prev_mx_pitch
+local prev_mx_rate
+local prev_use_rate
 local prev_file_pitch
 local sel_note_name
 local prev_file
@@ -40,6 +44,7 @@ local hovered_key
 local is_pressed = false
 local is_window_hover = false
 
+local rate_mode
 local pitch_mode
 local algo_mode
 local parse_meta_mode
@@ -53,12 +58,18 @@ local is_option_bypassed = false
 
 local trigger_pitch_rescan = false
 
+local flat = {'C', 'D', 'E', 'F', 'G', 'A', 'B'}
+local sharp = {'C#', 'D#', 'F#', 'G#', 'A#'}
+local theme = {}
+local theme_id
+
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
 function GetSemitonesToA(f) return 12 * math.log(f / 440) / math.log(2) % 12 end
 
-function GetSemitonesTo(f1, f2)
-    local dist = GetSemitonesToA(f2) - GetSemitonesToA(f1)
+function GetMinSemitonesTo(f1, f2, semitone_offs)
+    local dist = GetSemitonesToA(f2) - GetSemitonesToA(f1) + semitone_offs
+    dist = dist < 0 and dist % 12 - 12 or dist % 12
     if dist > 6 or dist > 2 and f1 > 4400 then dist = dist - 12 end
     if dist < -6 or dist < -2 and f1 < 60 then dist = dist + 12 end
     return dist
@@ -185,6 +196,7 @@ end
 
 function MediaExplorer_SetPitch(pitch, stop_preview)
     local is_auto_play = reaper.GetToggleCommandStateEx(32063, 1011) == 1
+    -- Set pitch with actions because it has no delay
     if is_auto_play then
         local pitch_rnd = math.floor(pitch + 0.5)
         local set_pitch_cmd = 42150 + pitch_rnd
@@ -203,6 +215,30 @@ function MediaExplorer_SetPitch(pitch, stop_preview)
     -- Set precise pitch to pitch textfield
     local pitch_hwnd = reaper.JS_Window_FindChildByID(mx, 1021)
     reaper.JS_Window_SetTitle(pitch_hwnd, ('%.2f'):format(pitch))
+end
+
+function MediaExplorer_GetRate()
+    local rate_hwnd = reaper.JS_Window_FindChildByID(mx, 1454)
+    local rate = reaper.JS_Window_GetTitle(rate_hwnd)
+    return tonumber(rate)
+end
+
+function MediaExplorer_SetRate(rate)
+    -- Set precise rate to rate textfield
+    local rate_hwnd = reaper.JS_Window_FindChildByID(mx, 1454)
+    local pattern = rate == 1 and ('%.1f') or ('%.3f')
+    reaper.JS_Window_SetTitle(rate_hwnd, pattern:format(rate))
+end
+
+function IsPitchPreservedWhenChangingRate()
+    return reaper.GetToggleCommandStateEx(32063, 40068) == 1
+end
+
+function TurnOffPreservePitchOption()
+    -- Turn off option to preserve pitch when changing rate
+    if reaper.GetToggleCommandStateEx(32063, 40068) == 1 then
+        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 40068, 0, 0, 0)
+    end
 end
 
 function GetPitchFTC(file)
@@ -436,10 +472,12 @@ function OpenWindow()
         local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
         gfx.init('MX Tuner', w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
     else
-        w_x, w_y, w_w, w_h = pos:match('(%d+) (%d+) (%d+) (%d+)')
+        w_x, w_y, w_w, w_h = pos:match('(%-?%d+) (%-?%d+) (%-?%d+) (%-?%d+)')
+        -- Note: Matched type is string because of matching '-' for negative values
+        w_w, w_h = tonumber(w_w), tonumber(w_h)
+        w_x, w_y = tonumber(w_x), tonumber(w_y)
         gfx.init('MX Tuner', w_w, w_h, 0, w_x, w_y)
     end
-    gfx.clear = reaper.ColorToNative(37, 37, 37)
 
     if focus_mode == 1 then
         local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
@@ -447,27 +485,160 @@ function OpenWindow()
     end
 end
 
+function SetWindowFrame(has_frame)
+    local is_linux = reaper.GetOS():match('Other')
+    local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+
+    if has_frame then
+        if is_linux then
+            local bar_h = reaper.GetExtState('FTC.MXTuner', 'bar_h')
+            if tonumber(bar_h) then
+                reaper.JS_Window_SetPosition(hwnd, w_x, w_y, w_w, w_h - bar_h)
+            end
+        end
+        reaper.JS_Window_SetStyle(hwnd, 'CAPTION,SIZEBOX,SYSMENU')
+    else
+        if is_linux then
+            -- Match behavior of other platforms (extend window to titlebar)
+            local _, s_y = gfx.clienttoscreen(0, 0)
+            local bar_h = s_y - w_y
+            reaper.SetExtState('FTC.MXTuner', 'bar_h', bar_h, true)
+            reaper.JS_Window_SetPosition(hwnd, w_x, w_y, w_w, w_h + bar_h)
+        end
+        reaper.JS_Window_SetStyle(hwnd, 'POPUP')
+    end
+end
+
+function SetWindowOnTop(is_ontop)
+    local hwnd = reaper.JS_Window_Find('MX Tuner', true)
+    local zorder = is_ontop and 'TOPMOST' or 'NOTOPMOST'
+    reaper.JS_Window_SetZOrder(hwnd, zorder)
+end
+
 function HexToNormRGB(color)
-    local r = color & 0xFF0000 >> 16
-    local g = color & 0x00FF00 >> 8
-    local b = color & 0x0000FF
+    local r, g, b = reaper.ColorFromNative(color)
     return {r / 255, g / 255, b / 255}
+end
+
+function OffsetColor(color, offs)
+    return {color[1] + offs, color[2] + offs, color[2] + offs}
+end
+
+function IsLightColor(color) return (color[1] + color[2] + color[3]) / 3 > 0.5 end
+
+function GetColorLuminance(color)
+    local r, g, b = color[1], color[2], color[3]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+function MatchColorLuminance(color, target_color)
+    local lum = GetColorLuminance(color)
+    local target_lum = GetColorLuminance(target_color)
+    -- Note: Only adjust the luminance by 1/3
+    local diff = (target_lum - lum) / 3
+    return {color[1] + diff, color[2] + diff, color[3] + diff}
+end
+
+function LoadTheme(id)
+    local is_docked = reaper.GetExtState('FTC.MXTuner', 'is_docked') == '1'
+    local toolbar_color = HexToNormRGB(reaper.GetThemeColor('col_main_bg2'))
+    theme.div_color = {0.08, 0.08, 0.08}
+    if is_docked and GetColorLuminance(toolbar_color) > 0.2 then
+        theme.div_color = toolbar_color or {0.08, 0.08, 0.08}
+    end
+
+    if id == 1 then
+        -- Light theme
+        theme.nat_color = {0.82, 0.82, 0.82}
+        theme.nat_text_color = {0.14, 0.14, 0.14}
+        theme.nat_hover_color = {0.73, 0.73, 0.73}
+        theme.nat_sel_color = {0.61, 0.75, 0.38}
+        theme.nat_lock_color = {0.72, 0.44, 0.41}
+        theme.flat_color = {0.14, 0.14, 0.14}
+        theme.flat_text_color = {0.82, 0.82, 0.82}
+        theme.flat_hover_color = {0.21, 0.21, 0.21}
+        theme.flat_sel_color = {0.53, 0.67, 0.31}
+        theme.flat_lock_color = {0.65, 0.4, 0.37}
+        return
+    end
+
+    if id == 2 then
+        -- Dark theme
+        theme.nat_color = {0.14, 0.14, 0.14}
+        theme.nat_text_color = {0.82, 0.82, 0.82}
+        theme.nat_hover_color = {0.21, 0.21, 0.21}
+        theme.nat_sel_color = {0.45, 0.59, 0.23}
+        theme.nat_lock_color = {0.61, 0.36, 0.33}
+        theme.flat_color = {0.72, 0.72, 0.72}
+        theme.flat_text_color = {0.14, 0.14, 0.14}
+        theme.flat_hover_color = {0.71, 0.71, 0.71}
+        theme.flat_sel_color = {0.59, 0.73, 0.36}
+        theme.flat_lock_color = {0.72, 0.44, 0.41}
+        return
+    end
+
+    if id == 3 then
+        -- Reaper theme 1 : Uses piano key colors
+        local nat_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey1'))
+        local flat_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey2'))
+
+        local nat_hover_offs = IsLightColor(nat_color) and -0.1 or 0.1
+        local nat_hover_color = OffsetColor(nat_color, nat_hover_offs)
+
+        local flat_hover_offs = IsLightColor(flat_color) and -0.1 or 0.1
+        local flat_hover_color = OffsetColor(flat_color, flat_hover_offs)
+
+        local sel_color = {0.61, 0.75, 0.38}
+        local lock_color = {0.72, 0.44, 0.41}
+
+        theme.nat_color = nat_color
+        theme.nat_text_color = flat_color
+        theme.nat_hover_color = nat_hover_color
+        theme.nat_sel_color = MatchColorLuminance(sel_color, nat_color)
+        theme.nat_lock_color = MatchColorLuminance(lock_color, nat_color)
+        theme.flat_color = flat_color
+        theme.flat_text_color = nat_color
+        theme.flat_hover_color = flat_hover_color
+        theme.flat_sel_color = MatchColorLuminance(sel_color, flat_color)
+        theme.flat_lock_color = MatchColorLuminance(lock_color, flat_color)
+        return
+    end
+
+    if id == 4 then
+        -- Reaper theme 2 : Uses list view colors
+        local nat_color = HexToNormRGB(reaper.GetThemeColor('genlist_bg'))
+        local flat_color = HexToNormRGB(reaper.GetThemeColor('genlist_fg'))
+
+        local flat_hover_offs = IsLightColor(flat_color) and -0.1 or 0.1
+        local flat_hover_color = OffsetColor(flat_color, flat_hover_offs)
+
+        local nat_hover_offs = IsLightColor(nat_color) and -0.1 or 0.1
+        local nat_hover_color = OffsetColor(nat_color, nat_hover_offs)
+
+        local sel_color = {0.61, 0.75, 0.38}
+        local lock_color = {0.72, 0.44, 0.41}
+
+        theme.nat_color = nat_color
+        theme.nat_text_color = flat_color
+        theme.nat_hover_color = nat_hover_color
+        theme.nat_sel_color = MatchColorLuminance(sel_color, nat_color)
+        theme.nat_lock_color = MatchColorLuminance(lock_color, nat_color)
+        theme.flat_color = flat_color
+        theme.flat_text_color = nat_color
+        theme.flat_hover_color = flat_hover_color
+        theme.flat_sel_color = MatchColorLuminance(sel_color, flat_color)
+        theme.flat_lock_color = MatchColorLuminance(lock_color, flat_color)
+        return
+    end
 end
 
 function DrawPiano()
 
     local keys = {}
 
-    local flat = {'C', 'D', 'E', 'F', 'G', 'A', 'B'}
     local f_w = gfx.w // 7
     local f_h = gfx.h
     local m = 1
-
-    local nat_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey1'))
-    local flat_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey2'))
-    local hover_color = HexToNormRGB(reaper.GetThemeColor('midi_pkey3'))
-    local sel_color = {0.61, 0.75, 0.38}
-    local lock_color = {0.7, 0.43, 0.4}
 
     for i = 1, 7 do
         keys[i] = {
@@ -476,8 +647,11 @@ function DrawPiano()
             y = m,
             w = f_w - 2 * m,
             h = f_h - 2 * m,
-            bg_color = nat_color,
-            text_color = flat_color,
+            bg_color = theme.nat_color,
+            text_color = theme.nat_text_color,
+            hover_color = theme.nat_hover_color,
+            sel_color = theme.nat_sel_color,
+            lock_color = theme.nat_lock_color,
         }
         if i == 7 then
             local rest = gfx.w - f_w * 7
@@ -485,7 +659,6 @@ function DrawPiano()
         end
     end
 
-    local sharp = {'C#', 'D#', 'F#', 'G#', 'A#'}
     local s_w = math.floor(0.67 * f_w)
     local s_h = math.floor((gfx.h < 70 and 0.57 or 0.67) * f_h)
     local s_x = {
@@ -503,8 +676,12 @@ function DrawPiano()
             y = m,
             w = s_w,
             h = s_h - 2 * m,
-            bg_color = flat_color,
-            text_color = nat_color,
+            bg_color = theme.flat_color,
+            text_color = theme.flat_text_color,
+            hover_color = theme.flat_hover_color,
+            sel_color = theme.flat_sel_color,
+            lock_color = theme.flat_lock_color,
+            is_flat = true,
         }
     end
 
@@ -519,9 +696,10 @@ function DrawPiano()
         local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
 
         if key.title == sel_note_name and not locked_key then
-            key.bg_color = sel_color
+            key.bg_color = key.sel_color
         end
-        if key.title == locked_key then key.bg_color = lock_color end
+
+        if key.title == locked_key then key.bg_color = key.lock_color end
 
         if not hovered_key and is_hover then
             if gfx.mouse_cap & 1 == 1 then
@@ -534,24 +712,32 @@ function DrawPiano()
                         OnLock()
                     end
                     trigger_pitch_rescan = true
-                    key.bg_color = lock_color
+                    key.bg_color = key.lock_color
                 end
                 is_pressed = true
             end
 
             hovered_key = key
             if key.title ~= locked_key and key.title ~= sel_note_name then
-                key.bg_color = hover_color
+                key.bg_color = key.hover_color
             end
         end
     end
 
+    -- Draw dividers for natural notes (window background)
+    gfx.set(table.unpack(theme.div_color))
+    gfx.rect(0, 0, gfx.w, gfx.h, 1)
+
     local margin_bot = math.min(8, gfx.h // 18)
     for _, key in ipairs(keys) do
-        -- Draw background
+        -- Draw dividers for flat notes
+        if key.is_flat and theme.has_flat_divider then
+            gfx.set(table.unpack(theme.div_color))
+            gfx.rect(key.x - 1, key.y, key.w + 2, key.h + 1, 1)
+        end
+        -- Draw key background
         gfx.set(table.unpack(key.bg_color))
         gfx.rect(key.x, key.y, key.w, key.h, 1)
-
         gfx.set(table.unpack(key.text_color))
         if key.title == locked_key then
             -- Draw lock
@@ -587,13 +773,26 @@ function Main()
 
     local is_redraw = false
 
-    -- Monitor media explorer pitch changes
+    -- Monitor media explorer pitch and rate changes
     local mx_pitch = MediaExplorer_GetPitch()
+    local mx_rate = MediaExplorer_GetRate()
+    local use_rate = not IsPitchPreservedWhenChangingRate()
 
-    if mx_pitch ~= prev_mx_pitch then
+    local has_pitch_changed = mx_pitch ~= prev_mx_pitch
+    local has_rate_changed = mx_rate ~= prev_mx_rate
+    local has_rate_setting_changed = use_rate ~= prev_use_rate
+
+    if has_pitch_changed or has_rate_changed or has_rate_setting_changed then
         prev_mx_pitch = mx_pitch
+        prev_mx_rate = mx_rate
+        prev_use_rate = use_rate
         if prev_file_pitch then
-            sel_note_name = FrequencyToName(prev_file_pitch, mx_pitch)
+            -- Adjust displayed key when pitch has beend altered via knobs
+            local pitch_offs = mx_pitch
+            if use_rate then
+                pitch_offs = pitch_offs + 12 * math.log(mx_rate, 2)
+            end
+            sel_note_name = FrequencyToName(prev_file_pitch, pitch_offs)
             if locked_key then locked_key = sel_note_name end
         end
         -- Redraw UI when pitch changes
@@ -624,13 +823,23 @@ function Main()
         prev_file_pitch = file_pitch
 
         if file_pitch then
-            sel_note_name = FrequencyToName(file_pitch, mx_pitch)
+            local pitch_offs = mx_pitch
+            if use_rate then
+                pitch_offs = pitch_offs + 12 * math.log(mx_rate, 2)
+            end
+            sel_note_name = FrequencyToName(file_pitch, pitch_offs)
         end
 
         if file_pitch and locked_key then
             local locked_freq = NameToFrequency(locked_key)
             if locked_freq then
-                local dist = GetSemitonesTo(file_pitch, locked_freq)
+                -- Account for offset in pitch that can be caused by rate knob
+                local offs = 0
+                if rate_mode == 1 then offs = -mx_pitch end
+                if rate_mode == 0 and use_rate then
+                    offs = -12 * math.log(mx_rate, 2)
+                end
+                local dist = GetMinSemitonesTo(file_pitch, locked_freq, offs)
                 -- Round distance to semitones depending on pitch mode
                 if pitch_mode == 2 then
                     dist = math.floor(2 * dist + 0.5) / 2
@@ -638,7 +847,13 @@ function Main()
                 if pitch_mode == 3 then
                     dist = math.floor(dist + 0.5)
                 end
-                MediaExplorer_SetPitch(dist, not trigger_pitch_rescan)
+
+                if rate_mode == 1 then
+                    TurnOffPreservePitchOption()
+                    MediaExplorer_SetRate(2 ^ (dist / 12))
+                else
+                    MediaExplorer_SetPitch(dist, not trigger_pitch_rescan)
+                end
             end
         end
         -- Redraw UI when file changes
@@ -657,6 +872,8 @@ function Main()
         if dock & 1 == 1 then
             reaper.SetExtState('FTC.MXTuner', 'dock', dock, true)
         end
+        -- Note: Reload theme here to change divider color
+        LoadTheme(theme_id)
     end
 
     -- Monitor changes to window position
@@ -693,15 +910,24 @@ function Main()
         end
     end
 
+    -- Redraw UI and reload theme when active theme changes
+    local color_theme = reaper.GetLastColorThemeFile()
+    if color_theme ~= prev_color_theme then
+        prev_color_theme = color_theme
+        LoadTheme(theme_id)
+        is_redraw = true
+    end
+
     if is_redraw then DrawPiano() end
 
     -- Open settings menu on right click
     if gfx.mouse_cap & 2 == 2 then
 
         local menu =
-            '>Window|%sDock window|%sHide frame|%sAvoid focus|<%sAlways on top\z
-            |>Pitch snap|%sContinuous|%sQuarter tones|<%sSemitones|>Algorithm|\z
-            %sFTC|<%sFFT|>Parsing|%sUse metadata tag \'key\'|<%sSearch filename for key'
+            '>Window|%sDock window|%sHide frame|%sAlways on top|<%sAvoid focus\z
+            |>Pitch snap|%sContinuous|%sQuarter tones|%sSemitones||<%sTune with \z
+            rate|>Algorithm|%sFTC|<%sFFT|>Parsing|%sUse metadata tag \'key\'|\z
+            <%sSearch filename for key|>Theme|%sLight|%sDark%s|Reaper 1|<%sReaper 2'
 
         local is_docked = dock & 1 == 1
         local menu_dock_state = is_docked and '!' or ''
@@ -711,16 +937,22 @@ function Main()
         local menu_pitch_continuous = pitch_mode == 1 and '!' or ''
         local menu_pitch_quarter = pitch_mode == 2 and '!' or ''
         local menu_pitch_semitones = pitch_mode == 3 and '!' or ''
+        local menu_rate = rate_mode == 1 and '!' or ''
         local menu_algo_ftc = algo_mode == 1 and '!' or ''
         local menu_algo_fft = algo_mode == 2 and '!' or ''
         local menu_parse_meta = parse_meta_mode == 1 and '!' or ''
         local menu_parse_name = parse_name_mode == 1 and '!' or ''
+        local menu_theme1 = theme_id == 1 and '!' or ''
+        local menu_theme2 = theme_id == 2 and '!' or ''
+        local menu_theme3 = theme_id == 3 and '!' or ''
+        local menu_theme4 = theme_id == 4 and '!' or ''
 
-        menu = menu:format(menu_dock_state, menu_frameless, menu_focus,
-                           menu_ontop, menu_pitch_continuous,
-                           menu_pitch_quarter, menu_pitch_semitones,
+        menu = menu:format(menu_dock_state, menu_frameless, menu_ontop,
+                           menu_focus, menu_pitch_continuous,
+                           menu_pitch_quarter, menu_pitch_semitones, menu_rate,
                            menu_algo_ftc, menu_algo_fft, menu_parse_meta,
-                           menu_parse_name)
+                           menu_parse_name, menu_theme1, menu_theme2,
+                           menu_theme3, menu_theme4)
 
         gfx.x, gfx.y = m_x, m_y
         local ret = gfx.showmenu(menu)
@@ -729,6 +961,8 @@ function Main()
             if is_docked then
                 -- Undock window
                 gfx.dock(0)
+                SetWindowFrame(frameless_mode == 0)
+                SetWindowOnTop(ontop_mode == 1)
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
@@ -738,56 +972,44 @@ function Main()
         end
 
         if ret == 2 then
-            local SetWindowPosition = reaper.JS_Window_SetPosition
-            local is_linux = reaper.GetOS():match('Other')
-            local hwnd = reaper.JS_Window_Find('MX Tuner', true)
-
-            if frameless_mode == 1 then
-                if is_linux then
-                    local bar_h = reaper.GetExtState('FTC.MXTuner', 'bar_h')
-                    if tonumber(bar_h) then
-                        SetWindowPosition(hwnd, w_x, w_y, w_w, w_h - bar_h)
-                    end
-                end
-                reaper.JS_Window_SetStyle(hwnd, 'CAPTION,SIZEBOX,SYSMENU')
-                frameless_mode = 0
-            else
-                if is_linux then
-                    local _, s_y = gfx.clienttoscreen(0, 0)
-                    local bar_h = s_y - w_y
-                    reaper.SetExtState('FTC.MXTuner', 'bar_h', bar_h, true)
-                    SetWindowPosition(hwnd, w_x, w_y, w_w, w_h + bar_h)
-                end
-                reaper.JS_Window_SetStyle(hwnd, 'POPUP')
-                frameless_mode = 1
-            end
+            frameless_mode = 1 - frameless_mode
+            if not is_docked then SetWindowFrame(frameless_mode == 0) end
             reaper.SetExtState('FTC.MXTuner', 'has_frame', frameless_mode, true)
         end
 
         if ret == 3 then
-            focus_mode = 1 - focus_mode
-            reaper.SetExtState('FTC.MXTuner', 'avoid_focus', focus_mode, true)
+            ontop_mode = 1 - ontop_mode
+            if not is_docked then SetWindowOnTop(ontop_mode == 1) end
+            reaper.SetExtState('FTC.MXTuner', 'is_ontop', ontop_mode, true)
         end
 
         if ret == 4 then
-            ontop_mode = 1 - ontop_mode
-            reaper.SetExtState('FTC.MXTuner', 'is_ontop', ontop_mode, true)
-
-            local hwnd = reaper.JS_Window_Find('MX Tuner', true)
-            local zorder = ontop_mode == 1 and 'TOPMOST' or 'NOTOPMOST'
-            reaper.JS_Window_SetZOrder(hwnd, zorder)
+            focus_mode = 1 - focus_mode
+            reaper.SetExtState('FTC.MXTuner', 'avoid_focus', focus_mode, true)
         end
 
         if ret == 5 then pitch_mode = 1 end
         if ret == 6 then pitch_mode = 2 end
         if ret == 7 then pitch_mode = 3 end
-        if ret == 8 then algo_mode = 1 end
-        if ret == 9 then algo_mode = 2 end
-        if ret == 10 then parse_meta_mode = 1 - parse_meta_mode end
-        if ret == 11 then parse_name_mode = 1 - parse_name_mode end
+
+        if ret == 8 then
+            rate_mode = 1 - rate_mode
+            reaper.SetExtState('FTC.MXTuner', 'rate_mode', rate_mode, true)
+        end
+
+        if ret == 9 then algo_mode = 1 end
+        if ret == 10 then algo_mode = 2 end
+        if ret == 11 then parse_meta_mode = 1 - parse_meta_mode end
+        if ret == 12 then parse_name_mode = 1 - parse_name_mode end
 
         -- Retrigger pitch detection when detection type changes
-        if ret >= 8 and ret <= 11 then trigger_pitch_rescan = true end
+        if ret >= 9 and ret <= 12 then trigger_pitch_rescan = true end
+
+        if ret >= 13 and ret <= 17 then
+            theme_id = ret - 12
+            LoadTheme(theme_id)
+            reaper.SetExtState('FTC.MXTuner', 'theme_id', theme_id, true)
+        end
 
         reaper.SetExtState('FTC.MXTuner', 'pitch_mode', pitch_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, true)
@@ -813,7 +1035,11 @@ function OnLock()
 end
 
 function OnUnlock()
-    MediaExplorer_SetPitch(0, false)
+    if rate_mode == 1 then
+        MediaExplorer_SetRate(1)
+    else
+        MediaExplorer_SetPitch(0, false)
+    end
     -- Turn option back on to reset pitch when changing media
     if is_option_bypassed then
         -- Options: Reset pitch and rate when changing media
@@ -842,6 +1068,9 @@ function Exit()
     gfx.quit()
 end
 
+theme_id = tonumber(reaper.GetExtState('FTC.MXTuner', 'theme_id')) or 1
+LoadTheme(theme_id)
+
 focus_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'avoid_focus')) or 1
 
 OpenWindow()
@@ -853,17 +1082,18 @@ if is_docked then
 end
 
 frameless_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'has_frame')) or 0
-if frameless_mode == 1 then
+if not is_docked and frameless_mode == 1 then
     local hwnd = reaper.JS_Window_Find('MX Tuner', true)
     reaper.JS_Window_SetStyle(hwnd, 'POPUP')
 end
 
 ontop_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'is_ontop')) or 0
-if ontop_mode == 1 then
+if not is_docked and ontop_mode == 1 then
     local hwnd = reaper.JS_Window_Find('MX Tuner', true)
     reaper.JS_Window_SetZOrder(hwnd, 'TOPMOST')
 end
 
+rate_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'rate_mode')) or 0
 pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 3
 algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 1
 parse_meta_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'meta_mode')) or 1
