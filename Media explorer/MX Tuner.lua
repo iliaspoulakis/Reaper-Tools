@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.0
+  @version 1.5.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Detect and allow tuning via rate knob
-    - Added themes
+    - Correctly apply window settings when undocking manually
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -871,6 +870,9 @@ function Main()
         reaper.SetExtState('FTC.MXTuner', 'is_docked', dock & 1, true)
         if dock & 1 == 1 then
             reaper.SetExtState('FTC.MXTuner', 'dock', dock, true)
+        else
+            SetWindowFrame(frameless_mode == 0)
+            SetWindowOnTop(ontop_mode == 1)
         end
         -- Note: Reload theme here to change divider color
         LoadTheme(theme_id)
@@ -961,8 +963,6 @@ function Main()
             if is_docked then
                 -- Undock window
                 gfx.dock(0)
-                SetWindowFrame(frameless_mode == 0)
-                SetWindowOnTop(ontop_mode == 1)
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
