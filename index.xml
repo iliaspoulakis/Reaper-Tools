@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="9fc8277a12145531906ce4e3fcd71a6ffd601c71">
+<index version="1" name="FTC Tools" commit="74e919bff05853542679ef00619602267bc413b7">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -466,6 +466,10 @@
       <version name="1.5.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-01-25T16:02:36Z">
         <changelog><![CDATA[- Correctly apply window settings when undocking manually]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/9fc8277a12145531906ce4e3fcd71a6ffd601c71/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.5.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-01-27T14:04:42Z">
+        <changelog><![CDATA[- Fix bug where docking wouldn't work on a fresh install]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/74e919bff05853542679ef00619602267bc413b7/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
