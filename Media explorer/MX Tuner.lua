@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.1
+  @version 1.5.2
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Correctly apply window settings when undocking manually
+    - Fix bug where docking wouldn't work on a fresh install
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -966,7 +966,7 @@ function Main()
             else
                 -- Dock window to last known position
                 local last_dock = reaper.GetExtState('FTC.MXTuner', 'dock')
-                last_dock = tonumber(last_dock) or 0
+                last_dock = tonumber(last_dock) or 256
                 gfx.dock(last_dock | 1)
             end
         end
