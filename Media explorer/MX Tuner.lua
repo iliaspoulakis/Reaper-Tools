@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.2
+  @version 1.5.3
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Fix bug where docking wouldn't work on a fresh install
+    - Fix issue with open action list
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -14,11 +14,8 @@ if not reaper.JS_Window_Find then
     return
 end
 
--- Get media explorer window
-local mx_title = reaper.JS_Localize('Media Explorer', 'common')
-local mx = reaper.JS_Window_Find(mx_title, true)
--- Open media explorer if not found
-if not mx then mx = reaper.OpenMediaExplorer('', false) end
+-- Open media explorer window
+local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -762,13 +759,8 @@ function DrawPiano()
 end
 
 function Main()
-    -- Exit script when media explorer is closed
-    if reaper.GetToggleCommandState(50124) == 0 then return end
-
-    if not reaper.ValidatePtr(mx, 'HWND') then
-        mx = reaper.JS_Window_Find(mx_title, true)
-        if not mx then mx = reaper.OpenMediaExplorer('', false) end
-    end
+    -- Exit script when media explorer hwnd changes
+    if not reaper.ValidatePtr(mx, 'HWND') then return end
 
     local is_redraw = false
 

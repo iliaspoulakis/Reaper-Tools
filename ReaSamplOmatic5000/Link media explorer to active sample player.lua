@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.4
+  @version 1.1.5
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Open media explorer on start if not open already
+    - Fix issue with open action list
 ]]
 
 -- Avoid creating undo points
@@ -20,10 +20,7 @@ if not reaper.JS_Window_Find then
 end
 
 -- Get media explorer window
-local mx_title = reaper.JS_Localize('Media Explorer', 'common')
-local mx = reaper.JS_Window_Find(mx_title, true)
--- Open media explorer if not found
-if not mx then mx = reaper.OpenMediaExplorer('', false) end
+local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -220,8 +217,8 @@ function GetLastFocusedFXContainer()
 end
 
 function Main()
-    -- Stop link when media explorer is closed
-    if reaper.GetToggleCommandState(50124) == 0 then return end
+    -- Exit script when media explorer hwnd changes
+    if not reaper.ValidatePtr(mx, 'HWND') then return end
 
     -- Stop link when container is invalid (project changes or delete)
     local is_container_take = reaper.ValidatePtr(container, 'MediaItem_Take*')

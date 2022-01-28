@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.5
+  @version 1.0.6
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Open media explorer on start if not open already
+    - Fix issue with open action list
 ]]
 
 -- Avoid creating undo points
@@ -20,10 +20,7 @@ if not reaper.JS_Window_Find then
 end
 
 -- Get media explorer window
-local mx_title = reaper.JS_Localize('Media Explorer', 'common')
-local mx = reaper.JS_Window_Find(mx_title, true)
--- Open media explorer if not found
-if not mx then mx = reaper.OpenMediaExplorer('', false) end
+local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -330,6 +327,9 @@ function DrawGUI()
 end
 
 function Main()
+    -- Exit script when media explorer hwnd changes
+    if not reaper.ValidatePtr(mx, 'HWND') then return end
+
     local note_on = reaper.gmem_read(0)
     local note_off = reaper.gmem_read(1)
 
