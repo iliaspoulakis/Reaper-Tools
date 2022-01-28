@@ -20,6 +20,7 @@ if not reaper.JS_Window_Find then
 end
 
 -- Get media explorer window
+local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
@@ -217,8 +218,12 @@ function GetLastFocusedFXContainer()
 end
 
 function Main()
-    -- Exit script when media explorer hwnd changes
-    if not reaper.ValidatePtr(mx, 'HWND') then return end
+    --- Ensure hwnd for MX is valid (changes when docked etc.)
+    if not reaper.ValidatePtr(mx, 'HWND') then
+        mx = reaper.JS_Window_FindTop(mx_title, true)
+        -- Exit script when media explorer is closed
+        if not mx then return end
+    end
 
     -- Stop link when container is invalid (project changes or delete)
     local is_container_take = reaper.ValidatePtr(container, 'MediaItem_Take*')

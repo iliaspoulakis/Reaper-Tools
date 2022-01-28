@@ -15,6 +15,7 @@ if not reaper.JS_Window_Find then
 end
 
 -- Open media explorer window
+local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
@@ -759,8 +760,12 @@ function DrawPiano()
 end
 
 function Main()
-    -- Exit script when media explorer hwnd changes
-    if not reaper.ValidatePtr(mx, 'HWND') then return end
+    -- Ensure hwnd for MX is valid (changes when docked etc.)
+    if not reaper.ValidatePtr(mx, 'HWND') then
+        mx = reaper.JS_Window_FindTop(mx_title, true)
+        -- Exit script when media explorer is closed
+        if not mx then return end
+    end
 
     local is_redraw = false
 
