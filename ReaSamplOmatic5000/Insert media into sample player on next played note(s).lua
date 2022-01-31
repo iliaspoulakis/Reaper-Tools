@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.6
+  @version 1.0.7
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Fix issue with open action list
+    - Fix issue with details/list view on Windows
 ]]
 
 -- Avoid creating undo points
@@ -127,7 +127,7 @@ function MediaExplorer_GetSelectedAudioFiles()
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
         -- File name might not include extension, due to MX option
         local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
-        if not file_name:match('%.' .. ext .. '$') then
+        if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
             file_name = file_name .. '.' .. ext
         end
         if IsAudioFile(file_name) then

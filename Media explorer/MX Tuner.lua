@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.3
+  @version 1.5.4
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Fix issue with open action list
+    - Fix issue with details/list view on Windows
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -125,7 +125,7 @@ function MediaExplorer_GetSelectedAudioFiles()
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
         -- File name might not include extension, due to MX option
         local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
-        if not file_name:match('%.' .. ext .. '$') then
+        if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
             file_name = file_name .. '.' .. ext
         end
         if IsAudioFile(file_name) then
