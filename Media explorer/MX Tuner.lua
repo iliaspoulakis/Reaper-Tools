@@ -460,7 +460,7 @@ function GetPitchFromMetadata(file)
     end
 end
 
-function OpenWindow()
+function OpenWindow(is_docked)
     local pos = reaper.GetExtState('FTC.MXTuner', 'pos')
     if pos == '' then
         -- Show script window in center of screen
@@ -473,7 +473,12 @@ function OpenWindow()
         -- Note: Matched type is string because of matching '-' for negative values
         w_w, w_h = tonumber(w_w), tonumber(w_h)
         w_x, w_y = tonumber(w_x), tonumber(w_y)
-        gfx.init('MX Tuner', w_w, w_h, 0, w_x, w_y)
+
+        local dock = 0
+        if is_docked then
+            dock = tonumber(reaper.GetExtState('FTC.MXTuner', 'dock'))
+        end
+        gfx.init('MX Tuner', w_w, w_h, dock, w_x, w_y)
     end
 
     if focus_mode == 1 then
@@ -1070,13 +1075,9 @@ LoadTheme(theme_id)
 
 focus_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'avoid_focus')) or 1
 
-OpenWindow()
-
 local is_docked = reaper.GetExtState('FTC.MXTuner', 'is_docked') == '1'
-if is_docked then
-    prev_dock = tonumber(reaper.GetExtState('FTC.MXTuner', 'dock'))
-    if prev_dock then gfx.dock(prev_dock) end
-end
+
+OpenWindow(is_docked)
 
 frameless_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'has_frame')) or 0
 if not is_docked and frameless_mode == 1 then
