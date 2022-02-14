@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.5
+  @version 1.7.6
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed issue where project would reload on first start 
+    - Use universal installer for macOS on M1
 ]]
 
 -- App version & platform architecture
@@ -154,7 +154,7 @@ function GetFilePattern()
         file_pattern = (arch and '_' .. arch or '') .. '%-install%.exe'
     end
     if platform:match('OSX') then file_pattern = '%d%a?_' .. arch .. '%.dmg' end
-    if platform:match('macOS') then file_pattern = 'beta_' .. arch .. '%.dmg' end
+    if platform:match('macOS') then file_pattern = '_universal%.dmg' end
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
     end
@@ -405,7 +405,7 @@ function ShowSettingsMenu()
                 local msg = ' \nLogging to file is now enabled!\n\n\z
                     You can find the file \'update-utility.log\' in your resource \z
                     directory:\n--> Options --> Show REAPER resource path...\n\n\z
-                    Open resource directoy now?\n '
+                    Open resource directory now?\n '
                 local response = reaper.MB(msg, title, 4)
                 if response == 6 then
                     -- Show REAPER resource path in explorer
