@@ -1,9 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
+  @changelog
+    - Detect chords with 2 notes (dyads)
+    - Slightly change naming convention to match chordgun
+    - Fixed an issue where certain inversions could't be detected
 ]]
 
 local piano_pane
@@ -57,6 +61,19 @@ if not reaper.JS_Window_SetPosition then
 end
 
 local chord_names = {}
+-- Dyads
+chord_names['1 2'] = ' minor 2nd'
+chord_names['1 3'] = ' major 2nd'
+chord_names['1 4'] = ' minor 3rd'
+chord_names['1 5'] = ' major 3rd'
+chord_names['1 6'] = ' perfect 4th'
+chord_names['1 7'] = '5-'
+chord_names['1 8'] = '5'
+chord_names['1 9'] = ' minor 6th'
+chord_names['1 10'] = ' major 6th'
+chord_names['1 11'] = ' minor 7th'
+chord_names['1 12'] = ' major 7th'
+
 -- Major chords
 chord_names['1 5 8'] = 'maj'
 chord_names['1 8 12'] = 'maj7 omit3'
@@ -118,31 +135,31 @@ chord_names['1 6 8 11'] = '11 omit9'
 chord_names['1 3 6 8 11'] = '11'
 
 -- Minor
-chord_names['1 4 8'] = 'min'
-chord_names['1 4 11'] = 'min7 omit5'
-chord_names['1 4 8 11'] = 'min7'
-chord_names['1 4 12'] = 'min/maj7 omit5'
-chord_names['1 4 8 12'] = 'min/maj7'
-chord_names['1 3 4 12'] = 'min/maj9 omit5'
-chord_names['1 3 4 8 12'] = 'min/maj9'
-chord_names['1 3 4 11'] = 'min9 omit5'
-chord_names['1 3 4 8 11'] = 'min9'
-chord_names['1 3 4 6 11'] = 'min11 omit5'
-chord_names['1 4 6 8 11'] = 'min11 omit9'
-chord_names['1 3 4 6 8 11'] = 'min11'
-chord_names['1 3 4 6 10 11'] = 'min13 omit5'
-chord_names['1 4 6 8 10 11'] = 'min13 omit9'
-chord_names['1 3 4 6 8 10 11'] = 'min13'
-chord_names['1 4 8 10'] = 'min6'
-chord_names['1 3 4 10'] = 'min6/9 omit5'
-chord_names['1 3 4 8 10'] = 'min6/9'
+chord_names['1 4 8'] = 'm'
+chord_names['1 4 11'] = 'm7 omit5'
+chord_names['1 4 8 11'] = 'm7'
+chord_names['1 4 12'] = 'm/maj7 omit5'
+chord_names['1 4 8 12'] = 'm/maj7'
+chord_names['1 3 4 12'] = 'm/maj9 omit5'
+chord_names['1 3 4 8 12'] = 'm/maj9'
+chord_names['1 3 4 11'] = 'm9 omit5'
+chord_names['1 3 4 8 11'] = 'm9'
+chord_names['1 3 4 6 11'] = 'm11 omit5'
+chord_names['1 4 6 8 11'] = 'm11 omit9'
+chord_names['1 3 4 6 8 11'] = 'm11'
+chord_names['1 3 4 6 10 11'] = 'm13 omit5'
+chord_names['1 4 6 8 10 11'] = 'm13 omit9'
+chord_names['1 3 4 6 8 10 11'] = 'm13'
+chord_names['1 4 8 10'] = 'm6'
+chord_names['1 3 4 10'] = 'm6/9 omit5'
+chord_names['1 3 4 8 10'] = 'm6/9'
 
 -- Diminished
 chord_names['1 4 7'] = 'dim'
 chord_names['1 4 7 10'] = 'dim7'
-chord_names['1 2 4 7 11'] = 'min7b5'
-chord_names['1 3 4 7 11'] = 'min9b5'
-chord_names['1 3 4 6 7 11'] = 'min11b5'
+chord_names['1 2 4 7 11'] = 'm7b5'
+chord_names['1 3 4 7 11'] = 'm9b5'
+chord_names['1 3 4 6 7 11'] = 'm11b5'
 chord_names['1 3 5 7 10 11'] = '13b5'
 
 -- Augmented
@@ -151,7 +168,7 @@ chord_names['1 5 9 11'] = 'aug7'
 chord_names['1 5 9 12'] = 'aug/maj7'
 
 -- Additions
-chord_names['1 3 4 8'] = 'min add9'
+chord_names['1 3 4 8'] = 'm add9'
 chord_names['1 3 5 8'] = 'maj add9'
 chord_names['1 5 10 11'] = '7 add13'
 
@@ -187,7 +204,9 @@ function GetChordName(notes)
     for n = 2, #key_nums do
         local diff = key_nums[n] - key_nums[1]
         intervals = {}
-        for i = 1, #key_nums do intervals[(key_nums[i] - diff) % 12] = 1 end
+        for i = 1, #key_nums do
+            intervals[(key_nums[i] - diff - 1) % 12 + 1] = 1
+        end
         local inv_key = '1'
         for i = 2, 12 do
             if intervals[i] then inv_key = inv_key .. ' ' .. i end
@@ -243,10 +262,10 @@ function GetChords(take)
         if sppq >= chord_min_eppq then
             local new_notes = {}
             local new_chord_sel_cnt = 0
-            if #notes >= 3 then
+            if #notes >= 2 then
                 local chord = BuildChord(notes)
                 if chord then chords[#chords + 1] = chord end
-                if chord_sel_cnt >= 3 and chord_sel_cnt == total_sel_cnt then
+                if chord_sel_cnt >= 2 and chord_sel_cnt == total_sel_cnt then
                     sel_chord = BuildChordFromSelectedNotes(notes)
                 end
                 -- Remove notes that end prior to the start of current note
@@ -275,10 +294,10 @@ function GetChords(take)
         end
     end
 
-    if #notes >= 3 then
+    if #notes >= 2 then
         local chord = BuildChord(notes)
         if chord then chords[#chords + 1] = chord end
-        if chord_sel_cnt >= 3 and chord_sel_cnt == total_sel_cnt then
+        if chord_sel_cnt >= 2 and chord_sel_cnt == total_sel_cnt then
             sel_chord = BuildChordFromSelectedNotes(notes)
         end
     end
@@ -334,7 +353,7 @@ function GetMIDIInputChord(track)
         prev_idx = new_idx
     end
 
-    if input_note_cnt >= 3 then
+    if input_note_cnt >= 2 then
         local notes = {}
         for n = 0, 127 do
             if input_note_map[n] == 1 then
