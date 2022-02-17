@@ -10,6 +10,8 @@
     - Fixed an issue where certain inversions could't be detected
 ]]
 
+local box_width_offset = 0
+
 local piano_pane
 local curr_chords
 local curr_sel_chord
@@ -18,6 +20,7 @@ local input_timer
 local input_note_map = {}
 local input_note_cnt = 0
 
+local prev_w
 local prev_idx
 local prev_hwnd
 local prev_hash
@@ -36,17 +39,14 @@ local is_windows = os:match('Win')
 local is_macos = os:match('OSX') or os:match('macOS')
 local is_linux = os:match('Other')
 
-local bm_w = is_windows and 109 or is_macos and 125 or is_linux and 141
-local bm_h = 18
-local bm_x = 7
-local bm_y = 28
+local piano_pane_w = is_windows and 126 or is_macos and 145 or is_linux and 161
 
-local bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
-local lice_font = reaper.JS_LICE_CreateFont()
+local scale
+local font_size
+local bitmap
+local lice_font
 
-local font_size = is_windows and 12 or 14
-local gdi_font = reaper.JS_GDI_CreateFont(12, 0, 0, 0, 0, 0, '')
-reaper.JS_LICE_SetFontFromGDI(lice_font, gdi_font, '')
+local bm_x, bm_y, bm_w, bm_h
 
 -- Check if SWS extension is installed
 if not reaper.BR_GetMouseCursorContext then
@@ -387,32 +387,47 @@ function DrawLICE(chord, mode)
 
     -- Draw Text
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
-    local _, text_h = reaper.JS_LICE_MeasureText(chord)
-    -- Note: Width reported by JS_LICE_MeasureText seems to be incorrect
-    gfx.setfont(1, is_windows and 'Georgia' or 'Calibri', 12)
-    local text_w = gfx.measurestr(chord)
+    gfx.setfont(1, 'Arial', font_size)
+    local text_w, text_h = gfx.measurestr(chord)
     local text_x = (bm_w - text_w) // 2
-    local text_y = bm_h // 2 - text_h
-    if is_windows or is_macos then text_y = text_y + 2 end
+    local text_y = (bm_h - text_h) // 2
+    if is_macos then text_y = text_y + 1 end
 
-    -- Move x axis slightly if icon for mode will is drawn
-    local x = text_x - 8
-    text_x = mode == 0 and text_x or text_x + 5
+    -- Position icon at start of text
+    local icon_x = math.floor(text_x - 8 * scale)
+    -- Move text slightly to the right when icon is drawn
+    text_x = mode == 0 and text_x or math.floor(text_x + 5 * scale)
 
     if mode == 1 and chord ~= '' then
-        reaper.JS_LICE_Line(bitmap, x, 5, x + 7, 8, text_color, 1, 0, 1)
-        reaper.JS_LICE_Line(bitmap, x, 12, x + 7, 9, text_color, 1, 0, 1)
-        reaper.JS_LICE_FillTriangle(bitmap, x, 5, x, 12, x + 7, 8, text_color,
+        local h = bm_h // 2 - 1
+        -- Ensure triangle height is uneven
+        if h % 2 ~= 1 then h = h - 1 end
+        local x1, y1 = icon_x, (bm_h - h) // 2
+        local x2, y2 = icon_x, y1 + h
+        local x3, y3 = icon_x + h, y1 + h // 2
+
+        reaper.JS_LICE_Line(bitmap, x1, y1, x3, y3, text_color, 1, 0, 1)
+        reaper.JS_LICE_Line(bitmap, x2, y2, x3, y3 + 1, text_color, 1, 0, 1)
+        reaper.JS_LICE_FillTriangle(bitmap, x1, y1, x2, y2, x3, y3, text_color,
                                     1, 0)
     end
 
     if mode == 2 then
-        reaper.JS_LICE_FillRect(bitmap, x, 5, 8, 8, text_color, 1, 0)
-        reaper.JS_LICE_FillRect(bitmap, x + 2, 7, 4, 4, bg_color, 1, 0)
+        local h = bm_h // 2
+        -- Ensure square height can be divided by 4
+        local mod = h % 4
+        if mod ~= 0 then h = h - mod end
+        local x1, y1 = icon_x, (bm_h - h) // 2
+        local x2, y2 = math.floor(icon_x + 2 * scale), y1 + h / 4
+        local w1, w2 = h, h / 2
+        reaper.JS_LICE_FillRect(bitmap, x1, y1, w1, w1, text_color, 1, 0)
+        reaper.JS_LICE_FillRect(bitmap, x2, y2, w2, w2, bg_color, 1, 0)
     end
 
     if mode == 3 then
-        reaper.JS_LICE_FillCircle(bitmap, x + 5, 9, 2.5, text_color, 1, 1, true)
+        local x, y = math.floor(icon_x + 5 * scale), bm_h // 2
+        local r = math.floor(2.5 * scale * 10) / 10
+        reaper.JS_LICE_FillCircle(bitmap, x, y, r, text_color, 1, 1, true)
     end
 
     -- Note: Green box to help measure text
@@ -438,25 +453,60 @@ function Main()
     end
 
     local is_redraw = false
+    local is_forced_redraw = false
+
+    piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
+    local _, w = reaper.JS_Window_GetClientSize(piano_pane)
+    if w ~= prev_w or hwnd ~= prev_hwnd then
+        prev_w = w
+        prev_hwnd = hwnd
+        -- Calculate scale from width of piano pane
+        scale = w / piano_pane_w
+
+        local box_w = is_windows and 51 or is_macos and 60 or is_linux and 68
+
+        -- Use 2 times the size of the boxes above + inbetween padding of 5px
+        bm_w = math.ceil(box_w * scale) * 2 + math.floor(5 * scale)
+        bm_h = math.floor(18 * scale)
+        bm_x = math.floor(7 * scale)
+        bm_y = math.floor(28 * scale)
+
+        bm_w = bm_w + box_width_offset
+
+        font_size = 1
+        local font_max_height = bm_h - math.floor(4 * scale + 0.5)
+        if is_macos then font_max_height = font_max_height + 2 end
+        -- Find optimal font_size by incrementing until it doesn't fit
+        for i = 1, 100 do
+            gfx.setfont(1, 'Arial', i)
+            local _, h = gfx.measurestr('F')
+            if h > font_max_height then break end
+            font_size = i
+        end
+
+        -- Prepare LICE bitmap for drawing
+        if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
+        if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
+
+        bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
+        lice_font = reaper.JS_LICE_CreateFont()
+
+        local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0, 'Arial')
+        reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
+        reaper.JS_GDI_DeleteObject(gdi)
+
+        -- Draw LICE bitmap on piano pane
+        reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
+                            bm_w, bm_h, false)
+        reaper.JS_Composite_Delay(piano_pane, 0.022, 0.022, 2)
+        is_forced_redraw = true
+    end
 
     -- Monitor color theme changes
     local color_theme = reaper.GetLastColorThemeFile()
     if color_theme ~= prev_color_theme then
         prev_color_theme = color_theme
-        is_redraw = true
-        prev_chord_name = nil
-    end
-
-    -- Monitor MIDI editor window changes
-    if hwnd ~= prev_hwnd then
-        prev_hwnd = hwnd
-        piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
-        -- Draw LICE bitmap on piano pane
-        reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
-                            bm_w, bm_h, false)
-        reaper.JS_Composite_Delay(piano_pane, 0.022, 0.022, 2)
-        is_redraw = true
-        prev_chord_name = nil
+        is_forced_redraw = true
     end
 
     local take = reaper.MIDIEditor_GetTake(hwnd)
@@ -499,9 +549,7 @@ function Main()
             return
         else
             input_timer = nil
-            prev_cursor_pos = nil
-            prev_chord_name = nil
-            is_redraw = true
+            is_forced_redraw = true
         end
     end
 
@@ -542,7 +590,7 @@ function Main()
         is_redraw = true
     end
 
-    if is_redraw then
+    if is_redraw or is_forced_redraw then
         local chord_name = ''
         -- Get chord name depending on mode
         if curr_sel_chord then
@@ -571,7 +619,9 @@ function Main()
             end
         end
 
-        if chord_name ~= prev_chord_name or mode ~= prev_mode then
+        local has_chord_changed = chord_name ~= prev_chord_name
+        local has_mode_changed = mode ~= prev_mode
+        if has_chord_changed or has_mode_changed or is_forced_redraw then
             prev_chord_name = chord_name
             prev_mode = mode
             DrawLICE(chord_name, mode)
@@ -589,7 +639,6 @@ function Exit()
     reaper.RefreshToolbar2(sec, cmd)
     reaper.JS_LICE_DestroyBitmap(bitmap)
     reaper.JS_LICE_DestroyFont(lice_font)
-    reaper.JS_GDI_DeleteObject(gdi_font)
     reaper.JS_Composite_Delay(piano_pane, 0, 0, 0)
 end
 
