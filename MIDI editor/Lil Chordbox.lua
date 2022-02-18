@@ -398,7 +398,7 @@ function DrawLICE(chord, mode)
         local mod = h % 4
         if mod ~= 0 then h = h - mod end
         local x1, y1 = icon_x, (bm_h - h) // 2
-        local x2, y2 = math.floor(icon_x + 2 * scale), y1 + h / 4
+        local x2, y2 = icon_x + h / 4, y1 + h / 4
         local w1, w2 = h, h / 2
         reaper.JS_LICE_FillRect(bitmap, x1, y1, w1, w1, text_color, 1, 0)
         reaper.JS_LICE_FillRect(bitmap, x2, y2, w2, w2, bg_color, 1, 0)
