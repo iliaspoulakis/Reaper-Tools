@@ -1,16 +1,18 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.2.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Detect chords with 2 notes (dyads)
-    - Slightly change naming convention to match chordgun
-    - Fixed an issue where certain inversions could't be detected
+    - Added hdpi support
+    - Changed selection mode to consider all selected notes in item
 ]]
 
-local box_width_offset = 0
+local box_x_offs = 0
+local box_y_offs = 0
+local box_w_offs = 0
+local box_h_offs = 0
 
 local piano_pane
 local curr_chords
@@ -39,7 +41,7 @@ local is_windows = os:match('Win')
 local is_macos = os:match('OSX') or os:match('macOS')
 local is_linux = os:match('Other')
 
-local piano_pane_w = is_windows and 126 or is_macos and 145 or is_linux and 161
+local piano_pane_w = is_windows and 128 or is_macos and 145 or is_linux and 161
 
 local scale
 local font_size
@@ -233,73 +235,51 @@ function BuildChord(notes)
     end
 end
 
-function BuildChordFromSelectedNotes(notes)
-    local sel_notes = {}
-    for _, note in ipairs(notes) do
-        if note.sel then sel_notes[#sel_notes + 1] = note end
-    end
-    return BuildChord(sel_notes)
-end
-
 function GetChords(take)
     local _, note_cnt = reaper.MIDI_CountEvts(take)
 
     local chords = {}
     local notes = {}
+    local sel_notes = {}
 
     local chord_min_eppq
-    local chord_sel_cnt = 0
-    local total_sel_cnt = 0
-
-    local sel_chord
 
     for i = 0, note_cnt - 1 do
         local _, sel, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
 
-        chord_min_eppq = chord_min_eppq or eppq
-        chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
+        local note_info = {pitch = pitch, sel = sel, sppq = sppq, eppq = eppq}
+        if sel then sel_notes[#sel_notes + 1] = note_info end
 
-        if sppq >= chord_min_eppq then
-            local new_notes = {}
-            local new_chord_sel_cnt = 0
-            if #notes >= 2 then
-                local chord = BuildChord(notes)
-                if chord then chords[#chords + 1] = chord end
-                if chord_sel_cnt >= 2 and chord_sel_cnt == total_sel_cnt then
-                    sel_chord = BuildChordFromSelectedNotes(notes)
-                end
-                -- Remove notes that end prior to the start of current note
-                for _, note in ipairs(notes) do
-                    if note.eppq > sppq then
-                        new_notes[#new_notes + 1] = note
-                        if note.sel then
-                            new_chord_sel_cnt = new_chord_sel_cnt + 1
+        if #sel_notes < 2 then
+
+            chord_min_eppq = chord_min_eppq or eppq
+            chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
+
+            if sppq >= chord_min_eppq then
+                local new_notes = {}
+                if #notes >= 2 then
+                    local chord = BuildChord(notes)
+                    if chord then chords[#chords + 1] = chord end
+                    -- Remove notes that end prior to the start of current note
+                    for _, note in ipairs(notes) do
+                        if note.eppq > sppq then
+                            new_notes[#new_notes + 1] = note
                         end
                     end
                 end
+                notes = new_notes
+                chord_min_eppq = nil
             end
-            notes = new_notes
-            chord_sel_cnt = new_chord_sel_cnt
-            chord_min_eppq = nil
-        end
-
-        notes[#notes + 1] = {pitch = pitch, sel = sel, sppq = sppq, eppq = eppq}
-
-        -- Count selected notes
-        if sel then
-            total_sel_cnt = total_sel_cnt + 1
-            chord_sel_cnt = chord_sel_cnt + 1
-            -- Remove selected chord if another selected note is found
-            if sel_chord then sel_chord = nil end
+            notes[#notes + 1] = note_info
         end
     end
 
-    if #notes >= 2 then
+    local sel_chord
+    if #sel_notes >= 2 then
+        sel_chord = BuildChord(sel_notes) or {name = 'none'}
+    elseif #notes >= 2 then
         local chord = BuildChord(notes)
         if chord then chords[#chords + 1] = chord end
-        if chord_sel_cnt >= 2 and chord_sel_cnt == total_sel_cnt then
-            sel_chord = BuildChordFromSelectedNotes(notes)
-        end
     end
 
     return chords, sel_chord
@@ -463,7 +443,7 @@ function Main()
         -- Calculate scale from width of piano pane
         scale = w / piano_pane_w
 
-        local box_w = is_windows and 51 or is_macos and 60 or is_linux and 68
+        local box_w = is_windows and 52 or is_macos and 60 or is_linux and 68
 
         -- Use 2 times the size of the boxes above + inbetween padding of 5px
         bm_w = math.ceil(box_w * scale) * 2 + math.floor(5 * scale)
@@ -471,7 +451,10 @@ function Main()
         bm_x = math.floor(7 * scale)
         bm_y = math.floor(28 * scale)
 
-        bm_w = bm_w + box_width_offset
+        bm_x = bm_x + box_x_offs
+        bm_y = bm_y + box_y_offs
+        bm_w = bm_w + box_w_offs
+        bm_h = bm_h + box_h_offs
 
         font_size = 1
         local font_max_height = bm_h - math.floor(4 * scale + 0.5)
