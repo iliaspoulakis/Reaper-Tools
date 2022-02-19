@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="b4faa88a14af1d96ffd572c27a108504d8661f68">
+<index version="1" name="FTC Tools" commit="3f4b29a226c986ec05abdfbacb72c5d5ee17c3d4">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -500,6 +500,11 @@
 - Slightly change naming convention to match chordgun
 - Fixed an issue where certain inversions could't be detected]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/b4faa88a14af1d96ffd572c27a108504d8661f68/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-02-18T12:29:54Z">
+        <changelog><![CDATA[- Added hdpi support
+- Changed selection mode to consider all selected notes in item]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/6930f28712ec16d2bb1f664f0f1e13c3fb949096/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
