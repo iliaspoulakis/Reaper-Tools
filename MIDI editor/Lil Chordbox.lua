@@ -1,12 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.3.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added hdpi support
-    - Changed selection mode to consider all selected notes in item
+    - Added options menu
+    - Support custom user colors
+    - Option to run script on startup
 ]]
 
 local box_x_offs = 0
@@ -49,6 +50,15 @@ local bitmap
 local lice_font
 
 local bm_x, bm_y, bm_w, bm_h
+
+local extname = 'FTC.LilChordBox'
+
+local user_bg_color = reaper.GetExtState(extname, 'bg_color')
+local user_border_color = reaper.GetExtState(extname, 'border_color')
+local user_text_color = reaper.GetExtState(extname, 'text_color')
+local user_sel_color = reaper.GetExtState(extname, 'sel_color')
+local user_play_color = reaper.GetExtState(extname, 'play_color')
+local user_rec_color = reaper.GetExtState(extname, 'rec_color')
 
 -- Check if SWS extension is installed
 if not reaper.BR_GetMouseCursorContext then
@@ -345,14 +355,272 @@ function GetMIDIInputChord(track)
     end
 end
 
+function IsBitmapHovered(hwnd)
+    local x, y = reaper.GetMousePosition()
+    x, y = reaper.JS_Window_ScreenToClient(hwnd, x, y)
+    return x >= bm_x and y > bm_y and x < bm_x + bm_w and y <= bm_y + bm_h
+end
+
+function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
+
+function GetStartupHookCommandID()
+    -- Note: Startup hook commands have to be in the main section
+    local _, script_file, section, cmd_id = reaper.get_action_context()
+    if section == 0 then
+        -- Save command name when main section script is run first
+        local cmd_name = '_' .. reaper.ReverseNamedCommandLookup(cmd_id)
+        reaper.SetExtState(extname, 'hook_cmd_name', cmd_name, true)
+    else
+        -- Look for saved command name by main section script
+        local cmd_name = reaper.GetExtState(extname, 'hook_cmd_name')
+        cmd_id = reaper.NamedCommandLookup(cmd_name)
+        if cmd_id == 0 then
+            -- Add the script to main section (to get cmd id)
+            cmd_id = reaper.AddRemoveReaScript(true, 0, script_file, true)
+            if cmd_id ~= 0 then
+                -- Save command name to avoid adding script on next run
+                cmd_name = '_' .. reaper.ReverseNamedCommandLookup(cmd_id)
+                reaper.SetExtState(extname, 'hook_cmd_name', cmd_name, true)
+            end
+        end
+    end
+    return cmd_id
+end
+
+function IsStartupHookEnabled()
+    local res_path = reaper.GetResourcePath()
+    local startup_path = ConcatPath(res_path, 'Scripts', '__startup.lua')
+    local cmd_id = GetStartupHookCommandID()
+    local cmd_name = reaper.ReverseNamedCommandLookup(cmd_id)
+
+    if reaper.file_exists(startup_path) then
+        -- Read content of __startup.lua
+        local startup_file = io.open(startup_path, 'r')
+        local content = startup_file:read('*a')
+        startup_file:close()
+
+        -- Find line that contains command id (also next line if available)
+        local pattern = '[^\n]+' .. cmd_name .. '\'?\n?[^\n]+'
+        local s, e = content:find(pattern)
+
+        -- Check if line exists and whether it is commented out
+        if s and e then
+            local hook = content:sub(s, e)
+            local comment = hook:match('[^\n]*%-%-[^\n]*reaper%.Main_OnCommand')
+            if not comment then return true end
+        end
+    end
+    return false
+end
+
+function SetStartupHookEnabled(is_enabled, comment, var_name)
+    local res_path = reaper.GetResourcePath()
+    local startup_path = ConcatPath(res_path, 'Scripts', '__startup.lua')
+    local cmd_id = GetStartupHookCommandID()
+    local cmd_name = reaper.ReverseNamedCommandLookup(cmd_id)
+
+    local content = ''
+    local hook_exists = false
+
+    -- Check startup script for existing hook
+    if reaper.file_exists(startup_path) then
+
+        local startup_file = io.open(startup_path, 'r')
+        content = startup_file:read('*a')
+        startup_file:close()
+
+        -- Find line that contains command id (also next line if available)
+        local pattern = '[^\n]+' .. cmd_name .. '\'?\n?[^\n]+'
+        local s, e = content:find(pattern)
+
+        if s and e then
+            -- Add/remove comment from existing startup hook
+            local hook = content:sub(s, e)
+            local repl = (is_enabled and '' or '-- ') .. 'reaper.Main_OnCommand'
+            hook = hook:gsub('[^\n]*reaper%.Main_OnCommand', repl, 1)
+            content = content:sub(1, s - 1) .. hook .. content:sub(e + 1)
+
+            -- Write changes to file
+            local new_startup_file = io.open(startup_path, 'w')
+            new_startup_file:write(content)
+            new_startup_file:close()
+
+            hook_exists = true
+        end
+    end
+
+    -- Create startup hook
+    if is_enabled and not hook_exists then
+        comment = comment and '-- ' .. comment .. '\n' or ''
+        var_name = var_name or 'cmd_name'
+        local hook = '%slocal %s = \'_%s\'\nreaper.\z
+            Main_OnCommand(reaper.NamedCommandLookup(%s), 0)\n\n'
+        hook = hook:format(comment, var_name, cmd_name, var_name)
+        local startup_file = io.open(startup_path, 'w')
+        startup_file:write(hook .. content)
+        startup_file:close()
+    end
+end
+
+function SetCustomColors()
+    local title = 'Custom Colors'
+    local captions = 'Record icon: (e.g. #FF0000),Selection icon:,Play icon\z
+        :,Background:,Border:,Text:'
+
+    local curr_vals = {}
+    local function AddCurrentValue(color)
+        local hex_num = tonumber(color, 16)
+        curr_vals[#curr_vals + 1] = hex_num and ('#%.6X'):format(hex_num) or ''
+    end
+
+    AddCurrentValue(user_rec_color)
+    AddCurrentValue(user_sel_color)
+    AddCurrentValue(user_play_color)
+    AddCurrentValue(user_bg_color)
+    AddCurrentValue(user_border_color)
+    AddCurrentValue(user_text_color)
+
+    local curr_vals_str = table.concat(curr_vals, ',')
+
+    local ret, inputs = reaper.GetUserInputs(title, 6, captions, curr_vals_str)
+    if not ret then return end
+
+    local colors = {}
+    for input in (inputs .. ','):gmatch('[^,]*') do
+        colors[#colors + 1] = input:gsub('^#', '')
+    end
+
+    local invalid_flag = false
+    local function ValidateColor(color)
+        local is_valid = #color <= 6 and tonumber(color, 16)
+        if not is_valid and color ~= '' then invalid_flag = true end
+        return is_valid and color or ''
+    end
+
+    user_rec_color = ValidateColor(colors[1])
+    user_sel_color = ValidateColor(colors[2])
+    user_play_color = ValidateColor(colors[3])
+    user_bg_color = ValidateColor(colors[4])
+    user_border_color = ValidateColor(colors[5])
+    user_text_color = ValidateColor(colors[6])
+
+    reaper.SetExtState(extname, 'rec_color', user_rec_color, true)
+    reaper.SetExtState(extname, 'sel_color', user_sel_color, true)
+    reaper.SetExtState(extname, 'play_color', user_play_color, true)
+    reaper.SetExtState(extname, 'bg_color', user_bg_color, true)
+    reaper.SetExtState(extname, 'border_color', user_border_color, true)
+    reaper.SetExtState(extname, 'text_color', user_text_color, true)
+
+    if invalid_flag then
+        local msg = 'Please specify colors in hexadecimal format! (#RRGGBB)'
+        reaper.MB(msg, 'Invalid input', 0)
+    end
+end
+
+function MenuCreateRecursive(menu)
+    local str = ''
+    if menu.title then str = str .. '>' .. menu.title .. '|' end
+
+    for i, entry in ipairs(menu) do
+        if #entry > 0 then
+            str = str .. MenuCreateRecursive(entry) .. '|'
+        else
+            local arg = entry.arg
+
+            if entry.IsGrayed and entry.IsGrayed(arg) or entry.is_grayed then
+                str = str .. '#'
+            end
+
+            if entry.IsChecked and entry.IsChecked(arg) or entry.is_checked then
+                str = str .. '!'
+            end
+
+            if menu.title and i == #menu then str = str .. '<' end
+
+            if entry.title or entry.separator then
+                str = str .. (entry.title or '') .. '|'
+            end
+        end
+    end
+    return str:sub(1, #str - 1)
+end
+
+function MenuReturnRecursive(menu, idx, i)
+    i = i or 1
+    for _, entry in ipairs(menu) do
+        if #entry > 0 then
+            i = MenuReturnRecursive(entry, idx, i)
+            if i < 0 then return i end
+        elseif entry.title then
+            if i == math.floor(idx) then
+                if entry.OnReturn then entry.OnReturn(entry.arg) end
+                return -1
+            end
+            i = i + 1
+        end
+    end
+    return i
+end
+
+function ShowMenu(menu_str)
+    -- Toggle fullscreen
+    local is_full_screen = reaper.GetToggleCommandState(40346) == 1
+
+    -- On Windows and MacOS (fullscreen), a dummy window is required to show menu
+    if is_windows or is_macos and is_full_screen then
+        local offs = is_windows and {x = 10, y = 20} or {x = 0, y = 0}
+        local x, y = reaper.GetMousePosition()
+        gfx.init('LCB', 0, 0, 0, x + offs.x, y + offs.y)
+        gfx.x, gfx.y = gfx.screentoclient(x + offs.x / 2, y + offs.y / 2)
+        if reaper.JS_Window_Find then
+            local hwnd = reaper.JS_Window_FindTop('LCB', true)
+            reaper.JS_Window_Show(hwnd, 'HIDE')
+        end
+    end
+    local ret = gfx.showmenu(menu_str)
+    gfx.quit()
+    return ret
+end
+
 function DrawLICE(chord, mode)
     reaper.JS_LICE_Clear(bitmap, 0)
 
-    local aa = 0xFF000000
-    local bg_color = reaper.GetThemeColor('col_main_editbk', 0) | aa
-    local hl_color = reaper.GetThemeColor('col_main_3dhl', 0) | aa
-    local sh_color = reaper.GetThemeColor('col_main_3dsh', 0) | aa
-    local text_color = reaper.GetThemeColor('col_main_text', 0) | aa
+    local alpha = 0xFF000000
+    local bg_color, hl_color, sh_color, text_color
+    local play_color, sel_color, rec_color
+
+    if user_bg_color ~= '' then
+        bg_color = tonumber(user_bg_color, 16) | alpha
+    else
+        bg_color = reaper.GetThemeColor('col_main_editbk', 0) | alpha
+    end
+    if user_border_color ~= '' then
+        hl_color = tonumber(user_border_color, 16) | alpha
+        sh_color = hl_color
+    else
+        hl_color = reaper.GetThemeColor('col_main_3dhl', 0) | alpha
+        sh_color = reaper.GetThemeColor('col_main_3dsh', 0) | alpha
+    end
+    if user_text_color ~= '' then
+        text_color = tonumber(user_text_color, 16) | alpha
+    else
+        text_color = reaper.GetThemeColor('col_main_text', 0) | alpha
+    end
+    if user_play_color ~= '' then
+        play_color = tonumber(user_play_color, 16) | alpha
+    else
+        play_color = text_color
+    end
+    if user_sel_color ~= '' then
+        sel_color = tonumber(user_sel_color, 16) | alpha
+    else
+        sel_color = text_color
+    end
+    if user_rec_color ~= '' then
+        rec_color = tonumber(user_rec_color, 16) | alpha
+    else
+        rec_color = text_color
+    end
 
     -- Draw box background
     reaper.JS_LICE_FillRect(bitmap, 0, 0, bm_w, bm_h, bg_color, 1, 0)
@@ -386,9 +654,9 @@ function DrawLICE(chord, mode)
         local x2, y2 = icon_x, y1 + h
         local x3, y3 = icon_x + h, y1 + h // 2
 
-        reaper.JS_LICE_Line(bitmap, x1, y1, x3, y3, text_color, 1, 0, 1)
-        reaper.JS_LICE_Line(bitmap, x2, y2, x3, y3 + 1, text_color, 1, 0, 1)
-        reaper.JS_LICE_FillTriangle(bitmap, x1, y1, x2, y2, x3, y3, text_color,
+        reaper.JS_LICE_Line(bitmap, x1, y1, x3, y3, play_color, 1, 0, 1)
+        reaper.JS_LICE_Line(bitmap, x2, y2, x3, y3 + 1, play_color, 1, 0, 1)
+        reaper.JS_LICE_FillTriangle(bitmap, x1, y1, x2, y2, x3, y3, play_color,
                                     1, 0)
     end
 
@@ -400,14 +668,14 @@ function DrawLICE(chord, mode)
         local x1, y1 = icon_x, (bm_h - h) // 2
         local x2, y2 = icon_x + h / 4, y1 + h / 4
         local w1, w2 = h, h / 2
-        reaper.JS_LICE_FillRect(bitmap, x1, y1, w1, w1, text_color, 1, 0)
+        reaper.JS_LICE_FillRect(bitmap, x1, y1, w1, w1, sel_color, 1, 0)
         reaper.JS_LICE_FillRect(bitmap, x2, y2, w2, w2, bg_color, 1, 0)
     end
 
     if mode == 3 then
         local x, y = math.floor(icon_x + 5 * scale), bm_h // 2
         local r = math.floor(2.5 * scale * 10) / 10
-        reaper.JS_LICE_FillCircle(bitmap, x, y, r, text_color, 1, 1, true)
+        reaper.JS_LICE_FillCircle(bitmap, x, y, r, rec_color, 1, 1, true)
     end
 
     -- Note: Green box to help measure text
@@ -498,21 +766,32 @@ function Main()
         return
     end
 
-    -- Note: Keep this code for future left/right click options
-
-    --[[ local mouse_state = reaper.JS_Mouse_GetState(3)
+    -- Open options menu when user clicks on the box
+    local mouse_state = reaper.JS_Mouse_GetState(3)
     if mouse_state ~= prev_mouse_state then
         prev_mouse_state = mouse_state
-        local is_right_click = mouse_state == 2
-        local x, y = reaper.GetMousePosition()
-        -- Open scale finder on left click
         local is_left_click = mouse_state == 1
-        if is_right_click then
-            local w_x, w_y = reaper.JS_Window_ScreenToClient(piano_pane, x, y)
-            if w_x >= bm_x and w_y > bm_y and w_x < bm_x + bm_w and w_y <= bm_y +
-                bm_h then reaper.Main_OnCommand(40301, 0) end
+        local is_right_click = mouse_state == 2
+        if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
+            local menu = {
+                {title = 'Set custom colors', OnReturn = SetCustomColors},
+                {
+                    title = 'Run script on startup',
+                    IsChecked = IsStartupHookEnabled,
+                    OnReturn = function()
+                        local is_enabled = IsStartupHookEnabled()
+                        local comment = 'Start script: Lil Chordbox'
+                        local var_name = 'chord_box_cmd_name'
+                        SetStartupHookEnabled(not is_enabled, comment, var_name)
+                    end,
+                },
+            }
+            local menu_str = MenuCreateRecursive(menu)
+            local ret = ShowMenu(menu_str)
+            MenuReturnRecursive(menu, ret)
+            is_forced_redraw = true
         end
-    end ]]
+    end
 
     local track = reaper.GetMediaItemTake_Track(take)
     local input_chord = GetMIDIInputChord(track)
