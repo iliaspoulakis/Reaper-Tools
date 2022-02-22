@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="32e51f5fda94a3830c70066fdb95c90313e31abb">
+<index version="1" name="FTC Tools" commit="a8538c97ede72b06e338c2a20345d57adb430f4c">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -518,6 +518,12 @@
         <changelog><![CDATA[- Added hdpi support
 - Changed selection mode to consider all selected notes in item]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/6930f28712ec16d2bb1f664f0f1e13c3fb949096/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="1.3.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-02-22T22:11:37Z">
+        <changelog><![CDATA[- Added options menu
+- Support custom user colors
+- Option to run script on startup]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/a8538c97ede72b06e338c2a20345d57adb430f4c/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
