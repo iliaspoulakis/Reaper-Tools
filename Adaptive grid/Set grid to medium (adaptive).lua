@@ -31,15 +31,6 @@ function SetMIDIGridMultiplier(multiplier)
     reaper.SetExtState(extname, 'midi_mult', multiplier, true)
 end
 
-function IsServiceEnabled()
-    return reaper.GetExtState(extname, 'is_service_enabled') == ''
-end
-
-function SetServiceEnabled(is_enabled)
-    local value = is_enabled and '' or 'no'
-    reaper.SetExtState(extname, 'is_service_enabled', value, true)
-end
-
 function IsServiceRunning()
     return reaper.GetExtState(extname, 'is_service_running') ~= ''
 end
@@ -125,4 +116,4 @@ UpdateToolbarToggleStates(sec, mult)
 reaper.Undo_EndBlock('Set grid to medium (adaptive)', -1)
 
 -- Start defer background service
-if IsServiceEnabled() and not IsServiceRunning() then StartService() end
+if not IsServiceRunning() then StartService() end

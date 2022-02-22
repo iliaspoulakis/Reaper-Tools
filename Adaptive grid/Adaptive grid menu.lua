@@ -58,10 +58,35 @@ function MenuReturnRecursive(menu, idx, i)
     return i
 end
 
-function IsStartupHookEnabled(script_cmd)
+function GetStartupHookCommandID()
+    -- Note: Startup hook commands have to be in the main section
+    local _, script_file, section, cmd_id = reaper.get_action_context()
+    if section == 0 then
+        -- Save command name when main section script is run first
+        local cmd_name = '_' .. reaper.ReverseNamedCommandLookup(cmd_id)
+        reaper.SetExtState(extname, 'hook_cmd_name', cmd_name, true)
+    else
+        -- Look for saved command name by main section script
+        local cmd_name = reaper.GetExtState(extname, 'hook_cmd_name')
+        cmd_id = reaper.NamedCommandLookup(cmd_name)
+        if cmd_id == 0 then
+            -- Add the script to main section (to get cmd id)
+            cmd_id = reaper.AddRemoveReaScript(true, 0, script_file, true)
+            if cmd_id ~= 0 then
+                -- Save command name to avoid adding script on next run
+                cmd_name = '_' .. reaper.ReverseNamedCommandLookup(cmd_id)
+                reaper.SetExtState(extname, 'hook_cmd_name', cmd_name, true)
+            end
+        end
+    end
+    return cmd_id
+end
+
+function IsStartupHookEnabled()
     local res_path = reaper.GetResourcePath()
     local startup_path = ConcatPath(res_path, 'Scripts', '__startup.lua')
-    local cmd_id = reaper.ReverseNamedCommandLookup(script_cmd)
+    local cmd_id = GetStartupHookCommandID()
+    local cmd_name = reaper.ReverseNamedCommandLookup(cmd_id)
 
     if reaper.file_exists(startup_path) then
         -- Read content of __startup.lua
@@ -70,7 +95,7 @@ function IsStartupHookEnabled(script_cmd)
         startup_file:close()
 
         -- Find line that contains command id (also next line if available)
-        local pattern = '[^\n]+' .. cmd_id .. '\'?\n?[^\n]+'
+        local pattern = '[^\n]+' .. cmd_name .. '\'?\n?[^\n]+'
         local s, e = content:find(pattern)
 
         -- Check if line exists and whether it is commented out
@@ -83,10 +108,11 @@ function IsStartupHookEnabled(script_cmd)
     return false
 end
 
-function SetStartupHookEnabled(script_cmd, is_enabled, comment, var_name)
+function SetStartupHookEnabled(is_enabled, comment, var_name)
     local res_path = reaper.GetResourcePath()
     local startup_path = ConcatPath(res_path, 'Scripts', '__startup.lua')
-    local cmd_id = reaper.ReverseNamedCommandLookup(script_cmd)
+    local cmd_id = GetStartupHookCommandID()
+    local cmd_name = reaper.ReverseNamedCommandLookup(cmd_id)
 
     local content = ''
     local hook_exists = false
@@ -99,7 +125,7 @@ function SetStartupHookEnabled(script_cmd, is_enabled, comment, var_name)
         startup_file:close()
 
         -- Find line that contains command id (also next line if available)
-        local pattern = '[^\n]+' .. cmd_id .. '\'?\n?[^\n]+'
+        local pattern = '[^\n]+' .. cmd_name .. '\'?\n?[^\n]+'
         local s, e = content:find(pattern)
 
         if s and e then
@@ -124,7 +150,7 @@ function SetStartupHookEnabled(script_cmd, is_enabled, comment, var_name)
         var_name = var_name or 'cmd_name'
         local hook = '%slocal %s = \'_%s\'\nreaper.\z
             Main_OnCommand(reaper.NamedCommandLookup(%s), 0)\n\n'
-        hook = hook:format(comment, var_name, cmd_id, var_name)
+        hook = hook:format(comment, var_name, cmd_name, var_name)
         local startup_file = io.open(startup_path, 'w')
         startup_file:write(hook .. content)
         startup_file:close()
@@ -145,15 +171,6 @@ end
 
 function SetMIDIGridMultiplier(multiplier)
     reaper.SetExtState(extname, 'midi_mult', multiplier, true)
-end
-
-function IsServiceEnabled()
-    return reaper.GetExtState(extname, 'is_service_enabled') == ''
-end
-
-function SetServiceEnabled(is_enabled)
-    local value = is_enabled and '' or 'no'
-    reaper.SetExtState(extname, 'is_service_enabled', value, true)
 end
 
 function IsServiceRunning()
@@ -220,122 +237,6 @@ function GetStringHash(str, length)
     local hash_table = {}
     for i = 1, length do hash_table[i] = ('%x'):format(math.random(0, 16)) end
     return table.concat(hash_table)
-end
-
-function CreateCustomAction(name, section, command, adapt_command)
-    if not adapt_command then return '' end
-    local pattern = 'ACT 3 %s "%s" "Custom: %s" %s _%s\n'
-    local adapt_command_name = reaper.ReverseNamedCommandLookup(adapt_command)
-    local hash = GetStringHash(name .. section, 32)
-    return pattern:format(section, hash, name, command, adapt_command_name)
-end
-
-function CreateCustomActions()
-
-    local actions = {
-        {
-            name = 'Zoom horizontally & adapt grid [MIDI CC relative/mousewheel]',
-            cmd = 990,
-            section = 0,
-        },
-        {
-            name = 'Zoom horizontally & adapt grid [MIDI CC relative/mousewheel]',
-            cmd = 40431,
-            section = 32060,
-        },
-        {
-            name = 'Zoom horizontally reversed & adapt grid [MIDI CC relative/mousewheel]',
-            cmd = 979,
-            section = 0,
-        },
-        {
-            name = 'Zoom horizontally reversed & adapt grid [MIDI CC relative/mousewheel]',
-            cmd = 40662,
-            section = 32060,
-        },
-        {name = 'Zoom in horizontal & adapt grid', cmd = 1012, section = 0},
-        {
-            name = 'Zoom in horizontally & adapt grid',
-            cmd = 1012,
-            section = 32060,
-        },
-        {name = 'Zoom out horizontal & adapt grid', cmd = 1011, section = 0},
-        {
-            name = 'Zoom out horizontally & adapt grid',
-            cmd = 1011,
-            section = 32060,
-        },
-        {name = 'Zoom time selection & adapt grid', cmd = 40031, section = 0},
-        {
-            name = 'Zoom to project loop selection & adapt grid',
-            cmd = 40726,
-            section = 32060,
-        },
-        {name = 'Zoom out project & adapt grid', cmd = 40295, section = 0},
-        {name = 'Zoom to content & adapt grid', cmd = 40466, section = 32060},
-        {
-            name = 'Zoom to selected notes/CC & adapt grid',
-            cmd = 40725,
-            section = 32060,
-        },
-    }
-
-    local script_path = ConcatPath(path, 'Adapt grid to zoom level.lua')
-
-    if not reaper.file_exists(script_path) then
-        local msg = 'Could not find script: %s'
-        reaper.MB(msg:format(script_path), 'Error', 0)
-        return 0, 0
-    end
-
-    local main_cmd = reaper.AddRemoveReaScript(true, 0, script_path, true)
-    local midi_cmd = reaper.AddRemoveReaScript(true, 32060, script_path, true)
-
-    -- Create key map file
-    local key_map_content = ''
-
-    for _, action in ipairs(actions) do
-        local adapt_cmd = action.section == 0 and main_cmd or midi_cmd
-        local action_str = CreateCustomAction(action.name, action.section,
-                                              action.cmd, adapt_cmd)
-        key_map_content = key_map_content .. action_str
-    end
-
-    -- Save key map file
-    local res_path = reaper.GetResourcePath()
-    local key_map_name = 'AdaptiveGrid_CustomActions.ReaperKeyMap'
-    local key_map_path = ConcatPath(res_path, 'KeyMaps', key_map_name)
-
-    local key_map = io.open(key_map_path, 'w')
-    if not key_map then
-        reaper.MB('Could not create file!', 'Error', 0)
-        return
-    end
-    key_map:write(key_map_content)
-    key_map:close()
-
-    reaper.ShowActionList(0)
-    -- Set action list filter to adapt
-    if reaper.JS_Window_Find then
-        local action_list_title = reaper.JS_Localize('Actions', 'common')
-        local action_list = reaper.JS_Window_Find(action_list_title, true)
-        local filter = reaper.JS_Window_FindChildByID(action_list, 1324)
-        reaper.JS_Window_SetTitle(filter, 'adapt')
-    end
-
-    local msg = 'A key map file with custom actions has been created.\n\n\z
-        To import this file go to:\n\z
-        Actions > Key map... (button) > Import shortcut key map'
-    reaper.MB(msg, 'Adaptive grid', 0)
-
-    -- Press keymap button
-    if reaper.JS_Window_Find then
-        reaper.ShowActionList(0)
-        local action_list_title = reaper.JS_Localize('Actions', 'common')
-        local action_list = reaper.JS_Window_Find(action_list_title, true)
-        local key_map_button = reaper.JS_Window_FindChildByID(action_list, 6)
-        reaper.JS_WindowMessage_Post(key_map_button, 'WM_KEYDOWN', 13, 0, 0, 0)
-    end
 end
 
 function GetIniConfigValue(key, default)
@@ -561,9 +462,7 @@ function SetAdaptiveGrid(multiplier)
 
     if multiplier ~= 0 then
         RunAdaptScript(false)
-        if IsServiceEnabled() and not IsServiceRunning() then
-            StartService()
-        end
+        if not IsServiceRunning() then StartService() end
     end
 end
 
@@ -581,9 +480,7 @@ function SetMIDIAdaptiveGrid(multiplier)
 
     if multiplier ~= 0 then
         RunAdaptScript(true)
-        if IsServiceEnabled() and not IsServiceRunning() then
-            StartService()
-        end
+        if not IsServiceRunning() then StartService() end
     end
 end
 
@@ -615,31 +512,15 @@ local options_menu = {
         arg = true,
     },
     {separator = true},
-    {title = 'Create custom actions', OnReturn = CreateCustomActions},
-    {separator = true},
-    {
-        title = 'Use background service',
-        IsChecked = IsServiceEnabled,
-        OnReturn = function()
-            local is_enabled = IsServiceEnabled()
-            if is_enabled and IsStartupHookEnabled(cmd) then
-                SetStartupHookEnabled(cmd, false)
-            end
-            SetServiceEnabled(not is_enabled)
-            if not is_enabled then StartService() end
-        end,
-    },
     {
         title = 'Run service on startup',
         IsChecked = IsStartupHookEnabled,
-        OnReturn = function(script_cmd)
-            local is_enabled = not IsStartupHookEnabled(script_cmd)
+        OnReturn = function()
+            local is_enabled = not IsStartupHookEnabled()
             local comment = 'Start script: Adaptive grid (background process)'
             local var_name = 'adaptive_grid_cmd'
-            SetStartupHookEnabled(script_cmd, is_enabled, comment, var_name)
+            SetStartupHookEnabled(is_enabled, comment, var_name)
         end,
-        IsGrayed = function() return not IsServiceEnabled() end,
-        arg = cmd,
     },
 }
 
@@ -702,6 +583,18 @@ local midi_menu = {
             OnReturn = SetUserGridLimits,
             arg = true,
         },
+        {separator = true},
+        {
+            title = 'Run service on startup',
+            IsChecked = IsStartupHookEnabled,
+            OnReturn = function()
+                local is_enabled = not IsStartupHookEnabled()
+                local comment =
+                    'Start script: Adaptive grid (background process)'
+                local var_name = 'adaptive_grid_cmd'
+                SetStartupHookEnabled(is_enabled, comment, var_name)
+            end,
+        },
     },
 }
 
@@ -741,6 +634,8 @@ local main_menu = {
         IsChecked = IsGridSwingEnabled,
         OnReturn = ToggleGridSwing,
     },
+    {separator = true},
+    {title = 'Fixed', is_grayed = true},
     {separator = true},
     {
         {
@@ -804,6 +699,8 @@ local main_menu = {
             arg = 4,
         },
     },
+    {separator = true},
+    {title = 'Adaptive', is_grayed = true},
     {separator = true},
     {
         {
@@ -910,12 +807,12 @@ else
     reaper.SetExtState(extname, 'projgridmin', min_spacing, true)
 end
 
-local is_hook_enabled = IsStartupHookEnabled(cmd)
+local is_hook_enabled = IsStartupHookEnabled()
 
 local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
 reaper.SetExtState(extname, 'has_run', 'yes', false)
 
-if IsServiceEnabled() and not IsServiceRunning() then
+if not IsServiceRunning() then
     -- Exit immediately when running on startup but adaptive grid is deactivated
     if not has_run and is_hook_enabled then
         UpdateToolbarToggleStates(0, GetGridMultiplier())

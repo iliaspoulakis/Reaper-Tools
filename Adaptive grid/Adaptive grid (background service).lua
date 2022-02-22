@@ -11,10 +11,6 @@ local path = file:match('^(.+)[\\/]')
 
 function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
 
-function IsServiceEnabled()
-    return reaper.GetExtState(extname, 'is_service_enabled') == ''
-end
-
 function SetServiceRunning(is_running)
     local value = is_running and 'yes' or ''
     reaper.SetExtState(extname, 'is_service_running', value, false)
@@ -81,6 +77,7 @@ function Main()
             -- Run adapt script in mode 1
             _G.mode = 1
             run_adapt_scipt()
+            -- dofile(adapt_script_path)
         end
     end
 
@@ -104,15 +101,14 @@ function Main()
                     -- Run adapt script in mode 2
                     _G.mode = 2
                     run_adapt_scipt()
+                    -- dofile(adapt_script_path)
                 end
             end
         end
     end
 
     -- Exit script automatically when not needed anymore (by changes in settings)
-    if not IsServiceEnabled() or main_mult == 0 and midi_mult == 0 then
-        return
-    end
+    if main_mult == 0 and midi_mult == 0 then return end
     reaper.defer(Main)
 end
 

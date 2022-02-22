@@ -1,14 +1,15 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.3
+  @version 1.3.0
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
     [main=main,midi_editor] Adaptive grid menu.lua
     [nomain] Adaptive grid (background service).lua
-    [main=main,midi_editor] Adapt grid to zoom level.lua
+    [nomain] Adapt grid to zoom level.lua
     [main=main,midi_editor] Set grid to * (adaptive).lua
   @changelog
-    - Fix issue with menu not showing on macOS when in fullscreen
+    - Added "Start service on startup" option to MIDI editor menu
+    - Removed custom action options
 ]]
