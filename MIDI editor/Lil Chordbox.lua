@@ -1,13 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added options menu
-    - Support custom user colors
-    - Option to run script on startup
+    - Fixed issue with where certain chords at mouse cursor would not be recognized
+    - Fixed possible crash when getting MIDI input events
 ]]
 
 local box_x_offs = 0
@@ -27,6 +26,7 @@ local prev_w
 local prev_idx
 local prev_hwnd
 local prev_hash
+local prev_take
 local prev_row
 local prev_mode
 local prev_cursor_pos
@@ -277,8 +277,8 @@ function GetChords(take)
                         end
                     end
                 end
+                chord_min_eppq = eppq
                 notes = new_notes
-                chord_min_eppq = nil
             end
             notes[#notes + 1] = note_info
         end
@@ -311,7 +311,7 @@ function GetMIDIInputChord(track)
         local new_idx = idx
         local i = 0
         repeat
-            if prev_idx ~= 0 then
+            if prev_idx ~= 0 and #buf == 3 then
                 local is_vkb_dev = dev_id == 62
                 local is_all_dev = filter_dev_id == 63
                 if not is_vkb_dev and (is_all_dev or dev_id == filter_dev_id) then
@@ -697,12 +697,14 @@ function Main()
     -- Keep process idle when no MIDI editor is open
     if not reaper.ValidatePtr(hwnd, 'HWND*') then
         reaper.defer(Main)
+        prev_take = nil
         return
     end
 
     local is_redraw = false
     local is_forced_redraw = false
 
+    -- Detect width changes (e.g. when editor moves from hdpi to non-hppi monitor)
     piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
     local _, w = reaper.JS_Window_GetClientSize(piano_pane)
     if w ~= prev_w or hwnd ~= prev_hwnd then
@@ -760,10 +762,18 @@ function Main()
         is_forced_redraw = true
     end
 
+    -- Keep process idle when no valid take is open
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then
         reaper.defer(Main)
         return
+    end
+
+    -- Flush input events when take changes
+    if take ~= prev_take then
+        prev_take = take
+        prev_idx = reaper.MIDI_GetRecentInputEvent(0)
+        input_note_map = {}
     end
 
     -- Open options menu when user clicks on the box
@@ -793,9 +803,9 @@ function Main()
         end
     end
 
+    -- Process input chords that user plays on his MIDI keyboard
     local track = reaper.GetMediaItemTake_Track(take)
     local input_chord = GetMIDIInputChord(track)
-
     if input_chord then
         input_timer = reaper.time_precise()
         DrawLICE(input_chord, 3)
@@ -815,7 +825,7 @@ function Main()
         end
     end
 
-    -- Get new chords when take MIDI information changes
+    -- Update take chord information when MIDI hash changes
     local ret, hash = reaper.MIDI_GetHash(take, true)
     if hash ~= prev_hash then
         prev_hash = hash
