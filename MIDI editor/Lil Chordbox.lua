@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Fixed issue with where certain chords at mouse cursor would not be recognized
-    - Fixed possible crash when getting MIDI input events
+    - Added option to use edit cursor instead of mouse
 ]]
 
 local box_x_offs = 0
@@ -59,6 +58,8 @@ local user_text_color = reaper.GetExtState(extname, 'text_color')
 local user_sel_color = reaper.GetExtState(extname, 'sel_color')
 local user_play_color = reaper.GetExtState(extname, 'play_color')
 local user_rec_color = reaper.GetExtState(extname, 'rec_color')
+
+local cursor_mode = reaper.GetExtState(extname, 'cursor_mode')
 
 -- Check if SWS extension is installed
 if not reaper.BR_GetMouseCursorContext then
@@ -784,6 +785,18 @@ function Main()
         local is_right_click = mouse_state == 2
         if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
             local menu = {
+                {
+                    title = 'Options',
+                    {
+                        title = 'Use edit cursor instead of mouse',
+                        OnReturn = function()
+                            cursor_mode = cursor_mode == '1' and '0' or '1'
+                            reaper.SetExtState(extname, 'cursor_mode',
+                                               cursor_mode, true)
+                        end,
+                        is_checked = cursor_mode == '1',
+                    },
+                },
                 {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
                     title = 'Run script on startup',
@@ -826,7 +839,7 @@ function Main()
     end
 
     -- Update take chord information when MIDI hash changes
-    local ret, hash = reaper.MIDI_GetHash(take, true)
+    local _, hash = reaper.MIDI_GetHash(take, true)
     if hash ~= prev_hash then
         prev_hash = hash
         curr_chords, curr_sel_chord = GetChords(take)
@@ -836,11 +849,16 @@ function Main()
     local mode = -1
     local cursor_pos
 
-    -- Get position at mouse cursor
-    local _, segment = reaper.BR_GetMouseCursorContext()
-    if segment == 'notes' then
-        cursor_pos = reaper.BR_GetMouseCursorContext_Position()
+    if cursor_mode == '1' then
+        cursor_pos = reaper.GetCursorPosition()
         mode = 0
+    else
+        -- Get position at mouse cursor
+        local _, segment = reaper.BR_GetMouseCursorContext()
+        if segment == 'notes' then
+            cursor_pos = reaper.BR_GetMouseCursorContext_Position()
+            mode = 0
+        end
     end
 
     -- Use play cursor position during playback/record
