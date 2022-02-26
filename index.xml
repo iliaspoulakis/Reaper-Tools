@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="7bc70153feab55e6b6187cbec47eabd261e506bd">
+<index version="1" name="FTC Tools" commit="f9e34f6902619b17c65d55a4e56c721c39c17041">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -529,6 +529,10 @@
         <changelog><![CDATA[- Fixed issue with where certain chords at mouse cursor would not be recognized
 - Fixed possible crash when getting MIDI input events]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/7bc70153feab55e6b6187cbec47eabd261e506bd/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="1.3.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-02-26T12:23:35Z">
+        <changelog><![CDATA[- Added option to use edit cursor instead of mouse]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/f9e34f6902619b17c65d55a4e56c721c39c17041/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
