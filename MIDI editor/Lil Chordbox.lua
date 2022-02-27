@@ -587,8 +587,10 @@ function DrawLICE(chord, mode)
     reaper.JS_LICE_Clear(bitmap, 0)
 
     local alpha = 0xFF000000
-    local bg_color, hl_color, sh_color, text_color
+    local bg_color, hl_color, sh_color
     local play_color, sel_color, rec_color
+
+    local text_color = reaper.GetThemeColor('col_main_text', 0) | alpha
 
     if user_bg_color ~= '' then
         bg_color = tonumber(user_bg_color, 16) | alpha
@@ -601,11 +603,6 @@ function DrawLICE(chord, mode)
     else
         hl_color = reaper.GetThemeColor('col_main_3dhl', 0) | alpha
         sh_color = reaper.GetThemeColor('col_main_3dsh', 0) | alpha
-    end
-    if user_text_color ~= '' then
-        text_color = tonumber(user_text_color, 16) | alpha
-    else
-        text_color = reaper.GetThemeColor('col_main_text', 0) | alpha
     end
     if user_play_color ~= '' then
         play_color = tonumber(user_play_color, 16) | alpha
@@ -621,6 +618,9 @@ function DrawLICE(chord, mode)
         rec_color = tonumber(user_rec_color, 16) | alpha
     else
         rec_color = text_color
+    end
+    if user_text_color ~= '' then
+        text_color = tonumber(user_text_color, 16) | alpha
     end
 
     -- Draw box background
