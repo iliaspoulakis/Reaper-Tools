@@ -1058,10 +1058,10 @@ function Main()
     -- Calculate time position at mouse using start/end time of the MIDI editor
     if curr_start_time then
         local diff = curr_end_time - curr_start_time
-        local _, midiview_width = reaper.JS_Window_GetClientSize(notes_view)
+        local _, notes_view_width = reaper.JS_Window_GetClientSize(notes_view)
         local x, y = reaper.GetMousePosition()
         x, y = reaper.JS_Window_ScreenToClient(notes_view, x, y)
-        cursor_pos = curr_start_time + x / midiview_width * diff
+        cursor_pos = curr_start_time + x / notes_view_width * diff
         mode = 0
     end
 
