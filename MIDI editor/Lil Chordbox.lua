@@ -16,6 +16,7 @@ local box_h_offs = 0
 local piano_pane
 local curr_chords
 local curr_sel_chord
+local curr_scale_intervals
 local input_timer
 
 local input_note_map = {}
@@ -33,6 +34,10 @@ local prev_chord_name
 local prev_color_theme
 local prev_mouse_state
 local prev_play_state
+local prev_input_chord_name
+local prev_is_key_snap
+local prev_midi_scale_root
+local prev_midi_scale
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -185,15 +190,42 @@ chord_names['1 3 4 8'] = 'm add9'
 chord_names['1 3 5 8'] = 'maj add9'
 chord_names['1 5 10 11'] = '7 add13'
 
+local degrees = {
+    'I',
+    'II',
+    'II',
+    'III',
+    'III',
+    'IV',
+    'V',
+    'V',
+    'VI',
+    'VI',
+    'VII',
+    'VII',
+}
+
+local note_names = {
+    'C',
+    'C#',
+    'D',
+    'D#',
+    'E',
+    'F',
+    'F#',
+    'G',
+    'G#',
+    'A',
+    'A#',
+    'B',
+}
+
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
-function PitchToName(pitch)
-    local n = {'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'}
-    return n[pitch % 12 + 1]
-end
+function PitchToName(pitch) return note_names[pitch % 12 + 1] end
 
-function GetChordName(notes)
-    -- Get root note
+function IdentifyChord(notes)
+    -- Get chord root
     local root = math.maxinteger
     for _, note in ipairs(notes) do
         root = note.pitch < root and note.pitch or root
@@ -208,7 +240,7 @@ function GetChordName(notes)
     for i = 2, 12 do if intervals[i] then key = key .. ' ' .. i end end
 
     -- Check if chord name exists for key
-    if chord_names[key] then return PitchToName(root) .. chord_names[key] end
+    if chord_names[key] then return key, root end
 
     local key_nums = {}
     for key_num in key:gmatch('%d+') do key_nums[#key_nums + 1] = key_num end
@@ -225,25 +257,62 @@ function GetChordName(notes)
             if intervals[i] then inv_key = inv_key .. ' ' .. i end
         end
         -- Check if chord name exists for inversion key
-        if chord_names[inv_key] then
-            return PitchToName(root + diff) .. chord_names[inv_key]
-        end
+        if chord_names[inv_key] then return inv_key, root + diff end
     end
 end
 
 function BuildChord(notes)
-    -- Get chord start and end position
-    local min_eppq = math.maxinteger
-    local max_sppq = math.mininteger
-    for _, note in ipairs(notes) do
-        min_eppq = note.eppq < min_eppq and note.eppq or min_eppq
-        max_sppq = note.sppq > max_sppq and note.sppq or max_sppq
+    local chord_key, chord_root = IdentifyChord(notes)
+    if chord_key then
+        local chord = {notes = notes, root = chord_root, key = chord_key}
+        if notes[1].sppq then
+            -- Determine chord start and end ppq position
+            local min_eppq = math.maxinteger
+            local max_sppq = math.mininteger
+            for _, note in ipairs(notes) do
+                min_eppq = note.eppq < min_eppq and note.eppq or min_eppq
+                max_sppq = note.sppq > max_sppq and note.sppq or max_sppq
+            end
+            chord.sppq = max_sppq
+            chord.eppq = min_eppq
+        end
+        return chord
     end
+end
 
-    local chord_name = GetChordName(notes)
-    if chord_name then
-        return {name = chord_name, sppq = max_sppq, eppq = min_eppq}
+function GetChordDegree(chord)
+    -- Return without degree if a note of the chord is not included in scale
+    for _, note in ipairs(chord.notes) do
+        if not curr_scale_intervals[(note.pitch - prev_midi_scale_root) % 12 + 1] then
+            return
+        end
     end
+    -- Check the third and and the fifth to get degree info (minor,augmented etc.)
+    local scale_note_cnt = 0
+    local third
+    local fifth
+    for i = 0, 8 do
+        if curr_scale_intervals[((chord.root + i) % 12) + 1] then
+            scale_note_cnt = scale_note_cnt + 1
+            if scale_note_cnt == 3 then third = i end
+            if scale_note_cnt == 5 then fifth = i end
+        end
+    end
+    -- Build degree string based on info
+    local degree = degrees[(chord.root - prev_midi_scale_root) % 12 + 1]
+    if third == 3 then degree = degree:lower() end
+    if fifth == 6 then degree = degree .. 'o' end
+    if fifth == 8 then degree = degree .. '+' end
+    return degree
+end
+
+function BuildChordName(chord)
+    if not chord then return '' end
+    if chord.name then return chord.name end
+    local name = PitchToName(chord.root) .. chord_names[chord.key]
+    local degree = prev_is_key_snap and GetChordDegree(chord)
+    if degree then name = name .. ' - ' .. degree end
+    return name
 end
 
 function GetChords(take)
@@ -351,8 +420,7 @@ function GetMIDIInputChord(track)
                 notes[#notes + 1] = {pitch = n}
             end
         end
-        local chord_name = GetChordName(notes)
-        if chord_name then return chord_name end
+        return BuildChord(notes)
     end
 end
 
@@ -816,12 +884,42 @@ function Main()
         end
     end
 
+    -- Detect MIDI scale changes
+    local is_key_snap, midi_scale_root, midi_scale = reaper.MIDI_GetScale(take)
+
+    if is_key_snap ~= prev_is_key_snap then
+        prev_is_key_snap = is_key_snap
+        is_redraw = true
+    end
+
+    if is_key_snap then
+        if midi_scale_root ~= prev_midi_scale_root then
+            prev_midi_scale_root = midi_scale_root
+            is_redraw = true
+        end
+        if midi_scale ~= prev_midi_scale then
+            prev_midi_scale = midi_scale
+            curr_scale_intervals = {}
+            for i = 0, 11 do
+                local mask = (1 << i)
+                local has_note = midi_scale & mask == mask
+                curr_scale_intervals[i + 1] = has_note and 1
+            end
+            is_redraw = true
+        end
+    end
+
     -- Process input chords that user plays on his MIDI keyboard
     local track = reaper.GetMediaItemTake_Track(take)
     local input_chord = GetMIDIInputChord(track)
     if input_chord then
         input_timer = reaper.time_precise()
-        DrawLICE(input_chord, 3)
+        local input_chord_name = BuildChordName(input_chord)
+        -- Only redraw LICE bitmap when chord name has changed
+        if input_chord_name ~= prev_input_chord_name then
+            prev_input_chord_name = input_chord
+            DrawLICE(input_chord_name, 3)
+        end
         reaper.defer(Main)
         return
     end
@@ -881,10 +979,10 @@ function Main()
     end
 
     if is_redraw or is_forced_redraw then
-        local chord_name = ''
+        local curr_chord
         -- Get chord name depending on mode
         if curr_sel_chord then
-            chord_name = curr_sel_chord.name
+            curr_chord = curr_sel_chord
             mode = 2
         end
 
@@ -893,7 +991,7 @@ function Main()
             local cursor_ppq = GetPPQFromTime(take, cursor_pos)
             for _, chord in ipairs(curr_chords) do
                 if chord.sppq > cursor_ppq then break end
-                chord_name = chord.name
+                curr_chord = chord
             end
         end
 
@@ -903,18 +1001,21 @@ function Main()
             for _, chord in ipairs(curr_chords) do
                 if chord.sppq > cursor_ppq then break end
                 if cursor_ppq >= chord.sppq and cursor_ppq <= chord.eppq then
-                    chord_name = chord.name
+                    curr_chord = chord
                     break
                 end
             end
         end
 
-        local has_chord_changed = chord_name ~= prev_chord_name
+        local curr_chord_name = BuildChordName(curr_chord)
+
+        -- Check if redrawing LICE bitmap is necessary
+        local has_chord_changed = curr_chord_name ~= prev_chord_name
         local has_mode_changed = mode ~= prev_mode
         if has_chord_changed or has_mode_changed or is_forced_redraw then
-            prev_chord_name = chord_name
+            prev_chord_name = curr_chord_name
             prev_mode = mode
-            DrawLICE(chord_name, mode)
+            DrawLICE(curr_chord_name, mode)
         end
     end
 
