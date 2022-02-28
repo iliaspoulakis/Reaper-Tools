@@ -1,11 +1,16 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.2
+  @version 1.4.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added option to use edit cursor instead of mouse
+    - Display chord degrees when key snap is enabled
+    - Added solfege mode option (Do, Re, Mi)
+    - Remove dependency on SWS extension
+    - Fixed tooltips not showing on Windows
+    - Display warning when REAPER version is below 6.40
+    - Fixed custom color issue with icons
 ]]
 
 local box_x_offs = 0
