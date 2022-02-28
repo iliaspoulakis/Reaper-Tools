@@ -315,9 +315,10 @@ function BuildChord(notes)
 end
 
 function GetChordDegree(chord)
+    local scale_root = prev_midi_scale_root
     -- Return without degree if a note of the chord is not included in scale
     for _, note in ipairs(chord.notes) do
-        if not curr_scale_intervals[(note.pitch - prev_midi_scale_root) % 12 + 1] then
+        if not curr_scale_intervals[(note.pitch - scale_root) % 12 + 1] then
             return
         end
     end
@@ -326,14 +327,14 @@ function GetChordDegree(chord)
     local third
     local fifth
     for i = 0, 8 do
-        if curr_scale_intervals[((chord.root + i) % 12) + 1] then
+        if curr_scale_intervals[(chord.root + i - scale_root) % 12 + 1] then
             scale_note_cnt = scale_note_cnt + 1
             if scale_note_cnt == 3 then third = i end
             if scale_note_cnt == 5 then fifth = i end
         end
     end
     -- Build degree string based on info
-    local degree = degrees[(chord.root - prev_midi_scale_root) % 12 + 1]
+    local degree = degrees[(chord.root - scale_root) % 12 + 1]
     if third == 3 then degree = degree:lower() end
     if fifth == 6 then degree = degree .. 'o' end
     if fifth == 8 then degree = degree .. '+' end
