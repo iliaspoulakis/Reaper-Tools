@@ -205,7 +205,7 @@ local degrees = {
     'VII',
 }
 
-local note_names = {
+local note_names_abc = {
     'C',
     'C#',
     'D',
@@ -220,9 +220,33 @@ local note_names = {
     'B',
 }
 
+local note_names_solfege = {
+    'Do ',
+    'Do# ',
+    'Re ',
+    'Re# ',
+    'Mi ',
+    'Fa ',
+    'Fa ',
+    'Sol ',
+    'Sol# ',
+    'La ',
+    'La# ',
+    'Si ',
+}
+
+local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
+local note_names = use_solfege and note_names_solfege or note_names_abc
+
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
 function PitchToName(pitch) return note_names[pitch % 12 + 1] end
+
+function ToggleSolfegeMode()
+    use_solfege = not use_solfege
+    note_names = use_solfege and note_names_solfege or note_names_abc
+    reaper.SetExtState(extname, 'solfege', use_solfege and '1' or '0', true)
+end
 
 function IdentifyChord(notes)
     -- Get chord root
@@ -864,6 +888,11 @@ function Main()
                         end,
                         is_checked = cursor_mode == '1',
                     },
+                },
+                {
+                    title = 'Solfège mode (Do, Re, Mi)',
+                    OnReturn = ToggleSolfegeMode,
+                    is_checked = use_solfege,
                 },
                 {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
