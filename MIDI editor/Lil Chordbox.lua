@@ -13,22 +13,26 @@ local box_y_offs = 0
 local box_w_offs = 0
 local box_h_offs = 0
 
+local notes_view
 local piano_pane
+
 local curr_chords
 local curr_sel_chord
 local curr_scale_intervals
-local input_timer
+local curr_start_time
+local curr_end_time
 
+local input_timer
 local input_note_map = {}
 local input_note_cnt = 0
 
-local prev_w
-local prev_idx
 local prev_hwnd
 local prev_hash
 local prev_take
-local prev_row
 local prev_mode
+local prev_time
+local prev_input_idx
+local prev_piano_pane_w
 local prev_cursor_pos
 local prev_chord_name
 local prev_color_theme
@@ -38,15 +42,7 @@ local prev_input_chord_name
 local prev_is_key_snap
 local prev_midi_scale_root
 local prev_midi_scale
-
-local _, _, sec, cmd = reaper.get_action_context()
-
-local os = reaper.GetOS()
-local is_windows = os:match('Win')
-local is_macos = os:match('OSX') or os:match('macOS')
-local is_linux = os:match('Other')
-
-local piano_pane_w = is_windows and 128 or is_macos and 145 or is_linux and 161
+local prev_item_chunk
 
 local scale
 local font_size
@@ -54,6 +50,21 @@ local bitmap
 local lice_font
 
 local bm_x, bm_y, bm_w, bm_h
+
+-- Check if js_ReaScriptAPI extension is installed
+if not reaper.JS_Window_SetPosition then
+    reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
+    return
+end
+
+-- Check REAPER version
+local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
+if version < 6.4 then
+    reaper.MB('Please install REAPER v6.40 or later', 'Error', 0)
+    return
+end
+
+local _, _, sec, cmd = reaper.get_action_context()
 
 local extname = 'FTC.LilChordBox'
 
@@ -64,19 +75,13 @@ local user_sel_color = reaper.GetExtState(extname, 'sel_color')
 local user_play_color = reaper.GetExtState(extname, 'play_color')
 local user_rec_color = reaper.GetExtState(extname, 'rec_color')
 
-local cursor_mode = reaper.GetExtState(extname, 'cursor_mode')
+local os = reaper.GetOS()
+local is_windows = os:match('Win')
+local is_macos = os:match('OSX') or os:match('macOS')
+local is_linux = os:match('Other')
 
--- Check if SWS extension is installed
-if not reaper.BR_GetMouseCursorContext then
-    reaper.MB('Please install SWS extension', 'Error', 0)
-    return
-end
-
--- Check if js_ReaScriptAPI extension is installed
-if not reaper.JS_Window_SetPosition then
-    reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
-    return
-end
+local piano_pane_scale1_w = is_windows and 128 or is_macos and 145 or 161
+local edit_box_scale1_w = is_windows and 52 or is_macos and 60 or 68
 
 local chord_names = {}
 -- Dyads
@@ -398,14 +403,14 @@ function GetMIDIInputChord(track)
     local filter_channel = rec_in & 31
     local filter_dev_id = (rec_in >> 5) & 127
 
-    prev_idx = prev_idx or 0
+    prev_input_idx = prev_input_idx or 0
 
     local idx, buf, _, dev_id = reaper.MIDI_GetRecentInputEvent(0)
-    if idx > prev_idx then
+    if idx > prev_input_idx then
         local new_idx = idx
         local i = 0
         repeat
-            if prev_idx ~= 0 and #buf == 3 then
+            if prev_input_idx ~= 0 and #buf == 3 then
                 local is_vkb_dev = dev_id == 62
                 local is_all_dev = filter_dev_id == 63
                 if not is_vkb_dev and (is_all_dev or dev_id == filter_dev_id) then
@@ -432,9 +437,9 @@ function GetMIDIInputChord(track)
             end
             i = i + 1
             idx, buf, _, dev_id = reaper.MIDI_GetRecentInputEvent(i)
-        until idx == prev_idx
+        until idx == prev_input_idx
 
-        prev_idx = new_idx
+        prev_input_idx = new_idx
     end
 
     if input_note_cnt >= 2 then
@@ -675,6 +680,67 @@ function ShowMenu(menu_str)
     return ret
 end
 
+function GetTakeChunk(take, item_chunk)
+    if not item_chunk then
+        local item = reaper.GetMediaItemTake_Item(take)
+        item_chunk = select(2, reaper.GetItemStateChunk(item, '', false))
+    end
+    local tk = reaper.GetMediaItemTakeInfo_Value(take, 'IP_TAKENUMBER')
+
+    local take_start_ptr = 0
+    local take_end_ptr = 0
+
+    for _ = 0, tk do
+        take_start_ptr = take_end_ptr
+        take_end_ptr = item_chunk:find('\nTAKE[%s\n]', take_start_ptr + 1)
+    end
+    return item_chunk:sub(take_start_ptr, take_end_ptr)
+end
+
+function GetTakeChunkHZoom(chunk)
+    local pattern = 'CFGEDITVIEW (.-) (.-) '
+    return chunk:match(pattern)
+end
+
+function GetTakeChunkTimeBase(chunk)
+    local pattern = 'CFGEDIT ' .. ('.- '):rep(18) .. '(.-) '
+    return tonumber(chunk:match(pattern))
+end
+
+function GetMIDIEditorView(hwnd, item_chunk)
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    local GetProjTimeFromPPQ = reaper.MIDI_GetProjTimeFromPPQPos
+
+    local take_chunk = GetTakeChunk(take, item_chunk)
+    local start_ppq, hzoom_lvl = GetTakeChunkHZoom(take_chunk)
+    if not start_ppq then return end
+
+    local timebase = GetTakeChunkTimeBase(take_chunk) or 0
+    -- 0 = Beats (proj) 1 = Project synced 2 = Time (proj) 4 = Beats (source)
+
+    local end_ppq
+    local start_time, end_time
+
+    local midi_view = reaper.JS_Window_FindChildByID(hwnd, 1001)
+    local _, width_in_pixels = reaper.JS_Window_GetClientSize(midi_view)
+    if timebase == 0 or timebase == 4 then
+        -- For timebase 0 and 4, hzoom_lvl is in pixel/ppq
+        end_ppq = start_ppq + width_in_pixels / hzoom_lvl
+    else
+        -- For timebase 1 and 2, hzoom_lvl is in pixel/time
+        start_time = GetProjTimeFromPPQ(take, start_ppq)
+        end_time = start_time + width_in_pixels / hzoom_lvl
+    end
+
+    -- Convert ppq to time based units
+    start_time = start_time or GetProjTimeFromPPQ(take, start_ppq)
+    end_time = end_time or GetProjTimeFromPPQ(take, end_ppq)
+
+    return start_time, end_time
+end
+
 function DrawLICE(chord, mode)
     reaper.JS_LICE_Clear(bitmap, 0)
 
@@ -797,19 +863,23 @@ function Main()
     local is_redraw = false
     local is_forced_redraw = false
 
-    -- Detect width changes (e.g. when editor moves from hdpi to non-hppi monitor)
-    piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
-    local _, w = reaper.JS_Window_GetClientSize(piano_pane)
-    if w ~= prev_w or hwnd ~= prev_hwnd then
-        prev_w = w
+    -- Monitor MIDI editor window handle changes
+    if hwnd ~= prev_hwnd then
         prev_hwnd = hwnd
-        -- Calculate scale from width of piano pane
-        scale = w / piano_pane_w
+        notes_view = reaper.JS_Window_FindChildByID(hwnd, 1001)
+        piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
+        prev_piano_pane_w = nil
+    end
 
-        local box_w = is_windows and 52 or is_macos and 60 or is_linux and 68
+    -- Detect width changes (e.g. when editor moves from hdpi to non-hppi monitor)
+    local _, piano_pane_w = reaper.JS_Window_GetClientSize(piano_pane)
+    if piano_pane_w ~= prev_piano_pane_w then
+        prev_piano_pane_w = piano_pane_w
+        -- Calculate scale from piano pane width
+        scale = piano_pane_w / piano_pane_scale1_w
 
         -- Use 2 times the size of the boxes above + inbetween padding of 5px
-        bm_w = math.ceil(box_w * scale) * 2 + math.floor(5 * scale)
+        bm_w = math.ceil(edit_box_scale1_w * scale) * 2 + math.floor(5 * scale)
         bm_h = math.floor(18 * scale)
         bm_x = math.floor(7 * scale)
         bm_y = math.floor(28 * scale)
@@ -819,10 +889,10 @@ function Main()
         bm_w = bm_w + box_w_offs
         bm_h = bm_h + box_h_offs
 
+        -- Find optimal font_size by incrementing until it doesn't fit box
         font_size = 1
-        local font_max_height = bm_h - math.floor(4 * scale + 0.5)
+        local font_max_height = bm_h - math.floor(4 * scale)
         if is_macos then font_max_height = font_max_height + 2 end
-        -- Find optimal font_size by incrementing until it doesn't fit
         for i = 1, 100 do
             gfx.setfont(1, 'Arial', i)
             local _, h = gfx.measurestr('F')
@@ -844,7 +914,7 @@ function Main()
         -- Draw LICE bitmap on piano pane
         reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
                             bm_w, bm_h, false)
-        reaper.JS_Composite_Delay(piano_pane, 0.022, 0.022, 2)
+        reaper.JS_Composite_Delay(piano_pane, 0.03, 0.03, 2)
         is_forced_redraw = true
     end
 
@@ -865,7 +935,7 @@ function Main()
     -- Flush input events when take changes
     if take ~= prev_take then
         prev_take = take
-        prev_idx = reaper.MIDI_GetRecentInputEvent(0)
+        prev_input_idx = reaper.MIDI_GetRecentInputEvent(0)
         input_note_map = {}
     end
 
@@ -877,24 +947,12 @@ function Main()
         local is_right_click = mouse_state == 2
         if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
             local menu = {
-                {
-                    title = 'Options',
-                    {
-                        title = 'Use edit cursor instead of mouse',
-                        OnReturn = function()
-                            cursor_mode = cursor_mode == '1' and '0' or '1'
-                            reaper.SetExtState(extname, 'cursor_mode',
-                                               cursor_mode, true)
-                        end,
-                        is_checked = cursor_mode == '1',
-                    },
-                },
+                {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
                     title = 'Solfège mode (Do, Re, Mi)',
                     OnReturn = ToggleSolfegeMode,
                     is_checked = use_solfege,
                 },
-                {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
                     title = 'Run script on startup',
                     IsChecked = IsStartupHookEnabled,
@@ -938,7 +996,7 @@ function Main()
         end
     end
 
-    -- Process input chords that user plays on his MIDI keyboard
+    -- Process input chords that user plays on MIDI keyboard
     local track = reaper.GetMediaItemTake_Track(take)
     local input_chord = GetMIDIInputChord(track)
     if input_chord then
@@ -976,16 +1034,29 @@ function Main()
     local mode = -1
     local cursor_pos
 
-    if cursor_mode == '1' then
-        cursor_pos = reaper.GetCursorPosition()
-        mode = 0
-    else
-        -- Get position at mouse cursor
-        local _, segment = reaper.BR_GetMouseCursorContext()
-        if segment == 'notes' then
-            cursor_pos = reaper.BR_GetMouseCursorContext_Position()
-            mode = 0
+    -- Monitor item chunk (for getting time position at mouse)
+    -- Note: Avoid using GetItemStateChunk every defer cycle so that tooltips
+    -- will show on Windows
+    local curr_time = reaper.time_precise()
+    if not prev_time or curr_time > prev_time + 0.6 then
+        prev_time = curr_time
+        local item = reaper.GetMediaItemTake_Item(take)
+        local _, item_chunk = reaper.GetItemStateChunk(item, '', false)
+
+        if item_chunk ~= prev_item_chunk then
+            prev_item_chunk = item_chunk
+            curr_start_time, curr_end_time = GetMIDIEditorView(hwnd, item_chunk)
         end
+    end
+
+    -- Calculate time position at mouse using start/end time of the MIDI editor
+    if curr_start_time then
+        local diff = curr_end_time - curr_start_time
+        local _, midiview_width = reaper.JS_Window_GetClientSize(notes_view)
+        local x, y = reaper.GetMousePosition()
+        x, y = reaper.JS_Window_ScreenToClient(notes_view, x, y)
+        cursor_pos = curr_start_time + x / midiview_width * diff
+        mode = 0
     end
 
     -- Use play cursor position during playback/record
