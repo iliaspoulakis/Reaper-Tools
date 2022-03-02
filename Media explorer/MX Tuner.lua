@@ -5,7 +5,9 @@
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Added support for MIDI
+    - Added support for MIDI files
+    - Improved pitch detection from file name (more cases)
+    - Added indicator icon that shows when using pitch from metadata or filename
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -51,8 +53,10 @@ local frameless_mode
 local focus_mode
 local ontop_mode
 
-local is_option_bypassed = false
+local curr_parsing_mode = 0
+local is_parsing_bypassed = false
 
+local is_option_bypassed = false
 local trigger_pitch_rescan = false
 
 local flat = {'C', 'D', 'E', 'F', 'G', 'A', 'B'}
@@ -479,11 +483,29 @@ end
 
 function GetPitchFromFileName(file)
     -- Parse note name from file name
-    local note_name = file:match('[%s_[(]([CDEFGAB]%d?[#b]?)[])_]?%d*%.[^.]+$')
-    if not note_name then return end
-    -- Remove digit from result
-    note_name = note_name:gsub('%d', '')
-    return NameToFrequency(note_name)
+    local pattern_pre = '([%s_[(-.])'
+    local pattern_note = '([CDEFGAB][#b]?)'
+    local pattern_add = '(%d?m?[Mmdas]?[aiduM]?[jnmds]?%d*)'
+    local pattern_post = '([%s_[(-.])'
+    local pattern = pattern_pre .. pattern_note .. pattern_add .. pattern_post
+
+    local file_name = file:match('([^\\/]+)$')
+    local file_note
+
+    for pre, note, add, post in file_name:gmatch(pattern) do
+        -- Note: Avoid patterns like 'Color B 12'
+        if pre == ' ' and post == ' ' and add == '' then note = nil end
+        if not file_note then file_note = note end
+        -- Keep matches later in the item name (or longer e.g. with #)
+        if note and #note >= #file_note then file_note = note end
+    end
+
+    -- Check if note is at beginning of file
+    if not file_note then
+        pattern = '^' .. pattern_note .. pattern_add .. pattern_post
+        file_note = file_name:match(pattern)
+    end
+    return NameToFrequency(file_note)
 end
 
 function GetPitchFromMetadata(file)
@@ -583,6 +605,10 @@ function LoadTheme(id)
     if is_docked and GetColorLuminance(toolbar_color) > 0.2 then
         theme.div_color = toolbar_color or {0.08, 0.08, 0.08}
     end
+
+    theme.button_color = {0.38, 0.51, 0.76}
+    theme.button_bypass_color = {0.5, 0.5, 0.5}
+    theme.button_text_color = {0.8, 0.8, 0.8}
 
     if id == 1 then
         -- Light theme
@@ -727,6 +753,15 @@ function DrawPiano()
     hovered_key = nil
     if gfx.mouse_cap & 1 == 0 then is_pressed = false end
 
+    local button_w = math.max(18, math.min(f_w // 4, gfx.h // 4))
+    if curr_parsing_mode > 0 and m_x <= button_w and m_y <= button_w then
+        if not is_pressed and gfx.mouse_cap & 1 == 1 then
+            is_parsing_bypassed = not is_parsing_bypassed
+            trigger_pitch_rescan = true
+            is_pressed = true
+        end
+    end
+
     for i = #keys, 1, -1 do
         local key = keys[i]
         local x, y, w, h = key.x, key.y, key.w, key.h
@@ -796,6 +831,33 @@ function DrawPiano()
         end
     end
 
+    if curr_parsing_mode == 0 then
+        gfx.update()
+        return
+    end
+
+    -- Draw parse button inner border
+    gfx.set(table.unpack(theme.nat_color))
+    gfx.rect(0, 0, button_w, button_w, 1)
+
+    -- Draw parse button background
+    local button_bg_color = theme.button_color
+    if is_parsing_bypassed then button_bg_color = theme.button_bypass_color end
+    gfx.set(table.unpack(button_bg_color))
+    gfx.rect(2, 2, button_w - 4, button_w - 4, 1)
+
+    -- Draw parse button border
+    gfx.set(table.unpack(theme.flat_color))
+    gfx.rect(0, 0, button_w, button_w, 0)
+
+    -- Draw parse button text
+    gfx.set(table.unpack(theme.button_text_color))
+
+    local button_text = curr_parsing_mode == 1 and 'F' or 'M'
+    local text_w, text_h = gfx.measurestr(button_text)
+    gfx.x, gfx.y = (button_w - text_w) // 2, (button_w - text_h) // 2
+    gfx.drawstr(button_text)
+
     gfx.update()
 end
 
@@ -838,26 +900,34 @@ function Main()
     -- Monitor media explorer file selection
     local files = MediaExplorer_GetSelectedMediaFiles()
     local new_file = files[1]
+    local has_file_changed = prev_file ~= new_file
+    if new_file and (has_file_changed or trigger_pitch_rescan) then
 
-    if new_file and (prev_file ~= new_file or trigger_pitch_rescan) then
+        if has_file_changed then is_parsing_bypassed = false end
 
         local file_pitch
-
         -- Check metadata for pitch
         if parse_meta_mode == 1 then
+            curr_parsing_mode = 2
             file_pitch = GetPitchFromMetadata(new_file)
         end
         -- Check file name for pitch
         if not file_pitch and parse_name_mode == 1 then
+            curr_parsing_mode = 1
             file_pitch = GetPitchFromFileName(new_file)
         end
         -- Use chosen pitch detection algorithm to find pitch
-        if not file_pitch then
+        if not file_pitch or is_parsing_bypassed then
+
+            if not is_parsing_bypassed then curr_parsing_mode = 0 end
+
             local ext = new_file:match('%.([^.]+)$')
             if ext:lower() == 'mid' then
+                -- Get pitch from MIDI file
                 local root_name = GetMIDIFileRootName(new_file)
                 file_pitch = NameToFrequency(root_name)
             else
+                -- Get pitch from audio file
                 if algo_mode == 1 then
                     file_pitch = GetPitchFTC(new_file)
                 end
