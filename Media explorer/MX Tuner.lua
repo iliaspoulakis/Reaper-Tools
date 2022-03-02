@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.4
+  @version 1.6.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Fix issue with details/list view on Windows
+    - Added support for MIDI
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -95,17 +95,52 @@ function NameToFrequency(name)
     end
 end
 
-function IsAudioFile(file)
+function GetMIDIFileRootName(file)
+    local has_added_track = false
+    local track = reaper.GetTrack(0, 0)
+
+    -- Add track if project has no tracks
+    if not track then
+        has_added_track = true
+        reaper.InsertTrackAtIndex(0, false)
+        track = reaper.GetTrack(0, 0)
+    end
+
+    -- Add MIDI source to new take
+    local src = reaper.PCM_Source_CreateFromFileEx(file, true)
+    local src_len = reaper.GetMediaSourceLength(src)
+    local item = reaper.AddMediaItemToTrack(track)
+    local take = reaper.AddTakeToMediaItem(item)
+    reaper.SetMediaItemTake_Source(take, src)
+
+    -- Get lowest pitch in MIDI file (root)
+    local min_pitch = math.maxinteger
+    local _, note_cnt = reaper.MIDI_CountEvts(take)
+    for n = 0, note_cnt - 1 do
+        local ret, _, _, _, _, _, pitch = reaper.MIDI_GetNote(take, n)
+        min_pitch = pitch < min_pitch and pitch or min_pitch
+    end
+
+    -- Convert pitch to note name
+    local n = {'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'}
+    local root_name = min_pitch ~= math.maxinteger and n[min_pitch % 12 + 1]
+
+    -- Clean up
+    reaper.DeleteTrackMediaItem(track, item)
+    if has_added_track then reaper.DeleteTrack(track) end
+
+    return root_name
+end
+
+function IsMediaFile(file)
     local ext = file:match('%.([^.]+)$')
     if ext and reaper.IsMediaExtension(ext, false) then
         ext = ext:lower()
-        if ext ~= 'xml' and ext ~= 'mid' and ext ~= 'rpp' then
-            return true
-        end
+        if ext ~= 'xml' and ext ~= 'rpp' then return true end
     end
 end
 
-function MediaExplorer_GetSelectedAudioFiles()
+function MediaExplorer_GetSelectedMediaFiles()
 
     local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
     local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
@@ -128,7 +163,7 @@ function MediaExplorer_GetSelectedAudioFiles()
         if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
             file_name = file_name .. '.' .. ext
         end
-        if IsAudioFile(file_name) then
+        if IsMediaFile(file_name) then
             -- Check if file_name is valid path itself (for searches and DBs)
             if not reaper.file_exists(file_name) then
                 file_name = path .. sep .. file_name
@@ -801,7 +836,7 @@ function Main()
     end
 
     -- Monitor media explorer file selection
-    local files = MediaExplorer_GetSelectedAudioFiles()
+    local files = MediaExplorer_GetSelectedMediaFiles()
     local new_file = files[1]
 
     if new_file and (prev_file ~= new_file or trigger_pitch_rescan) then
@@ -818,8 +853,18 @@ function Main()
         end
         -- Use chosen pitch detection algorithm to find pitch
         if not file_pitch then
-            if algo_mode == 1 then file_pitch = GetPitchFTC(new_file) end
-            if algo_mode == 2 then file_pitch = GetPitchFFT(new_file) end
+            local ext = new_file:match('%.([^.]+)$')
+            if ext:lower() == 'mid' then
+                local root_name = GetMIDIFileRootName(new_file)
+                file_pitch = NameToFrequency(root_name)
+            else
+                if algo_mode == 1 then
+                    file_pitch = GetPitchFTC(new_file)
+                end
+                if algo_mode == 2 then
+                    file_pitch = GetPitchFFT(new_file)
+                end
+            end
         end
         prev_file_pitch = file_pitch
 
