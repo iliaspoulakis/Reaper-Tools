@@ -1,16 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.4.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Display chord degrees when key snap is enabled
-    - Added solfege mode option (Do, Re, Mi)
-    - Remove dependency on SWS extension
-    - Fixed tooltips not showing on Windows
-    - Display warning when REAPER version is below 6.40
-    - Fixed custom color issue with icons
+    - Added support for chord detection in looped items
 ]]
 
 local box_x_offs = 0
@@ -747,6 +742,37 @@ function GetMIDIEditorView(hwnd, item_chunk)
     return start_time, end_time
 end
 
+function GetCursorPPQPosition(take, cursor_pos)
+
+    local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
+
+    -- In timebase source simply return cursor ppq position
+    local is_timebase_source = reaper.GetToggleCommandStateEx(32060, 40470) == 1
+    if is_timebase_source then return cursor_ppq end
+
+    local item = reaper.GetMediaItemTake_Item(take)
+    local length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local end_pos = start_pos + length
+
+    -- Check that cursor position is within arrange view item bounds
+    if cursor_pos < start_pos or cursor_pos > end_pos then return end
+
+    -- Adjust cursor ppq position for looped arrange view items
+    if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
+        local source = reaper.GetMediaItemTake_Source(take)
+        local source_length = reaper.GetMediaSourceLength(source)
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        local end_qn = start_qn + source_length
+        local source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
+
+        -- Note: Looped items repeat after full ppq length
+        cursor_ppq = cursor_ppq % source_ppq_length
+    end
+
+    return cursor_ppq
+end
+
 function DrawLICE(chord, mode)
     reaper.JS_LICE_Clear(bitmap, 0)
 
@@ -1093,22 +1119,24 @@ function Main()
         end
 
         if mode == 1 then
-            local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
-            local cursor_ppq = GetPPQFromTime(take, cursor_pos)
-            for _, chord in ipairs(curr_chords) do
-                if chord.sppq > cursor_ppq then break end
-                curr_chord = chord
+            local cursor_ppq = GetCursorPPQPosition(take, cursor_pos)
+            if cursor_ppq then
+                for _, chord in ipairs(curr_chords) do
+                    if chord.sppq > cursor_ppq then break end
+                    curr_chord = chord
+                end
             end
         end
 
         if mode == 0 and cursor_pos then
-            local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
-            local cursor_ppq = GetPPQFromTime(take, cursor_pos)
-            for _, chord in ipairs(curr_chords) do
-                if chord.sppq > cursor_ppq then break end
-                if cursor_ppq >= chord.sppq and cursor_ppq <= chord.eppq then
-                    curr_chord = chord
-                    break
+            local cursor_ppq = GetCursorPPQPosition(take, cursor_pos)
+            if cursor_ppq then
+                for _, chord in ipairs(curr_chords) do
+                    if chord.sppq > cursor_ppq then break end
+                    if cursor_ppq >= chord.sppq and cursor_ppq <= chord.eppq then
+                        curr_chord = chord
+                        break
+                    end
                 end
             end
         end
