@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -9,7 +9,7 @@
     [nomain] Adaptive grid (background service).lua
     [nomain] Adapt grid to zoom level.lua
     [main=main,midi_editor] Set grid to * (adaptive).lua
+    [main=main,midi_editor] Adjust adaptive grid (mousewheel).lua
   @changelog
-    - Added "Start service on startup" option to MIDI editor menu
-    - Removed custom action options
+    - Added script to adjust grid with mousewheel
 ]]
