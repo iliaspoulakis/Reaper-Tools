@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="c3f90a77f4365b09a0fb2ba0837a4f8617da762c">
+<index version="1" name="FTC Tools" commit="c9f11f780ef4d24573c9ab684157b943aecb5626">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -569,6 +569,13 @@
       <version name="1.4.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-03-12T11:13:14Z">
         <changelog><![CDATA[- Added support for chord detection in looped items]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/0a2e9f43feb4dfd177a8376139927235d4c2eb9e/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="1.5.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-03-15T14:09:58Z">
+        <changelog><![CDATA[- Added detection of octaves & compound intervals
+- Improved detection of complex overlapping chords
+- Added option to create project regions from chords
+- Added option to disable live input detection (save cpu)]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/c9f11f780ef4d24573c9ab684157b943aecb5626/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
