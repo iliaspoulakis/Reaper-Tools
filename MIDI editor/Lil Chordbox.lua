@@ -96,6 +96,20 @@ chord_names['1 9'] = ' minor 6th'
 chord_names['1 10'] = ' major 6th'
 chord_names['1 11'] = ' minor 7th'
 chord_names['1 12'] = ' major 7th'
+chord_names['1 13'] = ' octave'
+
+-- Compound intervals
+chord_names['1 14'] = ' minor 9th'
+chord_names['1 15'] = ' major 9th'
+chord_names['1 16'] = ' minor 10th'
+chord_names['1 17'] = ' major 10th'
+chord_names['1 18'] = ' perfect 11th'
+chord_names['1 19'] = ' minor 12th'
+chord_names['1 20'] = ' perfect 12th'
+chord_names['1 21'] = ' minor 13th'
+chord_names['1 22'] = ' major 13th'
+chord_names['1 23'] = ' minor 14th'
+chord_names['1 24'] = ' major 14th'
 
 -- Major chords
 chord_names['1 5 8'] = 'maj'
@@ -264,9 +278,33 @@ function IdentifyChord(notes)
     for _, note in ipairs(notes) do
         intervals[(note.pitch - root) % 12 + 1] = 1
     end
+
     -- Create chord key string
+    local interval_cnt = 0
     local key = '1'
-    for i = 2, 12 do if intervals[i] then key = key .. ' ' .. i end end
+    for i = 2, 12 do
+        if intervals[i] then
+            key = key .. ' ' .. i
+            interval_cnt = interval_cnt + 1
+        end
+    end
+
+    -- Check for compound chords / octaves
+    if interval_cnt <= 1 then
+        intervals = {}
+        for _, note in ipairs(notes) do
+            local diff = note.pitch - root
+            if diff >= 12 then intervals[diff % 12 + 13] = 1 end
+        end
+        -- Create compound chord key string
+        local comp_key = '1'
+        for i = 12, 24 do
+            if intervals[i] then comp_key = comp_key .. ' ' .. i end
+        end
+
+        -- Check if compound chord name exists for key
+        if chord_names[comp_key] then return comp_key, root end
+    end
 
     -- Check if chord name exists for key
     if chord_names[key] then return key, root end
