@@ -1,11 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.1
+  @version 1.5.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added support for chord detection in looped items
+    - Added detection of octaves & compound intervals
+    - Improved detection of complex overlapping chords
+    - Added option to create project regions from chords
+    - Added option to disable live input detection (save cpu)
 ]]
 
 local box_x_offs = 0
@@ -254,6 +257,8 @@ local note_names_solfege = {
     'Si ',
 }
 
+local use_input = reaper.GetExtState(extname, 'input') ~= '0'
+
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local note_names = use_solfege and note_names_solfege or note_names_abc
 
@@ -265,6 +270,13 @@ function ToggleSolfegeMode()
     use_solfege = not use_solfege
     note_names = use_solfege and note_names_solfege or note_names_abc
     reaper.SetExtState(extname, 'solfege', use_solfege and '1' or '0', true)
+end
+
+function ToggleInputMode()
+    use_input = not use_input
+    input_note_map = {}
+    prev_input_idx = reaper.MIDI_GetRecentInputEvent(0)
+    reaper.SetExtState(extname, 'input', use_input and '1' or '0', true)
 end
 
 function IdentifyChord(notes)
@@ -398,36 +410,89 @@ function GetChords(take)
         local note_info = {pitch = pitch, sel = sel, sppq = sppq, eppq = eppq}
         if sel then sel_notes[#sel_notes + 1] = note_info end
 
-        if #sel_notes < 2 then
+        chord_min_eppq = chord_min_eppq or eppq
+        chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
 
-            chord_min_eppq = chord_min_eppq or eppq
-            chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
-
-            if sppq >= chord_min_eppq then
-                local new_notes = {}
-                if #notes >= 2 then
-                    local chord = BuildChord(notes)
-                    if chord then chords[#chords + 1] = chord end
-                    -- Remove notes that end prior to the start of current note
+        if sppq >= chord_min_eppq then
+            local new_notes = {}
+            if #notes >= 2 then
+                local chord = BuildChord(notes)
+                if chord then chords[#chords + 1] = chord end
+                for n = 3, #notes do
+                    -- Remove notes that end prior to chord_min_eppq
                     for _, note in ipairs(notes) do
-                        if note.eppq > sppq then
+                        if note.eppq > chord_min_eppq then
                             new_notes[#new_notes + 1] = note
                         end
                     end
+                    -- Try to build chords
+                    chord = BuildChord(new_notes)
+                    if chord then
+                        chord.sppq = chord_min_eppq
+                        chord.eppq = math.min(chord.eppq, sppq)
+                        -- Ignore short chords
+                        if chord.eppq - chord.sppq >= 240 then
+                            chords[#chords + 1] = chord
+                        end
+                        chord_min_eppq = chord.eppq
+                    end
+                    new_notes = {}
                 end
+                -- Remove notes that end prior to the start of current note
                 chord_min_eppq = eppq
-                notes = new_notes
+                for _, note in ipairs(notes) do
+                    if note.eppq > sppq then
+                        new_notes[#new_notes + 1] = note
+                        if note.eppq < chord_min_eppq then
+                            chord_min_eppq = note.eppq
+                        end
+                    end
+                end
+            else
+                chord_min_eppq = eppq
             end
-            notes[#notes + 1] = note_info
+            notes = new_notes
+        else
+            if #notes >= 2 then
+                local chord = BuildChord(notes)
+                if chord then
+                    chord.eppq = math.min(chord.eppq, sppq)
+                    -- Ignore very short arpeggiated chords
+                    if chord.eppq - chord.sppq >= 180 then
+                        chords[#chords + 1] = chord
+                    end
+                end
+            end
         end
+        notes[#notes + 1] = note_info
     end
 
     local sel_chord
     if #sel_notes >= 2 then
         sel_chord = BuildChord(sel_notes) or {name = 'none'}
-    elseif #notes >= 2 then
+    end
+    if #notes >= 2 then
         local chord = BuildChord(notes)
         if chord then chords[#chords + 1] = chord end
+        for n = 3, #notes do
+            local new_notes = {}
+            -- Remove notes that end prior to chord_min_eppq
+            for _, note in ipairs(notes) do
+                if note.eppq > chord_min_eppq then
+                    new_notes[#new_notes + 1] = note
+                end
+            end
+            -- Try to build chords
+            chord = BuildChord(new_notes)
+            if chord then
+                chord.sppq = chord_min_eppq
+                -- Ignore short chords
+                if chord.eppq - chord.sppq >= 240 then
+                    chords[#chords + 1] = chord
+                end
+                chord_min_eppq = chord.eppq
+            end
+        end
     end
 
     return chords, sel_chord
@@ -780,6 +845,114 @@ function GetMIDIEditorView(hwnd, item_chunk)
     return start_time, end_time
 end
 
+function CreateChordRegions()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    local item = reaper.GetMediaItemTake_Item(take)
+    local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local item_end_pos = item_start_pos + item_length
+
+    local EnumMarkers = reaper.EnumProjectMarkers2
+    local SetMarker = reaper.SetProjectMarker2
+    local AddMarker = reaper.AddProjectMarker
+
+    local GetProjTimeFromPPQPos = reaper.MIDI_GetProjTimeFromPPQPos
+    local GetPPQPosFromProjTime = reaper.MIDI_GetPPQPosFromProjTime
+
+    reaper.Undo_BeginBlock()
+
+    -- Delete regions over item
+    for i = reaper.CountProjectMarkers(0) - 1, 0, -1 do
+        local _, is_reg, start_pos, end_pos, name, idx = EnumMarkers(0, i)
+        if is_reg then
+            -- Delete regions within item bounds
+            if start_pos >= item_start_pos and end_pos <= item_end_pos then
+                reaper.DeleteProjectMarker(0, idx, true)
+            end
+            -- Shorten regions that exceed item end
+            if start_pos < item_end_pos and end_pos > item_end_pos then
+                SetMarker(0, idx, true, item_end_pos, end_pos, name)
+            end
+            -- Shorten regions that proceed item start
+            if start_pos < item_start_pos and end_pos > item_start_pos then
+                SetMarker(0, idx, true, start_pos, item_start_pos, name)
+            end
+        end
+    end
+
+    -- Note: Keep this for debugging purposes
+    --[[ for _, chord in ipairs(curr_chords) do
+        local start_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, chord.sppq)
+        local end_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, chord.eppq)
+
+        print(chord.sppq .. ' ' .. chord.eppq)
+        local chord_name = BuildChordName(chord)
+        reaper.AddProjectMarker(0, true, start_pos, end_pos, chord_name, -1)
+    end
+    reaper.Undo_EndBlock('Create chord regions', -1)
+    if true then return end ]]
+
+    local loops = 1
+    local source_ppq_length = 0
+    -- Calculate how often item is looped (and loop length)
+    if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
+        local source = reaper.GetMediaItemTake_Source(take)
+        local source_length = reaper.GetMediaSourceLength(source)
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        local end_qn = start_qn + source_length
+        source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
+
+        local item_start_ppq = GetPPQPosFromProjTime(take, item_start_pos)
+        local item_end_ppq = GetPPQPosFromProjTime(take, item_end_pos)
+        local item_ppq_length = item_end_ppq - item_start_ppq
+        -- Note: Looped items repeat after full ppq length
+        loops = math.ceil(item_ppq_length / source_ppq_length)
+    end
+
+    local prev_name
+    local prev_start_pos
+    local prev_end_pos
+
+    for loop = 1, loops do
+        for _, chord in ipairs(curr_chords) do
+            local loop_ppq = source_ppq_length * (loop - 1)
+            local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
+            local end_pos = GetProjTimeFromPPQPos(take, chord.eppq + loop_ppq)
+
+            if prev_start_pos then
+                local reg_start_pos = prev_start_pos
+                local reg_end_pos = start_pos
+                if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
+                    reg_start_pos = math.max(reg_start_pos, item_start_pos)
+                    if reg_end_pos > item_end_pos then
+                        reg_end_pos = math.min(prev_end_pos, item_end_pos)
+                    end
+                    AddMarker(0, true, reg_start_pos, reg_end_pos, prev_name, -1)
+                end
+            end
+
+            prev_name = BuildChordName(chord)
+            prev_start_pos = start_pos
+            prev_end_pos = end_pos
+        end
+    end
+
+    if prev_start_pos then
+        local reg_start_pos = prev_start_pos
+        local reg_end_pos = prev_end_pos
+        if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
+            reg_start_pos = math.max(reg_start_pos, item_start_pos)
+            reg_end_pos = math.min(reg_end_pos, item_end_pos)
+            AddMarker(0, true, reg_start_pos, reg_end_pos, prev_name, -1)
+        end
+    end
+
+    reaper.Undo_EndBlock('Create chord regions', -1)
+end
+
 function GetCursorPPQPosition(take, cursor_pos)
 
     local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
@@ -1019,9 +1192,18 @@ function Main()
             local menu = {
                 {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
+                    title = 'Create regions from chords',
+                    OnReturn = CreateChordRegions,
+                },
+                {
                     title = 'Solfège mode (Do, Re, Mi)',
                     OnReturn = ToggleSolfegeMode,
                     is_checked = use_solfege,
+                },
+                {
+                    title = 'Analyze incoming MIDI (live input)',
+                    OnReturn = ToggleInputMode,
+                    is_checked = use_input,
                 },
                 {
                     title = 'Run script on startup',
@@ -1067,8 +1249,11 @@ function Main()
     end
 
     -- Process input chords that user plays on MIDI keyboard
-    local track = reaper.GetMediaItemTake_Track(take)
-    local input_chord = GetMIDIInputChord(track)
+    local input_chord
+    if use_input then
+        local track = reaper.GetMediaItemTake_Track(take)
+        input_chord = GetMIDIInputChord(track)
+    end
     if input_chord then
         input_timer = reaper.time_precise()
         local input_chord_name = BuildChordName(input_chord)
