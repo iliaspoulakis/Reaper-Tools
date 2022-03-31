@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.6
+  @version 1.7.7
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Use universal installer for macOS on M1
+    - Fixed crash on 32-bit Windows installs
 ]]
 
 -- App version & platform architecture
@@ -158,7 +158,7 @@ function GetFilePattern()
     if platform:match('Other') then
         file_pattern = '_linux_' .. arch .. '%.tar%.xz'
     end
-    return 'href="([^_"]-' .. file_pattern .. ')"'
+    return 'href="([^_"]-reaper[^_"]-' .. file_pattern .. ')"'
 end
 
 function ParseDownloadLink(file, dlink)
@@ -714,7 +714,7 @@ function Main()
                 return
             end
             -- Parse the LANDOLEET website html for the download link
-            local file = io.open(dev_path, 'r')
+            file = io.open(dev_path, 'r')
             if not file then
                 reaper.MB('File not found: ' .. dev_path, 'Error', 0)
                 return
