@@ -1,13 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.0
+  @version 1.7.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Improved tuning to continuous values (cents) using native actions
-    - Continuous pitch mode is now default
-    - Fixed crash with certain file extensions
+    - Catch minor/major keywords when parsing file names
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -498,7 +496,7 @@ function GetPitchFromFileName(file)
     -- Parse note name from file name
     local pattern_pre = '([%s_[(-.])'
     local pattern_note = '([CDEFGAB][#b]?)'
-    local pattern_add = '(%d?m?[Mmdas]?[aiduM]?[jnmds]?%d*)'
+    local pattern_add = '(%d?m?[Mmdas]?[aiduM]?[jnmds]?o?r?%d*)'
     local pattern_post = '([%s_[(-.])'
     local pattern = pattern_pre .. pattern_note .. pattern_add .. pattern_post
 
