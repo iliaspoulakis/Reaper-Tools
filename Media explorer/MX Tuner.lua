@@ -1,18 +1,24 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.1
+  @version 1.7.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Added support for MIDI files
-    - Improved pitch detection from file name (more cases)
-    - Added indicator icon that shows when using pitch from metadata or filename
+    - Improved tuning to continuous values (cents) using native actions
+    - Continuous pitch mode is now default
+    - Fixed crash with certain file extensions
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
     reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
+    return
+end
+
+local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
+if version < 6.52 then
+    reaper.MB('Please install REAPER v6.52 or later', 'MX Tuner', 0)
     return
 end
 
@@ -230,27 +236,34 @@ function MediaExplorer_GetPitch()
     return tonumber(pitch)
 end
 
-function MediaExplorer_SetPitch(pitch, stop_preview)
-    local is_auto_play = reaper.GetToggleCommandStateEx(32063, 1011) == 1
-    -- Set pitch with actions because it has no delay
-    if is_auto_play then
-        local pitch_rnd = math.floor(pitch + 0.5)
-        local set_pitch_cmd = 42150 + pitch_rnd
-        if pitch_rnd > 0 then set_pitch_cmd = set_pitch_cmd - 1 end
-        if pitch_rnd == 0 then set_pitch_cmd = 42193 end
-        -- Preview: set pitch to XX semitones
-        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', set_pitch_cmd, 0, 0, 0)
+function MediaExplorer_SetPitch(pitch)
 
-        -- Note: Workaround for avoiding double triggers on selection change
-        if stop_preview then
-            -- Preview: Stop
-            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 1009, 0, 0, 0)
+    local curr_pitch = MediaExplorer_GetPitch()
+    local diff = math.abs(pitch - curr_pitch)
+    local is_upwards = pitch > curr_pitch
+
+    local semitones = math.floor(diff)
+    local cents = math.floor(diff % 1 * 100 + 0.5)
+
+    if is_upwards then
+        for i = 1, cents do
+            -- Preview: adjust pitch by +1 cents
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 40074, 0, 0, 0)
+        end
+        for i = 1, semitones do
+            -- Preview: adjust pitch by +1 semitones
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42163, 0, 0, 0)
+        end
+    else
+        for i = 1, cents do
+            -- Preview: adjust pitch by -1 cents
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 40075, 0, 0, 0)
+        end
+        for i = 1, semitones do
+            -- Preview: adjust pitch by -1 semitones
+            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42162, 0, 0, 0)
         end
     end
-
-    -- Set precise pitch to pitch textfield
-    local pitch_hwnd = reaper.JS_Window_FindChildByID(mx, 1021)
-    reaper.JS_Window_SetTitle(pitch_hwnd, ('%.2f'):format(pitch))
 end
 
 function MediaExplorer_GetRate()
@@ -922,7 +935,7 @@ function Main()
             if not is_parsing_bypassed then curr_parsing_mode = 0 end
 
             local ext = new_file:match('%.([^.]+)$')
-            if ext:lower() == 'mid' then
+            if ext and ext:lower() == 'mid' then
                 -- Get pitch from MIDI file
                 local root_name = GetMIDIFileRootName(new_file)
                 file_pitch = NameToFrequency(root_name)
@@ -968,7 +981,7 @@ function Main()
                     TurnOffPreservePitchOption()
                     MediaExplorer_SetRate(2 ^ (dist / 12))
                 else
-                    MediaExplorer_SetPitch(dist, not trigger_pitch_rescan)
+                    MediaExplorer_SetPitch(dist)
                 end
             end
         end
@@ -1155,7 +1168,7 @@ function OnUnlock()
     if rate_mode == 1 then
         MediaExplorer_SetRate(1)
     else
-        MediaExplorer_SetPitch(0, false)
+        MediaExplorer_SetPitch(0)
     end
     -- Turn option back on to reset pitch when changing media
     if is_option_bypassed then
@@ -1207,7 +1220,7 @@ if not is_docked and ontop_mode == 1 then
 end
 
 rate_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'rate_mode')) or 0
-pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 3
+pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 1
 algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 1
 parse_meta_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'meta_mode')) or 1
 parse_name_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'name_mode')) or 1
