@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.6
+  @version 1.1.7
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Fix issue with details/list view on Windows
+    - Correctly detect files in databases when file extension is hidden
 ]]
 
 -- Avoid creating undo points
@@ -107,11 +107,9 @@ function MediaExplorer_GetSelectedAudioFiles()
                 -- Browser: Show full path in databases and searches
                 reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
                 file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
-            end
-
-            -- Check if file_name is valid path itself (for searches and DBs)
-            if not reaper.file_exists(file_name) then
-                file_name = path .. sep .. file_name
+                if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
+                    file_name = file_name .. '.' .. ext
+                end
             end
             sel_files[#sel_files + 1] = file_name
         end

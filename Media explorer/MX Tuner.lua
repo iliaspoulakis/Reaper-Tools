@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.1
+  @version 1.7.2
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Catch minor/major keywords when parsing file names
+    - Correctly detect files in databases when file extension is hidden
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -184,11 +184,9 @@ function MediaExplorer_GetSelectedMediaFiles()
                 -- Browser: Show full path in databases and searches
                 reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
                 file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
-            end
-
-            -- Check if file_name is valid path itself (for searches and DBs)
-            if not reaper.file_exists(file_name) then
-                file_name = path .. sep .. file_name
+                if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
+                    file_name = file_name .. '.' .. ext
+                end
             end
             sel_files[#sel_files + 1] = file_name
         end
