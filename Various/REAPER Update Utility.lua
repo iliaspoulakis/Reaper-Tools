@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.7
+  @version 1.8.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed crash on 32-bit Windows installs
+    - Reworked debugging system to report back system output
 ]]
 
 -- App version & platform architecture
@@ -42,9 +42,9 @@ local separator = platform:match('Win') and '\\' or '/'
 local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
 local scripts_path = res_path .. separator .. 'Scripts' .. separator
-local tmp_path, step_path, main_path, dev_path
-local log_path = res_path .. separator .. 'update-utility.log'
-local dump_path = res_path .. separator .. 'update-utility-startup.log'
+local tmp_path, step_path, main_path, dev_path, cmd_log_path
+local user_log_path = res_path .. separator .. 'update-utility.log'
+local startup_log_path = res_path .. separator .. 'update-utility-startup.log'
 local is_portable = res_path == install_path
 
 -- Download variables
@@ -77,9 +77,14 @@ function print(msg, force)
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
     if settings.debug_file.enabled then
-        local log_file = io.open(log_path, 'a')
-        log_file:write(msg, '\n')
-        log_file:close()
+        local user_log_file = io.open(user_log_path, 'a')
+        if user_log_file then
+            user_log_file:write(msg, '\n')
+            user_log_file:close()
+        else
+            local msg = 'Warning: Writing to log file failed. Already in use!\n'
+            reaper.ShowConsoleMsg(msg)
+        end
     end
     debug_str = debug_str .. tostring(msg) .. '\n'
 end
@@ -101,7 +106,7 @@ function ExecProcess(cmd, timeout)
         ret = ret:gsub('^.-Defaulting to Windows directory%.', '')
         -- Remove all newlines
         ret = ret:gsub('[\r\n]', '')
-        if ret ~= '' then print('Return value:\n' .. ret) end
+        if ret ~= '' then print('\nReturn value:\n' .. ret) end
     end
     return ret
 end
@@ -382,9 +387,9 @@ function ShowSettingsMenu()
             reaper.SetExtState(title, 'debug_startup', 'false', true)
             settings.debug_startup.enabled = false
 
-            local log_file = io.open(dump_path, 'w')
-            log_file:write(debug_str, '\n')
-            log_file:close()
+            local startup_log_file = io.open(startup_log_path, 'w')
+            startup_log_file:write(debug_str, '\n')
+            startup_log_file:close()
 
             local msg = 'Created new file: update-utility-startup.log\n\n\z
                 Please attach this file to your forum post. It will be automatically \z
@@ -397,11 +402,11 @@ function ShowSettingsMenu()
         end
 
         if ret == 10 then
-            os.remove(log_path)
+            os.remove(user_log_path)
             if enabled then
-                local log_file = io.open(log_path, 'a')
-                log_file:write(debug_str, '\n')
-                log_file:close()
+                local user_log_file = io.open(user_log_path, 'a')
+                user_log_file:write(debug_str, '\n')
+                user_log_file:close()
                 local msg = ' \nLogging to file is now enabled!\n\n\z
                     You can find the file \'update-utility.log\' in your resource \z
                     directory:\n--> Options --> Show REAPER resource path...\n\n\z
@@ -683,17 +688,30 @@ function Main()
     local step_file = io.open(step_path, 'r')
     if step_file then
         step = step_file:read('*a'):gsub('[^%w_]+', '')
-        print('\n--STEP ' .. tostring(step))
         step_file:close()
         os.remove(step_path)
 
+        -- Print log file of previous step
+        local cmd_log_file = io.open(cmd_log_path, 'r')
+        if cmd_log_file then
+            print('\nCommand log:\n')
+            print(cmd_log_file:read('*a'))
+            cmd_log_file:close()
+            os.remove(cmd_log_path)
+        end
+
+        print('\n------------- Step ' .. tostring(step) .. ' ---------------')
+
         if step == 'check_update' then
             -- Download the HTML of the REAPER website
-            local cmd = dl_cmd .. ' && ' .. dl_cmd
-            cmd = cmd:format(main_dlink, main_path, dev_dlink, dev_path)
+            local cmd = dl_cmd .. ' >> %s 2>&1'
+            cmd = cmd:format(main_dlink, main_path, cmd_log_path)
+            -- Download the HTML of the Landoleet website
+            cmd = cmd .. ' && ' .. dl_cmd .. ' >> %s 2>&1'
+            cmd = cmd:format(dev_dlink, dev_path, cmd_log_path)
             -- Show buttons if download succeeds, otherwise show error
-            cmd = cmd ..
-                      ' && echo display_update > %s || echo err_internet > %s'
+            cmd = cmd .. ' && echo display_update > %s'
+            cmd = cmd .. ' || echo err_internet > %s'
             ExecProcess(cmd:format(step_path, step_path))
             task = 'Checking for updates...'
         end
@@ -791,9 +809,6 @@ function Main()
         end
 
         if step == 'download' then
-            -- Download chosen REAPER version
-            dfile_name = user_dlink:gsub('.-/', '')
-            local cmd = dl_cmd:format(user_dlink, tmp_path .. dfile_name)
             -- Choose next step based on platform
             local next_step = 'linux_extract'
             if platform:match('Win') then
@@ -802,68 +817,153 @@ function Main()
             if platform:match('OSX') or platform:match('macOS') then
                 next_step = 'osx_install'
             end
+
+            -- Get downloaded file name from url
+            dfile_name = user_dlink:gsub('.-/', '')
+
+            -- Download chosen REAPER version
+            local cmd = dl_cmd .. ' >> %s 2>&1'
+            cmd = cmd:format(user_dlink, tmp_path .. dfile_name, cmd_log_path)
             -- Go to next step if download succeeds, otherwise show error
-            cmd = cmd .. '&& echo %s > %s || echo err_internet > %s'
-            ExecProcess(cmd:format(next_step, step_path, step_path))
+            cmd = cmd .. ' && echo %s > %s'
+            cmd = cmd .. ' || echo err_internet > %s'
+            cmd = cmd:format(next_step, step_path, step_path)
+            ExecProcess(cmd)
             task = 'Downloading...'
         end
 
         if step == 'windows_install' then
-            -- Windows installer: /S is silent mode, /D specifies directory
-            local cmd =
-                'timeout 3 & %s /S %s /D=%s & cd /D %s %s& start reaper.exe & del %s'
+            local log_path = cmd_log_path
+            if settings.debug_file.enabled then
+                log_path = user_log_path
+            end
+
             local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
-            ExecInstall(cmd:format(dfile_path, portable_str, install_path,
-                                   install_path, hook_cmd, dfile_path))
+
+            -- Timout of 3 seconds (give REAPER time to close current project)
+            local cmd = 'timeout 3 >> %s 2>&1'
+            cmd = cmd:format(log_path)
+            -- Run the installer .exe  with appropriate options
+            -- /S silent mode
+            -- /D installation directory
+            -- /ADMIN ask for permission
+            -- /PORTABLE for portable installs
+            cmd = cmd .. ' & %s /S %s /D=%s >> %s 2>&1'
+            cmd = cmd:format(dfile_path, portable_str, install_path, log_path)
+            -- Go to installation directory
+            cmd = cmd .. ' & cd /D %s >> %s 2>&1'
+            cmd = cmd:format(install_path, log_path)
+            -- Execute hook script (if it exists)
+            if hook_cmd ~= '' then
+                cmd = cmd .. ' %s >> %s 2>&1'
+                cmd = cmd:format(hook_cmd, log_path)
+            end
+            -- Restart reaper
+            cmd = cmd .. ' & start reaper.exe >> %s 2>&1'
+            cmd = cmd:format(log_path)
+            -- Delete downloaded installer file
+            cmd = cmd .. ' & del %s >> %s 2>&1'
+            cmd = cmd:format(dfile_path, log_path)
+            ExecInstall(cmd)
             return
         end
 
         if step == 'osx_install' then
+            local log_path = cmd_log_path
+            if settings.debug_file.enabled then
+                log_path = user_log_path
+            end
+
             -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
-            local cmd =
-                'mount_dir=$(yes | hdiutil attach %s%s | grep Volumes | cut -f 3)'
+            local cmd = 'mount_dir=$(yes | hdiutil attach %s%s '
+            cmd = cmd .. '| grep Volumes | cut -f 3) >> %s 2>&1'
+            cmd = cmd .. ' && echo mount_dir: $mount_dir >> %s 2>&1'
+            cmd = cmd:format(tmp_path, dfile_name, log_path, log_path)
+            -- Go to mount directory
+            cmd = cmd .. ' && cd \"$mount_dir\"  >> %s 2>&1'
+            cmd = cmd:format(log_path)
             -- Get the .app name
-            cmd = cmd .. ' && cd \"$mount_dir\" && app_name=$(ls | grep REAPER)'
+            cmd = cmd .. ' && app_name=$(ls | grep REAPER)'
+            cmd = cmd .. ' && echo app_name: $app_name >> %s 2>&1'
+            cmd = cmd:format(log_path)
             -- Copy .app to install path
-            cmd = cmd .. ' && cp -rf $app_name %s'
-            -- Unmount file and restart reaper
-            cmd = cmd ..
-                      ' ; cd && hdiutil unmount \"$mount_dir\" %s ; open %s/$app_name'
-            ExecInstall(cmd:format(tmp_path, dfile_name, install_path, hook_cmd,
-                                   install_path))
+            cmd = cmd .. ' && cp -rf $app_name %s >> %s 2>&1'
+            cmd = cmd:format(install_path, log_path)
+            -- Unmount file
+            cmd = cmd .. ' ; cd && hdiutil unmount \"$mount_dir\" >> %s 2>&1'
+            cmd = cmd:format(log_path)
+            -- Execute hook script (if it exists)
+            if hook_cmd ~= '' then
+                cmd = cmd .. ' %s >> %s 2>&1'
+                cmd = cmd:format(hook_cmd, log_path)
+            end
+            -- Restart REAPER
+            cmd = cmd .. ' ; echo Starting reaper: %s/$app_name >> %s 2>&1'
+            cmd = cmd .. ' && open %s/$app_name'
+            cmd = cmd:format(install_path, log_path, install_path)
+            ExecInstall(cmd)
             return
         end
 
         if step == 'linux_extract' then
-            -- Extract tar file
-            local cmd = 'tar -xf %s%s -C %s && echo linux_install > %s'
-            ExecProcess(cmd:format(tmp_path, dfile_name, tmp_path, step_path))
+            -- Extract tar file in /tmp directory
+            local cmd = 'tar -xf %s%s -C %s >> %s 2>&1'
+            cmd = cmd:format(tmp_path, dfile_name, tmp_path, cmd_log_path)
+            -- Go to installation step or show error
+            cmd = cmd .. ' && echo linux_install > %s'
+            cmd = cmd .. ' || echo err_extract > %s'
+            cmd = cmd:format(step_path, step_path)
+            ExecProcess(cmd)
             task = 'Extracting...'
         end
 
+        if step == 'err_extract' then
+            local msg = 'Extracting failed!\nShow debugging output in console?'
+            local ret = reaper.MB(msg, 'Error', 4)
+            if ret == 6 then print(debug_str, true) end
+            return
+        end
+
         if step == 'linux_install' then
-            -- Run Linux installation and restart
-            local cmd =
-                'pkexec sh %sreaper_linux_%s/install-reaper.sh --install %s'
-            if not is_portable then
-                cmd = cmd .. ' --integrate-desktop'
-                cmd = cmd .. ' --usr-local-bin-symlink'
+            local log_path = cmd_log_path
+            if settings.debug_file.enabled then
+                log_path = user_log_path
             end
-            -- Wrap install command in new shell with sudo privileges (chain restart)
-            cmd = '/bin/sh -c \'' .. cmd .. '\' %s ; %s/reaper'
-            -- Linux installer will also create a REAPER directory
+
+            -- Determine path to the extracted installer shell script
+            local sh_path = '%sreaper_linux_%s/install-reaper.sh'
+            sh_path = sh_path:format(tmp_path, arch)
+            -- Note: Linux installer creates a REAPER directory
             local outer_install_path = install_path:gsub('/REAPER$', '')
-            ExecInstall(cmd:format(tmp_path, arch, outer_install_path, hook_cmd,
-                                   install_path))
+            -- Only use options for non portable installs
+            local options = '--integrate-desktop --usr-local-bin-symlink'
+            if is_portable then options = '' end
+
+            -- Run Linux installation
+            local cmd = 'pkexec sh %s --install %s %s >> %s 2>&1'
+            cmd = cmd:format(sh_path, outer_install_path, options, log_path)
+            -- Wrap install command in new shell with sudo privileges
+            cmd = '/bin/sh -c \'' .. cmd .. '\''
+            -- Execute hook script (if it exists)
+            if hook_cmd ~= '' then
+                cmd = cmd .. ' %s >> %s 2>&1'
+                cmd = cmd:format(hook_cmd, log_path)
+            end
+            --  Restart reaper
+            cmd = cmd .. ' ; %s/reaper'
+            cmd = cmd:format(install_path)
+            ExecInstall(cmd)
             return
         end
 
         if step == 'get_history' then
             -- Show buttons if download succeeds, otherwise show error
-            local cmd = dl_cmd
-            cmd = cmd .. ' && echo show_history > %s || echo err_internet > %s'
-            cmd = cmd:format(old_dlink, main_path, step_path, step_path)
+            local cmd = dl_cmd .. ' >> %s 2>&1'
+            cmd = cmd:format(old_dlink, main_path, cmd_log_path)
+            cmd = cmd .. ' && echo show_history > %s'
+            cmd = cmd .. ' || echo err_internet > %s'
+            cmd = cmd:format(step_path, step_path)
             ExecProcess(cmd)
         end
 
@@ -893,7 +993,8 @@ function Main()
             end
             -- Download the corresponding sub-forum website
             local cmd = dl_cmd .. ' && ' .. cl_cmd .. ' ||' .. cl_cmd
-            ExecProcess(cmd:format(link, file_path, step_path, step_path))
+            cmd = cmd:format(link, file_path, step_path, step_path)
+            ExecProcess(cmd)
         end
 
         if step:match('^open_.-_changelog$') then
@@ -989,13 +1090,6 @@ end
 
 settings = LoadSettings()
 
-print('\n-------------------------------------------')
-print('CPU achitecture: ' .. tostring(arch))
-print('Installation path: ' .. tostring(install_path))
-print('Resource path: ' .. tostring(res_path))
-print('Reaper version: ' .. tostring(curr_version))
-print('Portable: ' .. (is_portable and 'yes' or 'no'))
-
 if not platform:match('Win') then
     -- String escape Unix paths (spaces and brackets)
     install_path = install_path:gsub('[%s%(%)]', '\\%1')
@@ -1015,12 +1109,28 @@ end
 step_path = tmp_path .. 'reaper_uutil_step.txt'
 main_path = tmp_path .. 'reaper_uutil_main.html'
 dev_path = tmp_path .. 'reaper_uutil_dev.html'
+cmd_log_path = tmp_path .. 'reaper_uutil_log.txt'
+
+local cmd_log_file = io.open(cmd_log_path, 'r')
+if cmd_log_file then
+    print('\nCommand log:\n')
+    print(cmd_log_file:read('*a'))
+    cmd_log_file:close()
+    os.remove(cmd_log_path)
+end
 
 -- Delete existing temporary files from previous runs
 os.remove(step_path)
 os.remove(main_path)
 os.remove(dev_path)
-os.remove(dump_path)
+os.remove(startup_log_path)
+
+print('\n-------------------------------------------')
+print('CPU achitecture: ' .. tostring(arch))
+print('Installation path: ' .. tostring(install_path))
+print('Resource path: ' .. tostring(res_path))
+print('Reaper version: ' .. tostring(curr_version))
+print('Portable: ' .. (is_portable and 'yes' or 'no'))
 
 -- Set command for downloading from terminal
 dl_cmd = 'curl -k -L %s -o %s'
