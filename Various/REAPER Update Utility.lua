@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.0
+  @version 1.8.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Reworked debugging system to report back system output
+    - Fixed code signature issue on MacOS Monterey
 ]]
 
 -- App version & platform architecture
@@ -877,30 +877,32 @@ function Main()
 
             -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
             local cmd = 'mount_dir=$(yes | hdiutil attach %s%s '
-            cmd = cmd .. '| grep Volumes | cut -f 3) >> %s 2>&1'
-            cmd = cmd .. ' && echo mount_dir: $mount_dir >> %s 2>&1'
+            cmd = cmd .. '| grep Volumes | cut -f 3) >> \"%s\" 2>&1'
+            cmd = cmd .. ' && echo \"mount_dir: $mount_dir\" >> \"%s\" 2>&1'
             cmd = cmd:format(tmp_path, dfile_name, log_path, log_path)
             -- Go to mount directory
-            cmd = cmd .. ' && cd \"$mount_dir\"  >> %s 2>&1'
+            cmd = cmd .. ' && cd \"$mount_dir\" >> \"%s\" 2>&1'
             cmd = cmd:format(log_path)
             -- Get the .app name
             cmd = cmd .. ' && app_name=$(ls | grep REAPER)'
-            cmd = cmd .. ' && echo app_name: $app_name >> %s 2>&1'
+            cmd = cmd .. ' && echo \"app_name: $app_name\" >> \"%s\" 2>&1'
             cmd = cmd:format(log_path)
             -- Copy .app to install path
-            cmd = cmd .. ' && cp -rf $app_name %s >> %s 2>&1'
+            cmd = cmd .. ' && ditto \"$app_name\" \"%s/$app_name\"'
+            cmd = cmd .. ' >> \"%s\" 2>&1'
             cmd = cmd:format(install_path, log_path)
             -- Unmount file
-            cmd = cmd .. ' ; cd && hdiutil unmount \"$mount_dir\" >> %s 2>&1'
+            cmd = cmd .. ' ; cd'
+            cmd = cmd .. ' && hdiutil unmount \"$mount_dir\" >> \"%s\" 2>&1'
             cmd = cmd:format(log_path)
             -- Execute hook script (if it exists)
             if hook_cmd ~= '' then
-                cmd = cmd .. ' %s >> %s 2>&1'
+                cmd = cmd .. ' %s >> \"%s\" 2>&1'
                 cmd = cmd:format(hook_cmd, log_path)
             end
             -- Restart REAPER
-            cmd = cmd .. ' ; echo Starting reaper: %s/$app_name >> %s 2>&1'
-            cmd = cmd .. ' && open %s/$app_name'
+            cmd = cmd .. ' ; echo \"Starting: %s/$app_name\" >> \"%s\" 2>&1'
+            cmd = cmd .. ' && open \"%s/$app_name\"'
             cmd = cmd:format(install_path, log_path, install_path)
             ExecInstall(cmd)
             return
