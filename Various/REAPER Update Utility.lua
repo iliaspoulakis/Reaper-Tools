@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.1
+  @version 1.8.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed code signature issue on MacOS Monterey
+    - Reopen script window when choosing to resume download
 ]]
 
 -- App version & platform architecture
@@ -360,7 +360,7 @@ function ShowSettingsMenu()
 
     local menu =
         '>Startup notifications|%1Run script on startup||%2Only show window when \z
-        a new version is available|>Check for...|%3Main|%4Dev|<%5RC|<\z
+        a new version is available (notifications)|>Check for...|%3Main|%4Dev|<%5RC|<\z
         |>Confirmation dialogs|%6Before installing|<%7When cancelling download\z
         |>Debugging|%8Dump startup log|%9Log to console|%10Log to file'
     local function substitute(s)
@@ -1052,6 +1052,8 @@ function Main()
                 if ret == 6 then
                     print('User exit...')
                     return
+                elseif char == -1 then
+                    ShowGUI()
                 end
             else
                 print('User exit...')
