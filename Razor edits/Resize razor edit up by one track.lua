@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about A set of scripts for quick razor editing using arrow keys
+  @changelog
+    - Fix script not working when there's a razor edit on last track
 ]]
 reaper.Undo_BeginBlock()
 reaper.PreventUIRefresh(1)
@@ -12,12 +14,13 @@ local has_razor_edit = false
 local GetSetTrackInfo = reaper.GetSetMediaTrackInfo_String
 
 local last_razor_edit
-for i = reaper.CountTracks(0) - 1, 0, -1 do
+local track_cnt = reaper.CountTracks(0)
+for i = track_cnt - 1, 0, -1 do
     local track = reaper.GetTrack(0, i)
     local _, razor_edit = GetSetTrackInfo(track, 'P_RAZOREDITS', '', false)
     if razor_edit ~= '' then
         has_razor_edit = true
-        if last_razor_edit == '' then
+        if last_razor_edit == '' or i == track_cnt - 1 then
             GetSetTrackInfo(track, 'P_RAZOREDITS', '', true)
         end
     end
