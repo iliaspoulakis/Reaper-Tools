@@ -1,14 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.0
+  @version 1.6.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added detection of octaves & compound intervals
-    - Improved detection of complex overlapping chords
-    - Added option to create project regions from chords
-    - Added option to disable live input detection (save cpu)
+    - Added menu option to create take markers from chords
 ]]
 
 local box_x_offs = 0
@@ -953,6 +950,59 @@ function CreateChordRegions()
     reaper.Undo_EndBlock('Create chord regions', -1)
 end
 
+function CreateChordTakeMarkers()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    local item = reaper.GetMediaItemTake_Item(take)
+    local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local item_end_pos = item_start_pos + item_length
+
+    local GetProjTimeFromPPQPos = reaper.MIDI_GetProjTimeFromPPQPos
+    local GetPPQPosFromProjTime = reaper.MIDI_GetPPQPosFromProjTime
+
+    reaper.Undo_BeginBlock()
+
+    -- Delete take markers
+    for i = reaper.GetNumTakeMarkers(take) - 1, 0, -1 do
+        reaper.DeleteTakeMarker(take, i)
+    end
+
+    local loops = 1
+    local source_ppq_length = 0
+    -- Calculate how often item is looped (and loop length)
+    if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
+        local source = reaper.GetMediaItemTake_Source(take)
+        local source_length = reaper.GetMediaSourceLength(source)
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        local end_qn = start_qn + source_length
+        source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
+
+        local item_start_ppq = GetPPQPosFromProjTime(take, item_start_pos)
+        local item_end_ppq = GetPPQPosFromProjTime(take, item_end_pos)
+        local item_ppq_length = item_end_ppq - item_start_ppq
+        -- Note: Looped items repeat after full ppq length
+        loops = math.ceil(item_ppq_length / source_ppq_length)
+    end
+
+    for loop = 1, loops do
+        local prev_name
+        for _, chord in ipairs(curr_chords) do
+            local loop_ppq = source_ppq_length * (loop - 1)
+            local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
+            local name = BuildChordName(chord)
+            if name ~= prev_name then
+                local marker_pos = start_pos - item_start_pos
+                reaper.SetTakeMarker(take, -1, name, marker_pos)
+            end
+            prev_name = name
+        end
+    end
+    reaper.Undo_EndBlock('Create chord take markers', -1)
+end
+
 function GetCursorPPQPosition(take, cursor_pos)
 
     local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
@@ -1196,6 +1246,10 @@ function Main()
                     OnReturn = CreateChordRegions,
                 },
                 {
+                    title = 'Create take markers from chords',
+                    OnReturn = CreateChordTakeMarkers,
+                },
+                {
                     title = 'Solfège mode (Do, Re, Mi)',
                     OnReturn = ToggleSolfegeMode,
                     is_checked = use_solfege,
@@ -1392,4 +1446,3 @@ end
 
 reaper.atexit(Exit)
 reaper.defer(Main)
-
