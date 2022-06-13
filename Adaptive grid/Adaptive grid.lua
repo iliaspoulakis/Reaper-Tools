@@ -11,5 +11,6 @@
     [main=main,midi_editor] Set grid to * (adaptive).lua
     [main=main,midi_editor] Adjust adaptive grid (mousewheel).lua
   @changelog
-    - Added script to adjust grid with mousewheel
+    - Added action to set fixed grid
+    - Temporarily stop adapting when grid is set to frame/measure
 ]]
