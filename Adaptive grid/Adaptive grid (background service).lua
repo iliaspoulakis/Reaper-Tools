@@ -70,14 +70,21 @@ function Main()
     -- Check if arrange view grid is set to adaptive
     local main_mult = GetGridMultiplier()
     if main_mult ~= 0 then
-        -- Check if zoom level changed
-        local hzoom_lvl = reaper.GetHZoomLevel()
-        if prev_hzoom_lvl ~= hzoom_lvl then
-            prev_hzoom_lvl = hzoom_lvl
-            -- Run adapt script in mode 1
-            _G.mode = 1
-            run_adapt_scipt()
-            -- dofile(adapt_script_path)
+        -- Grid: Set framerate grid
+        local is_frame_grid = reaper.GetToggleCommandState(40904) == 1
+        -- Grid: Set measure grid
+        local is_measure_grid = reaper.GetToggleCommandState(40923) == 1
+        -- Ignore arrange view changes grid is set to frame/measure
+        if not is_frame_grid and not is_measure_grid then
+            -- Check if zoom level changed
+            local hzoom_lvl = reaper.GetHZoomLevel()
+            if prev_hzoom_lvl ~= hzoom_lvl then
+                prev_hzoom_lvl = hzoom_lvl
+                -- Run adapt script in mode 1
+                _G.mode = 1
+                run_adapt_scipt()
+                -- dofile(adapt_script_path)
+            end
         end
     end
 

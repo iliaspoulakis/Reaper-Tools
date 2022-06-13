@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.4.0
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
