@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.2
+  @version 1.8.3
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Reopen script window when choosing to resume download
+    - Change order of RCs in old version menu
 ]]
 
 -- App version & platform architecture
@@ -216,6 +216,16 @@ function ShowHistoryMenu()
         local group = list[i].version:match('^[%d.]+')
         if prev_group and group ~= prev_group or i == 1 then
             if #group_list > 1 then
+                -- Move rc versions to the top
+                local offs = 0
+                for n = #group_list, 1, -1 do
+                    if group_list[n].version:match('rc') then
+                        local val = group_list[n]
+                        table.remove(group_list, n)
+                        table.insert(group_list, #group_list + 1 - offs, val)
+                        offs = offs + 1
+                    end
+                end
                 group_list[1].is_last = true
                 group_list[#group_list].is_first = true
             end
