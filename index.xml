@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="1b99c3d5d44cb7ac19e5ab82628d12f24f91ced3">
+<index version="1" name="FTC Tools" commit="8306ee2a668a12cfd2d2caf378db24343bef6d7d">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -264,6 +264,10 @@
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-07-24T08:35:26Z">
         <changelog><![CDATA[- Fixed bug with empty takes]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/4cb154e04b5d0f18ae1b07cee0d00546b6e9e83f/Floating%20FX/Keep%20only%20one%20floating%20fx%20open%20at%20the%20same%20position.lua</source>
+      </version>
+      <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-06-19T19:32:32Z">
+        <changelog><![CDATA[- Potential performance improvements for screenset changing]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/8306ee2a668a12cfd2d2caf378db24343bef6d7d/Floating%20FX/Keep%20only%20one%20floating%20fx%20open%20at%20the%20same%20position.lua</source>
       </version>
     </reapack>
   </category>
