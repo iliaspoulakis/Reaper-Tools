@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.1.0
   @changelog
-    - Fixed bug with empty takes
-]] --
+    - Potential performance improvements for screenset changing
+]]
+
 local prev_proj
 local prev_time = 0
 local prev_state
@@ -23,7 +24,7 @@ local set_time = 0
 local debug = false
 
 function print(msg)
-    if debug then reaper.ShowConsoleMsg(tostring(msg) .. "\n") end
+    if debug then reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 end
 
 local is_mac = reaper.GetOS():match('OSX')
@@ -146,26 +147,38 @@ function PositionChunkWindows()
     local time = reaper.time_precise()
     reaper.Undo_BeginBlock()
 
+    local has_chunk_changed = false
     local function SetPosition(type, x, y, w, h)
         local l, t, r, b = KeepTopLeftCorner(w, h)
+        if l ~= tonumber(x) or t ~= tonumber(y) then
+            has_chunk_changed = true
+        end
         return ('%s %d %d %d %d'):format(type, l, t, r - l, b - t)
     end
 
     local pattern = '(FLOATP?O?S?) (%-?%d+) (%-?%d+) (%-?%d+) (%-?%d+)'
     local m_track = reaper.GetMasterTrack(0)
     local _, m_chunk = reaper.GetTrackStateChunk(m_track, '', false)
+
+    has_chunk_changed = false
     m_chunk = m_chunk:gsub(pattern, SetPosition)
-    reaper.SetTrackStateChunk(m_track, m_chunk, false)
+    if has_chunk_changed then
+        reaper.SetTrackStateChunk(m_track, m_chunk, false)
+    end
 
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local _, chunk = reaper.GetTrackStateChunk(track, '', false)
+
+        has_chunk_changed = false
         chunk = chunk:gsub(pattern, SetPosition)
-        reaper.SetTrackStateChunk(track, chunk, false)
+        if has_chunk_changed then
+            reaper.SetTrackStateChunk(track, chunk, false)
+        end
     end
 
-    reaper.Undo_EndBlock('Center FX Windows', -1)
-    print("Chunk positioning time:")
+    reaper.Undo_EndBlock('Center FX Windows', 2)
+    print('Chunk positioning time:')
     print(reaper.time_precise() - time)
 end
 
