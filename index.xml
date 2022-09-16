@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="8306ee2a668a12cfd2d2caf378db24343bef6d7d">
+<index version="1" name="FTC Tools" commit="4b346a59c7999c766071582d2844ce0df3d84e72">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -396,6 +396,12 @@
     <reapack name="Nymphes Control Freak.jsfx" type="effect" desc="Nymphes Control Freak">
       <version name="1.00" author="Ilias-Timon Poulakis" time="2022-01-23T22:37:42Z">
         <source>https://github.com/iliaspoulakis/Reaper-Tools/raw/d2a686f700a41a6a516ec2dca557d5cd2d5bb919/JSFX/Nymphes%20Control%20Freak.jsfx</source>
+      </version>
+      <version name="2.00" author="Ilias-Timon Poulakis" time="2022-09-16T11:23:49Z">
+        <source>https://github.com/iliaspoulakis/Reaper-Tools/raw/cf4209ea6b81437bc2f9387c17d3c546ce5e3eb9/JSFX/Nymphes%20Control%20Freak.jsfx</source>
+      </version>
+      <version name="2.01" author="Ilias-Timon Poulakis" time="2022-09-16T11:40:10Z">
+        <source>https://github.com/iliaspoulakis/Reaper-Tools/raw/e1c97bc712e96e7a868d3b2c3dd2917a854bb489/JSFX/Nymphes%20Control%20Freak.jsfx</source>
       </version>
     </reapack>
   </category>
