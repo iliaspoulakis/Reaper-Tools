@@ -1,50 +1,49 @@
 desc:Nymphes Control Freak
-version: 1.00
+version: 2.00
 author: Ilias-Timon Poulakis
 license: MIT
 
-slider1:0<0,127,1>-HPF cutoff
-slider2:0<0,127,1>-LPF Cutoff
+slider1:0<0,127,1>-LPF EG Depth
+slider2:0<0,127,1>-LPF Tracking
 slider3:0<0,127,1>-Glide
-slider4:0<0,127,1>-LPF Tracking
-slider5:127<0,127,1>-AMP Level
-slider6:0<0,127,1>-Resonance
-slider7:0<0,127,1>-LPF EG Depth
-slider8:0<0,127,1>-LPF Cutoff LFO Depth
-slider9:0<0,127,1>-Pulse Width
-slider10:0<0,127,1>-OSC Wave
-slider11:0<0,127,1>-OSC Level
-slider12:0<0,127,1>-Sub Level
-slider13:0<0,127,1>-Noise Level
-slider14:0<0,127,1>-LFO Pitch Deptch
-slider15:0<0,127,1>-EG Pitch Depth
-slider16:0<0,127,1>-Detune
-slider17:0<0,127,1>-Chord Selector 
-slider18:0<0,127,1>-Filter EG Attack
-slider19:0<0,127,1>-Filter EG Decay
-slider20:0<0,127,1>-Filter EG Sustain
-slider21:0<0,127,1>-Filter EG Release
-slider22:0<0,127,1>-AMP EG Attack
-slider23:0<0,127,1>-AMP EG Decay
-slider24:0<0,127,1>-AMP EG Sustain
-slider25:0<0,127,1>-AMP EG Release
-slider26:0<0,5,1>-Play MODE
-slider27:0<0,127,1>-LFO 1 Rate
-slider28:0<0,127,1>-LFO 1 Wave
-slider29:0<0,127,1>-LFO 1 Delay
-slider30:0<0,127,1>-LFO 1 Fade
-slider31:0<0,3,1>-LFO 1 TYPE
-slider32:0<0,1,1>-LFO 1 SYNC
-slider33:0<0,127,1>-LFO 2 Rate Depth 
-slider34:0<0,127,1>-LFO 2 Wave
-slider35:0<0,127,1>-LFO 2 Delay Depth
-slider36:0<0,127,1>-LFO 2 Fade Depth
-slider37:0<0,3,1>-LFO 2 TYPE
-slider38:0<0,1,1>-LFO 2 SYNC
-slider39:0<0,127,1>-Reverb Size
-slider40:0<0,127,1>-Reverb Decay
-slider41:0<0,127,1>-Reverb Filter
-slider42:0<0,127,1>-Reverb Mix
+slider4:0<0,127,1>-LFO Cutoff Depth
+slider5:0<0,127,1>-OSC Level
+slider6:0<0,127,1>-Sub Level
+slider7:0<0,127,1>-Noise Level
+slider8:0<0,127,1>-Pulse Width
+slider9:0<0,127,1>-LFO Pitch Depth
+slider10:0<0,127,1>-EG Pitch Depth
+slider11:0<0,127,1>-Detune
+slider12:0<0,127,1>-Chord Selector
+slider13:0<0,5,1>-Play Mode
+slider14:0<0,127,1>-LFO 1 Rate
+slider15:0<0,127,1>-LFO 1 Wave
+slider16:0<0,127,1>-LFO 1 Delay
+slider17:0<0,127,1>-LFO 1 Fade
+slider18:0<0,3,1>-LFO 1 Type
+slider19:0<0,1,1>-LFO 1 Key Sync
+slider20:0<0,127,1>-LFO 2 Rate
+slider21:0<0,127,1>-LFO 2 Wave
+slider22:0<0,127,1>-LFO 2 Delay
+slider23:0<0,127,1>-LFO 2 Fade
+slider24:0<0,3,1>-LFO 2 Type
+slider25:0<0,1,1>-LFO 2 Key Sync
+slider26:0<0,127,1>-OSC Wave
+slider27:0<0,127,1>-Resonance
+slider28:0<0,127,1>-AMP EG Release
+slider29:0<0,127,1>-AMP EG Attack
+slider30:0<0,127,1>-LPF Cutoff
+slider31:0<0,127,1>-Reverb Size
+slider32:0<0,127,1>-Reverb Decay
+slider33:0<0,127,1>-Reverb Filter
+slider34:0<0,127,1>-Reverb Mix
+slider35:0<0,127,1>-Filter EG Attack
+slider36:0<0,127,1>-Filter EG Decay
+slider37:0<0,127,1>-HPF Cutoff
+slider38:0<0,127,1>-Filter EG Sustain
+slider39:0<0,127,1>-Filter EG Release
+slider40:0<0,127,1>-AMP EG Decay
+slider41:0<0,127,1>-AMP EG Sustain
 
 @init
 
@@ -54,7 +53,7 @@ channel = 0;
 
 sliders = 0;
 values = 128;
-mod_values = 512;
+mod_values = 1024;
 
 // Assign each slider to its CC value
 
@@ -67,9 +66,9 @@ function AssignSliders(cc, max_cc) local(i) (
   );
 );
 
-AssignSliders(3, 27);
-AssignSliders(30, 42);
-AssignSliders(44, 47);
+AssignSliders(3, 5);
+AssignSliders(8, 29);
+AssignSliders(70, 85);
 
 // Initialize values (Make sure that CC is send when plugin is loaded)
 
@@ -83,10 +82,16 @@ function InitModValues() local(i) (
 
 function InitInternalSliderValues() local(i) (
   i = 0;
-  while (i <= 50) (
+  while (i <= 30) (
     values[i] = -1;
     i = i + 1;
   );
+  
+  i = 70;
+  while (i <= 85) (
+     values[i] = -1;
+     i = i + 1;
+   );
 );
 
 //InitModValues();
@@ -94,12 +99,6 @@ function InitInternalSliderValues() local(i) (
 
 //has_int_mod_changed = 1;
 //has_slider_changed = 1;
-
-// Set initial preset
-
-//slider2 = 127;
-//slider11 = 127;
-//slider24 = 127;
 
 // Declare functions to manage internal plugin state
 
@@ -116,38 +115,42 @@ function SetSliderValue(cc, value) (
 );
 
 function GetInternalSliderValue(cc) (
-  sliders[cc] > 0 || cc == 50 ? (
+  sliders[cc] > 0 || cc == 30 ? (
     values[cc];
   );
 );
 
 function SetInternalSliderValue(cc, value) (
-  sliders[cc] > 0 || cc == 50 ? (
+  sliders[cc] > 0 || cc == 30 ? (
     values[cc] = value;
   );
 );
 
+function IsCCValue(cc) (
+  (cc >= 31 && cc <= 67) || (cc >= 86 && cc <= 89);
+);
+
 function GetModValue(cc, mod_select) (
-  cc >= 51 && cc <= 84 ? (
-    mod_values[cc - 51 + mod_select * 33];
+  IsCCValue(cc) ? (
+    mod_values[cc + mod_select * 128];
   );
 );
 
-function SetModValue(cc, value, mod_select) ( 
-  cc >= 51 && cc <= 84 ? (
-    mod_values[cc - 51 + mod_select * 33] = value;
+function SetModValue(cc, value, mod_select) (
+  IsCCValue(cc) ? (
+    mod_values[cc + mod_select * 128] = value;
   );
 );
 
 function GetInternalModValue(cc, mod_select) (
-  cc >= 51 && cc <= 84 ? (
-    values[cc + mod_select * 33];
+  IsCCValue(cc) ? (
+    values[cc + mod_select * 128];
   );
 );
 
 function SetInternalModValue(cc, value, mod_select) (
-  cc >= 51 && cc <= 84 ? (
-    values[cc + mod_select * 33] = value;
+  IsCCValue(cc) ? (
+    values[cc + mod_select * 128] = value;
   );
 );
 
@@ -331,7 +334,7 @@ function SetSliderValue(norm_val) local(val) (
     this.norm_val = norm_val;
     val = floor(norm_val * 127 + 0.5);
     this.is_mod_mode ? (
-      SetInternalModValue(this.mod_cc, val, values[50]);
+      SetInternalModValue(this.mod_cc, val, values[30]);
       has_int_mod_changed = 1;
     ) : (
       SetInternalSliderValue(this.cc, val);
@@ -365,12 +368,12 @@ function UpdateCCSlider() local(is_mod_mode) (
 
   // Get state
   this.is_mod_mode = this.mod_cc && mod_mode > 0;
-  this.is_mod_mode && values[50] == 0 && this.cc >= 31 && this.cc <= 34 ? (
+  this.is_mod_mode && values[30] == 0 && this.cc >= 31 && this.cc <= 34 ? ( //TODO fix this?
     this.is_mod_mode = 0;
   );
   
   this.is_mod_mode ? (
-    this.norm_val = GetInternalModValue(this.mod_cc, values[50]) / 127;
+    this.norm_val = GetInternalModValue(this.mod_cc, values[30]) / 127;
   ) : (
     this.norm_val = GetInternalSliderValue(this.cc) / 127;
   );
@@ -412,7 +415,7 @@ function CreateModModeButton(x, y, w, h, label, mode) (
 function UpdateModModeButton() local(new_mode) (
 
   // Get state
-  this.is_armed = mod_mode > 0 && values[50] == this.mode;
+  this.is_armed = mod_mode > 0 && values[30] == this.mode;
 
   // Handle mouse interaction
   this.MouseInteract();
@@ -422,15 +425,15 @@ function UpdateModModeButton() local(new_mode) (
       mod_mode = 0;
     ) : (
       mod_mode = 1;
-      values[50] = this.mode;
+      values[30] = this.mode;
     );
     is_update_ui = 1;
   );
   
   this.scroll_dir ? (
     mod_mode = 1;
-    new_mode = values[50] + this.scroll_dir;
-    values[50] = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
+    new_mode = values[30] + this.scroll_dir;
+    values[30] = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
     is_update_ui = 1;
   );
 
@@ -449,20 +452,20 @@ function CreatePlayModeButton(x, y, w, h, label, mode) (
 function UpdatePlayModeButton() local(new_mode) (
 
   // Get state
-  this.is_armed = slider26 == this.mode;
+  this.is_armed = slider13 == this.mode;
   
   // Handle mouse interaction
   this.MouseInteract();
 
   this.is_clicked ? (
-    slider26 = this.mode;
+    slider13 = this.mode;
     has_slider_changed = 1;
     is_update_ui = 1;
   );
   
   this.scroll_dir ? (
-    new_mode = slider26 + this.scroll_dir;
-    slider26 = new_mode > 5 ? 5 : new_mode < 0 ? 0 : new_mode;
+    new_mode = slider13 + this.scroll_dir;
+    slider13 = new_mode > 5 ? 5 : new_mode < 0 ? 0 : new_mode;
     is_update_ui = 1;
   );
 
@@ -487,9 +490,9 @@ function UpdateLFOTypeButton() local(new_mode) (
 
   this.is_clicked ? (
     this.lfo_num == 1 ? (
-      slider31 = this.type
+      slider18 = this.type
     ) : (
-      slider37 = this.type;
+      slider24 = this.type;
     ); 
     has_slider_changed = 1;
     is_update_ui = 1;
@@ -497,11 +500,11 @@ function UpdateLFOTypeButton() local(new_mode) (
   
   this.scroll_dir ? (
     this.lfo_num == 1 ? (
-      new_mode = slider31 - this.scroll_dir;
-      slider31 = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
+      new_mode = slider18 - this.scroll_dir;
+      slider18 = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
     ) : (
-      new_mode = slider37 - this.scroll_dir;
-      slider37 = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
+      new_mode = slider24 - this.scroll_dir;
+      slider24 = new_mode > 3 ? 3 : new_mode < 0 ? 0 : new_mode;
     ); 
     is_update_ui = 1;
   );
@@ -519,16 +522,16 @@ function CreateLFOSyncButton(x, y, w, h, label, lfo_num) (
 
 function UpdateLFOSyncButton() (
   // Get state
-  this.is_armed =  (this.lfo_num == 1 ? slider32 : slider38) == 1;
+  this.is_armed =  (this.lfo_num == 1 ? slider19 : slider25) == 1;
 
   // Handle mouse interaction
   this.MouseInteract();
 
   this.is_clicked ? (
     this.lfo_num == 1 ? (
-      slider32 = !slider32;
+      slider19 = !slider19;
     ) : (
-      slider38 = !slider38;
+      slider25 = !slider25;
     ); 
     has_slider_changed = 1;
     is_update_ui = 1;
@@ -563,156 +566,156 @@ function BuildGUI() local(m_y, m_x, x, y, w, h, g) (
   h = 102;
   g = 24;
 
-  s15.CreateCCSlider(x, y, w, h, "PW", 11, 56);
+  s15.CreateCCSlider(x, y, w, h, "PW", 12, 36);
   
   x = x + w + m;
 
-  s16.CreateCCSlider(x, y, w, h, "GLD", 5, 57);
+  s16.CreateCCSlider(x, y, w, h, "GLD", 5, 37);
   
   x = x + w + m;
 
-  s17.CreateCCSlider(x, y, w, h, "DTN", 18, 58);
+  s17.CreateCCSlider(x, y, w, h, "DTN", 15, 39);
 
   x = x + w + m;
   
-  s18.CreateCCSlider(x, y, w, h, "CHORD", 19, 59);
+  s18.CreateCCSlider(x, y, w, h, "CHORD", 16, 40);
 
   x = x + w + m;
 
-  s19.CreateCCSlider(x, y, w, h, "EG", 17, 60);
+  s19.CreateCCSlider(x, y, w, h, "EG", 14, 41);
 
   x = x + w + m;
   x = x + g;
 
-  s20.CreateCCSlider(x, y, w, h, "HPF", 3, 65);
+  s20.CreateCCSlider(x, y, w, h, "HPF", 81, 45);
 
   x = x + w + m;
 
-  s21.CreateCCSlider(x, y, w, h, "TRACK", 6, 66);
+  s21.CreateCCSlider(x, y, w, h, "TRACK", 4, 46);
 
   x = x + w + m;
   
-  s22.CreateCCSlider(x, y, w, h, "LFO", 10, 67);
+  s22.CreateCCSlider(x, y, w, h, "LFO", 8, 47);
 
   x = x + w + m;
   x = x + g;
 
-  s23.CreateCCSlider(x, y, w, h, "A", 24, 73);
+  s23.CreateCCSlider(x, y, w, h, "A", 73, 52);
 
   x = x + w + m;
   
-  s24.CreateCCSlider(x, y, w, h, "D", 25, 74);
+  s24.CreateCCSlider(x, y, w, h, "D", 76, 53);
 
   x = x + w + m;
     
-  s25.CreateCCSlider(x, y, w, h, "S", 26, 75);
+  s25.CreateCCSlider(x, y, w, h, "S", 85, 54);
 
   x = x + w + m;
     
-  s26.CreateCCSlider(x, y, w, h, "R", 27, 76);
+  s26.CreateCCSlider(x, y, w, h, "R", 83, 55);
 
   x = x + w + m;
   x = x + g;
     
-  s27.CreateCCSlider(x, y, w, h, "DELAY", 33, 79);
+  s27.CreateCCSlider(x, y, w, h, "DELAY", 20, 58);
 
   x = x + w + m;
     
-  s28.CreateCCSlider(x, y, w, h, "FADE", 34, 80);
+  s28.CreateCCSlider(x, y, w, h, "FADE", 21, 59);
   
   x = x + w + m + 32;
   x = x + g;
    
-  s35.CreateCCSlider(x, y, w, h, "DELAY", 39, 83);
+  s35.CreateCCSlider(x, y, w, h, "DELAY", 26, 62);
   
   x = x + w + m;
    
-  s36.CreateCCSlider(x, y, w, h, "FADE", 40, 84);
+  s36.CreateCCSlider(x, y, w, h, "FADE", 27, 63);
   
   x = x + w + m + 62;
   
-  s29.CreateCCSlider(x, y, w, h, "SIZE", 44, 0);
+  s29.CreateCCSlider(x, y, w, h, "SIZE", 75, 86);
     
   x = x + w + m;
      
-  s30.CreateCCSlider(x, y, w, h, "DEC", 45, 0);
+  s30.CreateCCSlider(x, y, w, h, "DEC", 76, 87);
 
   x = m_x;
   y = y + h + m + 20;
   
-  s1.CreateCCSlider(x, y, w, h, "WAVE", 12, 51);
+  s1.CreateCCSlider(x, y, w, h, "WAVE", 70, 31);
   
   x = x + w + m;
   
-  s2.CreateCCSlider(x, y, w, h, "LVL", 13, 52);
+  s2.CreateCCSlider(x, y, w, h, "LVL", 9, 32);
   
   x = x + w + m;
   
-  s3.CreateCCSlider(x, y, w, h, "SUB", 14, 53);
+  s3.CreateCCSlider(x, y, w, h, "SUB", 10, 33);
   
   x = x + w + m;
   
-  s4.CreateCCSlider(x, y, w, h, "NOISE", 15, 54);
+  s4.CreateCCSlider(x, y, w, h, "NOISE", 11, 34);
   
   x = x + w + m;
   
-  s5.CreateCCSlider(x, y, w, h, "LFO", 16, 55);
-  
-  x = x + w + m;
-  x = x + g;
-  
-  s6.CreateCCSlider(x, y, w, h, "CUT", 4, 61);
-  
-  x = x + w + m;
-  
-  s7.CreateCCSlider(x, y, w, h, "RES", 8, 62);
-  
-  x = x + w + m;
-  
-  s8.CreateCCSlider(x, y, w, h, "EG", 9, 63);
+  s5.CreateCCSlider(x, y, w, h, "LFO", 13, 35);
   
   x = x + w + m;
   x = x + g;
   
-  s9.CreateCCSlider(x, y, w, h, "A", 20, 69);
+  s6.CreateCCSlider(x, y, w, h, "CUT", 74, 42);
   
   x = x + w + m;
   
-  s10.CreateCCSlider(x, y, w, h, "D", 21, 70);
+  s7.CreateCCSlider(x, y, w, h, "RES", 71, 43);
+  
+  x = x + w + m;
+  
+  s8.CreateCCSlider(x, y, w, h, "EG", 3, 44);
+  
+  x = x + w + m;
+  x = x + g;
+  
+  s9.CreateCCSlider(x, y, w, h, "A", 79, 48);
+  
+  x = x + w + m;
+  
+  s10.CreateCCSlider(x, y, w, h, "D", 80, 49);
   
   x = x + w + m;
    
-  s11.CreateCCSlider(x, y, w, h, "S", 22, 71);
+  s11.CreateCCSlider(x, y, w, h, "S", 82, 50);
   
   x = x + w + m;
    
-  s12.CreateCCSlider(x, y, w, h, "R", 23, 72);
+  s12.CreateCCSlider(x, y, w, h, "R", 83, 51);
   
   x = x + w + m;
   x = x + g;
    
-  s13.CreateCCSlider(x, y, w, h, "RATE", 31, 77);
+  s13.CreateCCSlider(x, y, w, h, "RATE", 18, 56);
   
   x = x + w + m;
    
-  s14.CreateCCSlider(x, y, w, h, "WAVE", 32, 78);
+  s14.CreateCCSlider(x, y, w, h, "WAVE", 19, 57);
   
   x = x + w + m + 32;
   x = x + g;
    
-  s33.CreateCCSlider(x, y, w, h, "RATE", 37, 81);
+  s33.CreateCCSlider(x, y, w, h, "RATE", 24, 60);
   
   x = x + w + m;
    
-  s34.CreateCCSlider(x, y, w, h, "WAVE", 38, 82);
+  s34.CreateCCSlider(x, y, w, h, "WAVE", 25, 61);
 
   x = x + w + m + 62;
    
-  s31.CreateCCSlider(x, y, w, h, "FILT", 46, 0);
+  s31.CreateCCSlider(x, y, w, h, "FILT", 77, 88);
   
   x = x + w + m;
    
-  s32.CreateCCSlider(x, y, w, h, "MIX", 47, 0);
+  s32.CreateCCSlider(x, y, w, h, "MIX", 78, 89);
   
   x = 715;
   y = 61;
@@ -912,9 +915,9 @@ mouse_wheel = 0;
 
 @serialize
 
-preset_version = 1.00;
+preset_version = 1.02;
 file_var(0, preset_version);
-file_mem(0, mod_values, 33 * 4);
+file_mem(0, mod_values, 128 * 4);
 
 is_update_ui = 1;
 
@@ -934,7 +937,7 @@ offset = 0;
 
 function CheckSliderValues() local(cc, slider_value) (
   cc = 3;
-  while(cc <= 47) (
+  while(cc <= 85) (
     sliders[cc] > 0 ? (
       slider_value = GetSliderValue(cc);
       slider_value != GetInternalSliderValue(cc) ? (
@@ -951,7 +954,7 @@ function CheckSliderValues() local(cc, slider_value) (
 
 function CheckInternalSliderValues() local(cc, int_value) (
   cc = 3;
-  while(cc <= 47) (
+  while(cc <= 85) (
     sliders[cc] > 0 ? (
       int_value = GetInternalSliderValue(cc);
       int_value != GetSliderValue(cc) ? (
@@ -968,16 +971,18 @@ function CheckInternalSliderValues() local(cc, int_value) (
 function CheckModValues() local(cc, mod_value, mod_select) (
   mod_select = 0;
   while (mod_select < 4) (
-    cc = 51;
-    midisend(0, 0xB0 | channel, 50, mod_select);
+    cc = 31;
+    midisend(0, 0xB0 | channel, 30, mod_select);
     offset = offset + 1;
-    while (cc <= 84) (
-      mod_value = GetModValue(cc, mod_select);
-      mod_value != GetInternalModValue(cc, mod_select)  ? (
-        a2_mod_send_cnt = a2_mod_send_cnt + 1;
-        SetInternalModValue(cc, mod_value, mod_select);
-        midisend(0, 0xB0 | channel, cc, mod_value);
-        offset = offset + 1;
+    while (cc <= 89) (
+      (cc <= 63 || cc >= 86) ? (
+        mod_value = GetModValue(cc, mod_select);
+        mod_value != GetInternalModValue(cc, mod_select)  ? (
+          a2_mod_send_cnt = a2_mod_send_cnt + 1;
+          SetInternalModValue(cc, mod_value, mod_select);
+          midisend(0, 0xB0 | channel, cc, mod_value);
+          offset = offset + 1;
+        );
       );
       cc = cc + 1;
     );
@@ -988,16 +993,18 @@ function CheckModValues() local(cc, mod_value, mod_select) (
 function CheckInternalModValues() local(cc, int_value, mod_select) (
   mod_select = 0;
   while (mod_select < 4) (
-    cc = 51;
-    midisend(0, 0xB0 | channel, 50, mod_select);
+    cc = 31;
+    midisend(0, 0xB0 | channel, 30, mod_select);
     offset = offset + 1;
-    while (cc <= 84) (
-      int_value = GetInternalModValue(cc, mod_select);
-      int_value != GetModValue(cc, mod_select)  ? (
-        a2_int_mod_send_cnt = a2_int_mod_send_cnt + 1;
-        SetModValue(cc, int_value, mod_select);
-        midisend(0, 0xB0 | channel, cc, int_value);
-        offset = offset + 1;
+    while (cc <= 89) (
+      (cc <= 63 || cc >= 86) ? (
+        int_value = GetInternalModValue(cc, mod_select);
+        int_value != GetModValue(cc, mod_select)  ? (
+          a2_int_mod_send_cnt = a2_int_mod_send_cnt + 1;
+          SetModValue(cc, int_value, mod_select);
+          midisend(0, 0xB0 | channel, cc, int_value);
+          offset = offset + 1;
+        );
       );
       cc = cc + 1;
     );
@@ -1031,7 +1038,7 @@ has_int_mod_changed ? (
 
 while(midirecv(offset, msg1, msg2, msg3)) (
   msg1 == 0xB0 | channel ? (
-    is_slider_cc = sliders[msg2] || msg2 == 50;
+    is_slider_cc = sliders[msg2] || msg2 == 30;
     is_slider_cc ? (
       is_slider_cc ? (
         SetSliderValue(msg2, msg3);
@@ -1040,10 +1047,9 @@ while(midirecv(offset, msg1, msg2, msg3)) (
         a1_midi_cnt = a1_midi_cnt + 1;
       );
     ) : (
-      is_mod_cc =  msg2 >= 51 && msg2 <= 84;
-      is_mod_cc ? (
-        SetModValue(msg2, msg3, values[50]);
-        SetInternalModValue(msg2, msg3, values[50]);
+      IsCCValue(msg2) ? (
+        SetModValue(msg2, msg3, values[30]);
+        SetInternalModValue(msg2, msg3, values[30]);
         is_update_ui = 1;
         a1_midi_cnt = a1_midi_cnt + 1;
       );
@@ -1051,10 +1057,3 @@ while(midirecv(offset, msg1, msg2, msg3)) (
   );
   midisend(offset, msg1, msg2, msg3);
 );
-
-
-
-
-
-
-
