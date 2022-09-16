@@ -1,5 +1,5 @@
 desc:Nymphes Control Freak
-version: 2.00
+version: 2.01
 author: Ilias-Timon Poulakis
 license: MIT
 
@@ -604,7 +604,7 @@ function BuildGUI() local(m_y, m_x, x, y, w, h, g) (
 
   x = x + w + m;
   
-  s24.CreateCCSlider(x, y, w, h, "D", 76, 53);
+  s24.CreateCCSlider(x, y, w, h, "D", 84, 53);
 
   x = x + w + m;
     
@@ -612,7 +612,7 @@ function BuildGUI() local(m_y, m_x, x, y, w, h, g) (
 
   x = x + w + m;
     
-  s26.CreateCCSlider(x, y, w, h, "R", 83, 55);
+  s26.CreateCCSlider(x, y, w, h, "R", 72, 55);
 
   x = x + w + m;
   x = x + g;
