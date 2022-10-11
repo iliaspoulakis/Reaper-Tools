@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="4b346a59c7999c766071582d2844ce0df3d84e72">
+<index version="1" name="FTC Tools" commit="6eaffd5a2c8dd6d0d92f256f2ff746ce9eed46e7">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -619,6 +619,10 @@
       <version name="1.6.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-06-02T11:20:00Z">
         <changelog><![CDATA[- Added menu option to create take markers from chords]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ec3a881df07b98ff8a52872a28397290443bc72/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="1.6.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-10-11T13:57:25Z">
+        <changelog><![CDATA[- Possible bugfix for MacOS M1 systems]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/6eaffd5a2c8dd6d0d92f256f2ff746ce9eed46e7/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
