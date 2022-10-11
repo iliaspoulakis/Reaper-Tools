@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.0
+  @version 1.6.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added menu option to create take markers from chords
+    - Possible bugfix for MacOS M1 systems
 ]]
 
 local box_x_offs = 0
@@ -1206,7 +1206,7 @@ function Main()
 
         -- Draw LICE bitmap on piano pane
         reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
-                            bm_w, bm_h, false)
+                            bm_w, bm_h)
         reaper.JS_Composite_Delay(piano_pane, 0.03, 0.03, 2)
         is_forced_redraw = true
     end
