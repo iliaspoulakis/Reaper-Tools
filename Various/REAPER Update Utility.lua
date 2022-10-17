@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.3
+  @version 1.8.4
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Change order of RCs in old version menu
+    - Fixed permission issue with log file on Windows
 ]]
 
 -- App version & platform architecture
@@ -869,12 +869,11 @@ function Main()
                 cmd = cmd .. ' %s >> %s 2>&1'
                 cmd = cmd:format(hook_cmd, log_path)
             end
-            -- Restart reaper
-            cmd = cmd .. ' & start reaper.exe >> %s 2>&1'
-            cmd = cmd:format(log_path)
             -- Delete downloaded installer file
             cmd = cmd .. ' & del %s >> %s 2>&1'
             cmd = cmd:format(dfile_path, log_path)
+            -- Restart reaper
+            cmd = cmd .. ' & start reaper.exe'
             ExecInstall(cmd)
             return
         end
