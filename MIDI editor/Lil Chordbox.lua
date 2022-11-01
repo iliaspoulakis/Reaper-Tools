@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.1
+  @version 1.6.2
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Possible bugfix for MacOS M1 systems
+    - Avoid opening menu when MIDI editor is not visible
 ]]
 
 local box_x_offs = 0
@@ -556,6 +556,7 @@ end
 
 function IsBitmapHovered(hwnd)
     local x, y = reaper.GetMousePosition()
+    if hwnd ~= reaper.JS_Window_FromPoint(x, y) then return false end
     x, y = reaper.JS_Window_ScreenToClient(hwnd, x, y)
     return x >= bm_x and y > bm_y and x < bm_x + bm_w and y <= bm_y + bm_h
 end
