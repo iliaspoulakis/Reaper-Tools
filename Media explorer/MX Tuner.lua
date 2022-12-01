@@ -1,11 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.2
+  @version 1.7.3
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Correctly detect files in databases when file extension is hidden
+    - Improved FFT detection algorithm
+    - Avoid keeping files in use so that they can be deleted (windows)
+    - Fixed minor theme menu bug
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -290,10 +292,13 @@ function GetPitchFTC(file)
 
     -- Get media source peaks
     local src = reaper.PCM_Source_CreateFromFileEx(file, true)
-    if not src then return end
+    if not reaper.ValidatePtr(src, 'PCM_source*') then return end
 
     local src_len = reaper.GetMediaSourceLength(src)
-    if src_len == 0 then return end
+    if src_len == 0 then
+        reaper.PCM_Source_Destroy(src)
+        return
+    end
 
     -- Limit length of analyzed sample to 1 sec
     src_len = math.min(1, src_len)
@@ -304,6 +309,10 @@ function GetPitchFTC(file)
     buf.clear()
 
     local peaks = reaper.PCM_Source_GetPeaks(src, rate, 0, 1, spl_cnt, 0, buf)
+
+    reaper.PCM_Source_Destroy(src)
+    if not peaks then return end
+
     spl_cnt = peaks & 0xfffff
     if spl_cnt == 0 then return end
 
@@ -440,13 +449,15 @@ function GetPitchFTC(file)
 end
 
 function GetPitchFFT(file)
-
     -- Get media source peaks
     local src = reaper.PCM_Source_CreateFromFileEx(file, true)
-    if not src then return end
+    if not reaper.ValidatePtr(src, 'PCM_source*') then return end
 
     local src_len = reaper.GetMediaSourceLength(src)
-    if src_len == 0 then return end
+    if src_len == 0 then
+        reaper.PCM_Source_Destroy(src)
+        return
+    end
 
     -- Limit length of analyzed sample to 1 sec
     src_len = math.min(1, src_len)
@@ -459,6 +470,10 @@ function GetPitchFFT(file)
     local buf = reaper.new_array(math.max(window_size, spl_cnt) * 2)
 
     local peaks = reaper.PCM_Source_GetPeaks(src, rate, 0, 1, spl_cnt, 0, buf)
+
+    reaper.PCM_Source_Destroy(src)
+    if not peaks then return end
+
     spl_cnt = peaks & 0xfffff
     if spl_cnt == 0 then return end
 
@@ -466,6 +481,7 @@ function GetPitchFFT(file)
     buf.clear(0, spl_cnt - 1)
     buf.fft(window_size, true)
 
+    -- Find highest frequency peak
     local max_val = 0
     local max_i
     for i = 1, window_size do
@@ -479,11 +495,18 @@ function GetPitchFFT(file)
 
     if not max_i then return end
 
-    if max_i > 1 and max_i < window_size then
+    if max_i > 1 and max_i < window_size / 4 then
+        -- Look for fundamental harmonics
+        local lim = 0.4
+        local third_i = math.floor(max_i / 3 + 0.5)
+        if buf[third_i] > max_val * lim then max_i = third_i end
+
+        local half_i = math.floor(max_i / 2 + 0.5)
+        if buf[half_i] > max_val * lim then max_i = half_i end
         -- Use parabolic interpolation to improve precision
         local prev = buf[max_i - 1]
         local next = buf[max_i + 1]
-        local diff = (next - prev) / (max_val + prev + next)
+        local diff = (next - prev) / (2 * (2 * max_val - prev - next))
         max_i = max_i + diff
     end
 
@@ -1055,7 +1078,7 @@ function Main()
             '>Window|%sDock window|%sHide frame|%sAlways on top|<%sAvoid focus\z
             |>Pitch snap|%sContinuous|%sQuarter tones|%sSemitones||<%sTune with \z
             rate|>Algorithm|%sFTC|<%sFFT|>Parsing|%sUse metadata tag \'key\'|\z
-            <%sSearch filename for key|>Theme|%sLight|%sDark%s|Reaper 1|<%sReaper 2'
+            <%sSearch filename for key|>Theme|%sLight|%sDark|%sReaper 1|<%sReaper 2'
 
         local is_docked = dock & 1 == 1
         local menu_dock_state = is_docked and '!' or ''
