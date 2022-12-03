@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.2
+  @version 1.6.3
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Avoid opening menu when MIDI editor is not visible
+    - Combine created adjacent regions with same chords
 ]]
 
 local box_x_offs = 0
@@ -945,6 +945,25 @@ function CreateChordRegions()
             reg_start_pos = math.max(reg_start_pos, item_start_pos)
             reg_end_pos = math.min(reg_end_pos, item_end_pos)
             AddMarker(0, true, reg_start_pos, reg_end_pos, prev_name, -1)
+        end
+    end
+
+    -- Combine regions with same chord name
+    local prev_name
+    local prev_idx
+    local prev_end_pos
+    for i = reaper.CountProjectMarkers(0) - 1, 0, -1 do
+        local _, is_reg, start_pos, end_pos, name, idx = EnumMarkers(0, i)
+        if is_reg then
+            if start_pos >= item_start_pos and end_pos <= item_end_pos then
+                if name == prev_name then
+                    reaper.DeleteProjectMarker(0, prev_idx, true)
+                    SetMarker(0, idx, true, start_pos, prev_end_pos, name)
+                end
+                prev_name = name
+                prev_idx = idx
+                prev_end_pos = end_pos
+            end
         end
     end
 
