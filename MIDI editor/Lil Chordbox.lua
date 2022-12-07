@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.3
+  @version 1.6.4
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Combine created adjacent regions with same chords
+    - Live input: Treat notes with 0 velocity as noteoffs
 ]]
 
 local box_x_offs = 0
@@ -524,6 +524,11 @@ function GetMIDIInputChord(track)
                     if filter_channel == 0 or filter_channel == channel then
                         local is_note_on = msg1 & 0xF0 == 0x90
                         local is_note_off = msg1 & 0xF0 == 0x80
+                        -- Check for 0x90 note offs with 0 velocity
+                        if is_note_on and msg3 == 0 then
+                            is_note_on = false
+                            is_note_off = true
+                        end
                         if is_note_on and not input_note_map[msg2] then
                             input_note_map[msg2] = 1
                             input_note_cnt = input_note_cnt + 1
