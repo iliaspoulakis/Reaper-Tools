@@ -1,13 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.8
+  @version 1.0.9
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Correctly detect files in databases when file extension is hidden
+    - Treat note-ons with velocity 0 as note-offs
+    - Set pitch offset correctly when adding range of notes
 ]]
 
 -- Avoid creating undo points
@@ -65,8 +66,9 @@ ext_midi_bus = 1;
 while (midirecv(offset, msg1, msg2, msg3))
 (
     mask = msg1 & 0xF0;
-    is_note_on = mask == 0x90 && msg2;
-    is_note_off = mask == 0x80 || (mask == 0x90 && !msg2);
+    is_note_on = mask == 0x90;
+    is_note_off = mask == 0x80;
+    is_note_on && msg3 == 0 ? (is_note_on = 0; is_note_off = 1);
 
     is_note_on  ? (gmem[0] = msg2; slider1 = msg2; gmem[2] = gmem[2] + 1);
     is_note_off ? (gmem[1] = msg2; slider2 = msg2; gmem[3] = gmem[3] + 1);
@@ -411,8 +413,8 @@ function Main()
             reaper.TrackFX_SetNamedConfigParm(track, fx, 'MODE', mode)
             if mode == 2 then
                 -- Set start pitch to center of range (less sound degradation)
-                local center = note_lo + (note_hi - note_lo) // 2
-                reaper.TrackFX_SetParamNormalized(track, fx, 5, center / 127)
+                local center = (note_hi - note_lo) / 2 / 127
+                reaper.TrackFX_SetParamNormalized(track, fx, 5,  0.5 - center)
             end
 
             -- Set files
