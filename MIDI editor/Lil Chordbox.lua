@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.4
+  @version 1.6.5
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Live input: Treat notes with 0 velocity as noteoffs
+    - Ignore muted notes
 ]]
 
 local box_x_offs = 0
@@ -402,66 +402,67 @@ function GetChords(take)
     local chord_min_eppq
 
     for i = 0, note_cnt - 1 do
-        local _, sel, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
+        local _, sel, mute, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
+        if not mute then
+            local note_info = {pitch = pitch, sel = sel, sppq = sppq, eppq = eppq}
+            if sel then sel_notes[#sel_notes + 1] = note_info end
 
-        local note_info = {pitch = pitch, sel = sel, sppq = sppq, eppq = eppq}
-        if sel then sel_notes[#sel_notes + 1] = note_info end
+            chord_min_eppq = chord_min_eppq or eppq
+            chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
 
-        chord_min_eppq = chord_min_eppq or eppq
-        chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
-
-        if sppq >= chord_min_eppq then
-            local new_notes = {}
-            if #notes >= 2 then
-                local chord = BuildChord(notes)
-                if chord then chords[#chords + 1] = chord end
-                for n = 3, #notes do
-                    -- Remove notes that end prior to chord_min_eppq
+            if sppq >= chord_min_eppq then
+                local new_notes = {}
+                if #notes >= 2 then
+                    local chord = BuildChord(notes)
+                    if chord then chords[#chords + 1] = chord end
+                    for n = 3, #notes do
+                        -- Remove notes that end prior to chord_min_eppq
+                        for _, note in ipairs(notes) do
+                            if note.eppq > chord_min_eppq then
+                                new_notes[#new_notes + 1] = note
+                            end
+                        end
+                        -- Try to build chords
+                        chord = BuildChord(new_notes)
+                        if chord then
+                            chord.sppq = chord_min_eppq
+                            chord.eppq = math.min(chord.eppq, sppq)
+                            -- Ignore short chords
+                            if chord.eppq - chord.sppq >= 240 then
+                                chords[#chords + 1] = chord
+                            end
+                            chord_min_eppq = chord.eppq
+                        end
+                        new_notes = {}
+                    end
+                    -- Remove notes that end prior to the start of current note
+                    chord_min_eppq = eppq
                     for _, note in ipairs(notes) do
-                        if note.eppq > chord_min_eppq then
+                        if note.eppq > sppq then
                             new_notes[#new_notes + 1] = note
+                            if note.eppq < chord_min_eppq then
+                                chord_min_eppq = note.eppq
+                            end
                         end
                     end
-                    -- Try to build chords
-                    chord = BuildChord(new_notes)
+                else
+                    chord_min_eppq = eppq
+                end
+                notes = new_notes
+            else
+                if #notes >= 2 then
+                    local chord = BuildChord(notes)
                     if chord then
-                        chord.sppq = chord_min_eppq
                         chord.eppq = math.min(chord.eppq, sppq)
-                        -- Ignore short chords
-                        if chord.eppq - chord.sppq >= 240 then
+                        -- Ignore very short arpeggiated chords
+                        if chord.eppq - chord.sppq >= 180 then
                             chords[#chords + 1] = chord
                         end
-                        chord_min_eppq = chord.eppq
-                    end
-                    new_notes = {}
-                end
-                -- Remove notes that end prior to the start of current note
-                chord_min_eppq = eppq
-                for _, note in ipairs(notes) do
-                    if note.eppq > sppq then
-                        new_notes[#new_notes + 1] = note
-                        if note.eppq < chord_min_eppq then
-                            chord_min_eppq = note.eppq
-                        end
-                    end
-                end
-            else
-                chord_min_eppq = eppq
-            end
-            notes = new_notes
-        else
-            if #notes >= 2 then
-                local chord = BuildChord(notes)
-                if chord then
-                    chord.eppq = math.min(chord.eppq, sppq)
-                    -- Ignore very short arpeggiated chords
-                    if chord.eppq - chord.sppq >= 180 then
-                        chords[#chords + 1] = chord
                     end
                 end
             end
+            notes[#notes + 1] = note_info
         end
-        notes[#notes + 1] = note_info
     end
 
     local sel_chord
