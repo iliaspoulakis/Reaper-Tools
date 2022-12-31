@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="81221860647f07f6a096ce6d80c939c7123dbee9">
+<index version="1" name="FTC Tools" commit="d57229fb9d0f40ea3cd7d4c51e74a9bf74c4952b">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1816,6 +1816,11 @@
       <version name="1.1.7" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-04-25T14:09:34Z">
         <changelog><![CDATA[- Correctly detect files in databases when file extension is hidden]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/5cf75e7111642208794bf89ff3f8853a7076427e/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-12-31T01:09:00Z">
+        <changelog><![CDATA[- Fix volume linking to work again after REAPER v6.65 changes
+- Add user option in script header to temporarily disable autoplay]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/d57229fb9d0f40ea3cd7d4c51e74a9bf74c4952b/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
