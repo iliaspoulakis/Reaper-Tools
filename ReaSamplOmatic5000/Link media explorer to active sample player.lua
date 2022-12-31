@@ -1,14 +1,18 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.7
+  @version 1.2.0
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Correctly detect files in databases when file extension is hidden
+    - Fix volume linking to work again after REAPER v6.65 changes
+    - Add user option in script header to temporarily disable autoplay
 ]]
+
+-- Uncomment the next line to turn off autoplay temporarily when link is active
+-- local toggle_autoplay = reaper.GetToggleCommandStateEx(32063, 1011) == 1
 
 -- Avoid creating undo points
 reaper.defer(function() end)
@@ -18,6 +22,9 @@ if not reaper.JS_Window_Find then
     reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
     return
 end
+
+local version = tonumber(reaper.GetAppVersion():match('(.+)/'))
+local vol_hwnd_id = version < 6.65 and 1047 or 997
 
 -- Get media explorer window
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
@@ -150,7 +157,7 @@ function MediaExplorer_GetSelectedFileInfo(sel_file, id)
 end
 
 function MediaExplorer_GetVolume()
-    local vol_hwnd = reaper.JS_Window_FindChildByID(mx, 1047)
+    local vol_hwnd = reaper.JS_Window_FindChildByID(mx, vol_hwnd_id)
     local vol = reaper.JS_Window_GetTitle(vol_hwnd)
     return tonumber(vol:match('[^%a]+'))
 end
@@ -318,6 +325,7 @@ function RefreshMXToolbar()
 end
 
 function Exit()
+    if toggle_autoplay then reaper.JS_Window_OnCommand(mx, 40035) end
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
     RefreshMXToolbar()
@@ -327,6 +335,8 @@ reaper.atexit(Exit)
 reaper.SetToggleCommandState(sec, cmd, 1)
 reaper.RefreshToolbar2(sec, cmd)
 RefreshMXToolbar()
+
+if toggle_autoplay then reaper.JS_Window_OnCommand(mx, 40036) end
 
 --  Get the track ot take that "contains" the last touched fx
 container, container_idx = GetLastFocusedFXContainer()
