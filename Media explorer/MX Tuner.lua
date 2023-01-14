@@ -1,13 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.3
+  @version 1.7.4
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Improved FFT detection algorithm
-    - Avoid keeping files in use so that they can be deleted (windows)
-    - Fixed minor theme menu bug
+    - Improved file name pitch detection
+    - Set FFT algorithm as default
 ]]
 
 -- Check if js_ReaScriptAPI extension is installed
@@ -526,7 +525,7 @@ function GetPitchFromFileName(file)
 
     for pre, note, add, post in file_name:gmatch(pattern) do
         -- Note: Avoid patterns like 'Color B 12'
-        if pre == ' ' and post == ' ' and add == '' then note = nil end
+        -- if pre == ' ' and post == ' ' and add == '' then note = nil end
         if not file_note then file_note = note end
         -- Keep matches later in the item name (or longer e.g. with #)
         if note and #note >= #file_note then file_note = note end
@@ -1077,7 +1076,7 @@ function Main()
         local menu =
             '>Window|%sDock window|%sHide frame|%sAlways on top|<%sAvoid focus\z
             |>Pitch snap|%sContinuous|%sQuarter tones|%sSemitones||<%sTune with \z
-            rate|>Algorithm|%sFTC|<%sFFT|>Parsing|%sUse metadata tag \'key\'|\z
+            rate|>Algorithm|%sFFT|<%sFTC|>Parsing|%sUse metadata tag \'key\'|\z
             <%sSearch filename for key|>Theme|%sLight|%sDark|%sReaper 1|<%sReaper 2'
 
         local is_docked = dock & 1 == 1
@@ -1089,8 +1088,8 @@ function Main()
         local menu_pitch_quarter = pitch_mode == 2 and '!' or ''
         local menu_pitch_semitones = pitch_mode == 3 and '!' or ''
         local menu_rate = rate_mode == 1 and '!' or ''
-        local menu_algo_ftc = algo_mode == 1 and '!' or ''
         local menu_algo_fft = algo_mode == 2 and '!' or ''
+        local menu_algo_ftc = algo_mode == 1 and '!' or ''
         local menu_parse_meta = parse_meta_mode == 1 and '!' or ''
         local menu_parse_name = parse_name_mode == 1 and '!' or ''
         local menu_theme1 = theme_id == 1 and '!' or ''
@@ -1101,7 +1100,7 @@ function Main()
         menu = menu:format(menu_dock_state, menu_frameless, menu_ontop,
                            menu_focus, menu_pitch_continuous,
                            menu_pitch_quarter, menu_pitch_semitones, menu_rate,
-                           menu_algo_ftc, menu_algo_fft, menu_parse_meta,
+                           menu_algo_fft, menu_algo_ftc, menu_parse_meta,
                            menu_parse_name, menu_theme1, menu_theme2,
                            menu_theme3, menu_theme4)
 
@@ -1146,8 +1145,8 @@ function Main()
             reaper.SetExtState('FTC.MXTuner', 'rate_mode', rate_mode, true)
         end
 
-        if ret == 9 then algo_mode = 1 end
-        if ret == 10 then algo_mode = 2 end
+        if ret == 9 then algo_mode = 2 end
+        if ret == 10 then algo_mode = 1 end
         if ret == 11 then parse_meta_mode = 1 - parse_meta_mode end
         if ret == 12 then parse_name_mode = 1 - parse_name_mode end
 
@@ -1240,7 +1239,7 @@ end
 
 rate_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'rate_mode')) or 0
 pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 1
-algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 1
+algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 2
 parse_meta_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'meta_mode')) or 1
 parse_name_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'name_mode')) or 1
 
