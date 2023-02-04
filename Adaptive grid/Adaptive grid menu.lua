@@ -3,9 +3,7 @@
   @license MIT
   @noindex
   @about User settings for adaptive grid
-]]
-
-local extname = 'FTC.AdaptiveGrid'
+]] local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, cmd = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
 
@@ -91,6 +89,7 @@ function IsStartupHookEnabled()
     if reaper.file_exists(startup_path) then
         -- Read content of __startup.lua
         local startup_file = io.open(startup_path, 'r')
+        if not startup_file then return false end
         local content = startup_file:read('*a')
         startup_file:close()
 
@@ -121,6 +120,8 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
     if reaper.file_exists(startup_path) then
 
         local startup_file = io.open(startup_path, 'r')
+        if not startup_file then return end
+
         content = startup_file:read('*a')
         startup_file:close()
 
@@ -137,6 +138,7 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
 
             -- Write changes to file
             local new_startup_file = io.open(startup_path, 'w')
+            if not new_startup_file then return end
             new_startup_file:write(content)
             new_startup_file:close()
 
@@ -152,6 +154,7 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
             Main_OnCommand(reaper.NamedCommandLookup(%s), 0)\n\n'
         hook = hook:format(comment, var_name, cmd_name, var_name)
         local startup_file = io.open(startup_path, 'w')
+        if not startup_file then return end
         startup_file:write(hook .. content)
         startup_file:close()
     end
@@ -241,6 +244,7 @@ end
 
 function GetIniConfigValue(key, default)
     local ini_file = io.open(reaper.get_ini_file(), 'r')
+    if not ini_file then return default end
     local pattern = '^' .. key .. '=(.+)'
     local ret = default
     for line in ini_file:lines() do
@@ -343,30 +347,22 @@ function ToggleGridSwing()
     reaper.GetSetProjectGrid(0, true, grid_div, 1 - swing, swing_amt)
 end
 
-function GetUserCustomGridSpacing(is_midi)
-    local key = is_midi and 'midi_custom_spacing' or 'custom_spacing'
-    local caption = 'Minimum grid spacing in pixels:'
-    local custom_spacing = reaper.GetExtState(extname, key)
-    local title = 'Adaptive Grid'
-    local ret, spacing = reaper.GetUserInputs(title, 1, caption, custom_spacing)
+function SetUserGridDivisor(is_midi)
+    local key = is_midi and 'midi_zoom_div' or 'zoom_div'
+    local val = tonumber(reaper.GetExtState(extname, key)) or 2
+    local captions = 'Zooming divides grid by X (def: 2):'
+    local title = is_midi and 'MIDI grid divisor' or 'Arrange grid divisor'
+    local ret, divisor_str = reaper.GetUserInputs(title, 1, captions, val)
     if not ret then return end
-    spacing = tonumber(spacing) or 0
-    if spacing <= 0 then
-        reaper.MB('Value not permitted!', 'Error', 0)
+
+    local divisor = tonumber(divisor_str)
+    if not divisor or divisor <= 1 then
+        local msg = 'Value \'%s\' not permitted!'
+        reaper.MB(msg:format(divisor_str), 'Error', 0)
         return false
-    else
-        min_spacing = is_midi and 15 or min_spacing
-        if spacing < min_spacing then
-            local status = ' (Currently: %s pixels in grid settings)'
-            status = is_midi and ' (15px)' or status:format(min_spacing)
-            local msg = 'The value you set is smaller than the minimum \z
-                 grid line spacing%s.\n\z
-                 This might have unwanted side effects.'
-            reaper.MB(msg:format(status), 'Warning', 0)
-        end
-        reaper.SetExtState(extname, key, spacing, true)
-        return true
     end
+    reaper.SetExtState(extname, key, ('%.32f'):format(divisor), true)
+    return true
 end
 
 function SetUserGridLimits(is_midi)
@@ -416,6 +412,32 @@ function SetUserGridLimits(is_midi)
     reaper.SetExtState(extname, max_key, ('%.32f'):format(vals[2]), true)
 
     return true
+end
+
+function GetUserCustomGridSpacing(is_midi)
+    local key = is_midi and 'midi_custom_spacing' or 'custom_spacing'
+    local caption = 'Minimum grid spacing in pixels:'
+    local custom_spacing = reaper.GetExtState(extname, key)
+    local title = 'Adaptive Grid'
+    local ret, spacing = reaper.GetUserInputs(title, 1, caption, custom_spacing)
+    if not ret then return end
+    spacing = tonumber(spacing) or 0
+    if spacing <= 0 then
+        reaper.MB('Value not permitted!', 'Error', 0)
+        return false
+    else
+        min_spacing = is_midi and 15 or min_spacing
+        if spacing < min_spacing then
+            local status = ' (Currently: %s pixels in grid settings)'
+            status = is_midi and ' (15px)' or status:format(min_spacing)
+            local msg = 'The value you set is smaller than the minimum \z
+                 grid line spacing%s.\n\z
+                 This might have unwanted side effects.'
+            reaper.MB(msg:format(status), 'Warning', 0)
+        end
+        reaper.SetExtState(extname, key, spacing, true)
+        return true
+    end
 end
 
 function CheckUserCustomGridSpacing(is_midi)
@@ -490,27 +512,21 @@ end
 
 local options_menu = {
     title = 'Options',
-    {
-        title = 'Set custom size for arrange view',
-        OnReturn = SetUserCustomGridSpacing,
-        arg = false,
-    },
-    {
-        title = 'Set custom size for MIDI editor',
-        OnReturn = SetUserCustomGridSpacing,
-        arg = true,
-    },
+    {title = 'Arrange view', is_grayed = true},
     {separator = true},
     {
-        title = 'Set limits for arrange view',
-        OnReturn = SetUserGridLimits,
+        title = 'Set custom size',
+        OnReturn = SetUserCustomGridSpacing,
         arg = false,
     },
-    {
-        title = 'Set limits for MIDI editor',
-        OnReturn = SetUserGridLimits,
-        arg = true,
-    },
+    {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = false},
+    {title = 'Set limits', OnReturn = SetUserGridLimits, arg = false},
+    {separator = true},
+    {title = 'MIDI editor', is_grayed = true},
+    {separator = true},
+    {title = 'Set custom size', OnReturn = SetUserCustomGridSpacing, arg = true},
+    {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = true},
+    {title = 'Set limits', OnReturn = SetUserGridLimits, arg = true},
     {separator = true},
     {
         title = 'Run service on startup',
@@ -574,15 +590,12 @@ local midi_menu = {
     {
         title = 'Options',
         {
-            title = 'Set custom size for MIDI editor',
+            title = 'Set custom size',
             OnReturn = SetUserCustomGridSpacing,
             arg = true,
         },
-        {
-            title = 'Set limits for MIDI editor',
-            OnReturn = SetUserGridLimits,
-            arg = true,
-        },
+        {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = true},
+        {title = 'Set limits', OnReturn = SetUserGridLimits, arg = true},
         {separator = true},
         {
             title = 'Run service on startup',
@@ -605,14 +618,14 @@ if under_cmd > 0 then
     under_items_menu = {
         {separator = true},
         {
-            title = 'Below items',
+            title = 'Grid below items',
             IsChecked = function()
                 return reaper.GetToggleCommandState(under_cmd) == 1
             end,
 
             OnReturn = function()
                 if reaper.GetToggleCommandState(under_cmd) == 1 then
-                    local cmd_name = '_BR_OPTIONS_GRID_Z_THROUGH_ITEMS'
+                    local cmd_name = '_BR_OPTIONS_GRID_Z_OVER_ITEMS'
                     reaper.Main_OnCommand(reaper.NamedCommandLookup(cmd_name), 0)
                 else
                     reaper.Main_OnCommand(under_cmd, 0)
@@ -818,6 +831,7 @@ if not IsServiceRunning() then
         UpdateToolbarToggleStates(0, GetGridMultiplier())
         UpdateToolbarToggleStates(32060, GetMIDIGridMultiplier())
         StartService()
+        reaper.SetToggleCommandState(sec, cmd, 0)
         return
     else
         -- Deactivate adaptive grid
@@ -828,8 +842,12 @@ if not IsServiceRunning() then
     end
 end
 
-local menu = sec == 32060 and midi_menu or main_menu
-local menu_str = MenuCreateRecursive(menu)
-local ret = ShowMenu(menu_str)
-MenuReturnRecursive(menu, ret)
+function StartDeferred()
+    local menu = sec == 32060 and midi_menu or main_menu
+    local menu_str = MenuCreateRecursive(menu)
+    local ret = ShowMenu(menu_str)
+    MenuReturnRecursive(menu, ret)
+end
+
+reaper.defer(StartDeferred)
 

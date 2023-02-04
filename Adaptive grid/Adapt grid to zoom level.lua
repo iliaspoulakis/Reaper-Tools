@@ -9,14 +9,14 @@ local extname = 'FTC.AdaptiveGrid'
 local _, _, sec = reaper.get_action_context()
 local is_midi = sec == 32060 or _G.mode == 2
 
-function AdaptGrid(spacing, min_grid_div, max_grid_div)
+function AdaptGrid(spacing)
     local zoom_lvl = reaper.GetHZoomLevel()
 
     local start_time, end_time = reaper.GetSet_ArrangeView2(0, false, 0, 0)
     local _, _, _, start_beat = reaper.TimeMap2_timeToBeats(0, start_time)
     local _, _, _, end_beat = reaper.TimeMap2_timeToBeats(0, end_time)
 
-    -- Current view with in pixels
+    -- Current view width in pixels
     local arrange_pixels = (end_time - start_time) * zoom_lvl
     -- Number of measures that fit into current view
     local arrange_measures = (end_beat - start_beat) / 4
@@ -31,14 +31,21 @@ function AdaptGrid(spacing, min_grid_div, max_grid_div)
 
     local grid = 1 / grid_div
 
+    local factor = reaper.GetExtState(extname, 'zoom_div')
+    factor = tonumber(factor) or 2
+
     -- How often can current grid fit into max_grid?
-    local exp = math.log(max_grid / grid, 2)
-    local new_grid = grid * 2 ^ math.floor(exp)
+    local exp = math.log(max_grid / grid, factor)
+    local new_grid = grid * factor ^ math.floor(exp)
 
     local new_grid_div = 1 / new_grid
 
     -- Check if new grid division exceeds user limits
+    local min_grid_div = reaper.GetExtState(extname, 'min_limit')
+    min_grid_div = tonumber(min_grid_div) or 0
     if min_grid_div ~= 0 and new_grid_div < min_grid_div then return end
+    local max_grid_div = reaper.GetExtState(extname, 'max_limit')
+    max_grid_div = tonumber(max_grid_div) or 0
     if max_grid_div ~= 0 and new_grid_div > max_grid_div then return end
 
     reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
@@ -132,7 +139,7 @@ function GetMIDIEditorView(hwnd)
     return start_time, end_time, hzoom_lvl
 end
 
-function AdaptMIDIGrid(spacing, min_grid_div, max_grid_div)
+function AdaptMIDIGrid(spacing)
     local hwnd = reaper.MIDIEditor_GetActive()
 
     local start_pos, end_pos, hzoom_lvl = GetMIDIEditorView(hwnd)
@@ -156,14 +163,21 @@ function AdaptMIDIGrid(spacing, min_grid_div, max_grid_div)
     local grid_div, swing, note_len = reaper.MIDI_GetGrid(take)
     local grid = 1 / grid_div
 
+    local factor = reaper.GetExtState(extname, 'midi_zoom_div')
+    factor = tonumber(factor) or 2
+
     -- How often can current grid fit into max_grid?
-    local exp = math.log(max_grid / grid, 2)
-    local new_grid = grid * 2 ^ math.floor(exp)
+    local exp = math.log(max_grid / grid, factor)
+    local new_grid = grid * factor ^ math.floor(exp)
 
     local new_grid_div = 1 / new_grid
 
     -- Check if new grid division exceeds user limits
+    local min_grid_div = reaper.GetExtState(extname, 'midi_min_limit')
+    min_grid_div = tonumber(min_grid_div) or 0
     if min_grid_div ~= 0 and new_grid_div < min_grid_div then return end
+    local max_grid_div = reaper.GetExtState(extname, 'midi_max_limit')
+    max_grid_div = tonumber(max_grid_div) or 0
     if max_grid_div ~= 0 and new_grid_div > max_grid_div then return end
 
     reaper.SetMIDIEditorGrid(0, new_grid_div)
@@ -305,14 +319,8 @@ else
     spacing = spacing + mult
 end
 
-local min_key = is_midi and 'midi_min_limit' or 'min_limit'
-local max_key = is_midi and 'midi_max_limit' or 'max_limit'
-
-local min_limit = tonumber(reaper.GetExtState(extname, min_key)) or 0
-local max_limit = tonumber(reaper.GetExtState(extname, max_key)) or 0
-
 if not is_midi then
-    AdaptGrid(spacing, min_limit, max_limit)
+    AdaptGrid(spacing)
 else
-    AdaptMIDIGrid(spacing, min_limit, max_limit)
+    AdaptMIDIGrid(spacing)
 end
