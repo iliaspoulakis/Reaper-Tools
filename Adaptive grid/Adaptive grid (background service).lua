@@ -48,11 +48,27 @@ end
 
 local adapt_script_path = ConcatPath(path, 'Adapt grid to zoom level.lua')
 local run_adapt_scipt = loadfile(adapt_script_path)
+if not run_adapt_scipt then return end
 
 local prev_grid_state
 local prev_hzoom_lvl
 local prev_midi_hzoom_lvl
 local prev_chunk
+local prev_time
+local prev_mouse_x
+local prev_mouse_y
+
+local has_js_api = reaper.JS_Window_FromPoint
+local is_windows = reaper.GetOS():match('Win')
+
+-- Note: Tooltip delay is only necessary on Windows
+local tooltip_delay = 0
+
+if is_windows then
+    tooltip_delay = select(2, reaper.get_config_var_string('tooltipdelay'))
+    tooltip_delay = (tonumber(tooltip_delay) or 200) / 1000
+    tooltip_delay = tooltip_delay * (has_js_api and 2 or 5)
+end
 
 function Main()
     -- Options: Toggle grid lines
@@ -91,24 +107,56 @@ function Main()
     -- Check if MIDI editor grid is set to adaptive
     local midi_mult = GetMIDIGridMultiplier()
     if midi_mult ~= 0 then
-        -- Check if MIDI editor is open
-        local hwnd = reaper.MIDIEditor_GetActive()
-        local take = reaper.MIDIEditor_GetTake(hwnd)
-        if reaper.ValidatePtr(take, 'MediaItem_Take*') then
-            local item = reaper.GetMediaItemTake_Item(take)
-            local _, chunk = reaper.GetItemStateChunk(item, '', false)
-            -- Check if item chunk changed (string comparison is fast)
-            if chunk ~= prev_chunk then
-                prev_chunk = chunk
-                local take_chunk = GetTakeChunk(take, chunk)
-                local _, midi_hzoom_lvl = GetTakeChunkHZoom(take_chunk)
-                -- Check if zoom level in chunk changed
-                if prev_midi_hzoom_lvl ~= midi_hzoom_lvl then
-                    prev_midi_hzoom_lvl = midi_hzoom_lvl
-                    -- Run adapt script in mode 2
-                    _G.mode = 2
-                    run_adapt_scipt()
-                    -- dofile(adapt_script_path)
+        local editor_hwnd = reaper.MIDIEditor_GetActive()
+        local time = reaper.time_precise()
+        -- Windows needs a delay to show tooltips (caused by GetItemStateChunk)
+        if is_windows then
+            local x, y = reaper.GetMousePosition()
+            if x ~= prev_mouse_x or y ~= prev_mouse_y then
+                -- Ignore tooltip delay when mouse moves
+                prev_mouse_x = x
+                prev_mouse_y = y
+                prev_time = nil
+            elseif has_js_api then
+                -- Use JS_ReaScriptApi to improve delay behavior
+                local tooltip_hwnd = reaper.GetTooltipWindow()
+                local tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd)
+                if tooltip ~= '' then
+                    -- Delay indefinitely as long as tooltip is shown
+                    prev_time = time - 0.05
+                else
+                    -- Avoid tooltip delay when mouse is on top of midiview
+                    local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
+                    local id = reaper.JS_Window_GetLong(hover_hwnd, 'ID', 0)
+                    if id == 1001 then
+                        if reaper.JS_Window_IsChild(editor_hwnd, hover_hwnd) then
+                            prev_time = nil
+                        end
+                    end
+                end
+            end
+        end
+        -- Check if enough time has passed since last run (tooltip delay)
+        if not prev_time or time > prev_time + tooltip_delay then
+            prev_time = time
+            -- Check if MIDI editor contains a valid take
+            local take = reaper.MIDIEditor_GetTake(editor_hwnd)
+            if reaper.ValidatePtr(take, 'MediaItem_Take*') then
+                local item = reaper.GetMediaItemTake_Item(take)
+                local _, chunk = reaper.GetItemStateChunk(item, '', false)
+                -- Check if item chunk changed (string comparison is fast)
+                if chunk ~= prev_chunk then
+                    prev_chunk = chunk
+                    local take_chunk = GetTakeChunk(take, chunk)
+                    local _, midi_hzoom_lvl = GetTakeChunkHZoom(take_chunk)
+                    -- Check if zoom level in chunk changed
+                    if prev_midi_hzoom_lvl ~= midi_hzoom_lvl then
+                        prev_midi_hzoom_lvl = midi_hzoom_lvl
+                        -- Run adapt script in mode 2
+                        _G.mode = 2
+                        run_adapt_scipt()
+                        -- dofile(adapt_script_path)
+                    end
                 end
             end
         end
