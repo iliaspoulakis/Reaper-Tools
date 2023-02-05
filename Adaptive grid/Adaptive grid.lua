@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.5.0
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -11,6 +11,6 @@
     [main=main,midi_editor] Set grid to * (adaptive).lua
     [main=main,midi_editor] Adjust adaptive grid (mousewheel).lua
   @changelog
-    - Added action to set fixed grid
-    - Temporarily stop adapting when grid is set to frame/measure
+    - Added workaround for MIDI editor tooltip issue on Windows 
+    - Added option to set grid divisor
 ]]

@@ -3,7 +3,9 @@
   @license MIT
   @noindex
   @about User settings for adaptive grid
-]] local extname = 'FTC.AdaptiveGrid'
+]]
+
+local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, cmd = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
 
