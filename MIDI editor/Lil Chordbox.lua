@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.5
+  @version 1.6.6
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Ignore muted notes
+    - Live input: Allow input from virtual keyboard
+    - Live input: Fixed handling of MIDI channels
 ]]
 
 local box_x_offs = 0
@@ -513,16 +514,12 @@ function GetMIDIInputChord(track)
         local i = 0
         repeat
             if prev_input_idx ~= 0 and #buf == 3 then
-                local is_vkb_dev = dev_id == 62
-                local is_all_dev = filter_dev_id == 63
-                if not is_vkb_dev and (is_all_dev or dev_id == filter_dev_id) then
-
+                if filter_dev_id == 63 or filter_dev_id == dev_id then
                     local msg1 = buf:byte(1)
-                    local msg2 = buf:byte(2)
-                    local msg3 = buf:byte(3)
-
-                    local channel = msg1 & 0x0F
+                    local channel = (msg1 & 0x0F) + 1
                     if filter_channel == 0 or filter_channel == channel then
+                        local msg2 = buf:byte(2)
+                        local msg3 = buf:byte(3)
                         local is_note_on = msg1 & 0xF0 == 0x90
                         local is_note_off = msg1 & 0xF0 == 0x80
                         -- Check for 0x90 note offs with 0 velocity
