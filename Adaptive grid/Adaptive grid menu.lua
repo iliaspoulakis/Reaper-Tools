@@ -479,6 +479,8 @@ end
 function SetAdaptiveGrid(multiplier)
     -- Ask user for custom grid spacing if not available
     if multiplier == -1 and not CheckUserCustomGridSpacing(false) then return end
+    -- Toggle adaptive mode when selecting an entry that's already active
+    if CheckAdaptiveGrid(multiplier) then multiplier = 0 end
 
     ShowGrid(true)
     SetGridMultiplier(multiplier)
@@ -497,6 +499,8 @@ end
 function SetMIDIAdaptiveGrid(multiplier)
     -- Ask user for custom grid spacing if not available
     if multiplier == -1 and not CheckUserCustomGridSpacing(true) then return end
+    -- Toggle adaptive mode when selecting an entry that's already active
+    if CheckMIDIAdaptiveGrid(multiplier) then multiplier = 0 end
 
     ShowMIDIGrid(true)
     SetMIDIGridMultiplier(multiplier)
@@ -613,29 +617,28 @@ local midi_menu = {
     },
 }
 
-local under_items_menu = {}
-local under_cmd = reaper.NamedCommandLookup('_BR_OPTIONS_GRID_Z_UNDER_ITEMS')
+--[[ local over_items_menu = {}
+local over_cmd = reaper.NamedCommandLookup('_BR_OPTIONS_GRID_Z_OVER_ITEMS')
 
-if under_cmd > 0 then
-    under_items_menu = {
-        {separator = true},
+if over_cmd > 0 then
+    over_items_menu = {
         {
-            title = 'Grid below items',
+            title = 'Grid over items',
             IsChecked = function()
-                return reaper.GetToggleCommandState(under_cmd) == 1
+                return reaper.GetToggleCommandState(over_cmd) == 1
             end,
 
             OnReturn = function()
-                if reaper.GetToggleCommandState(under_cmd) == 1 then
-                    local cmd_name = '_BR_OPTIONS_GRID_Z_OVER_ITEMS'
+                if reaper.GetToggleCommandState(over_cmd) == 1 then
+                    local cmd_name = '_BR_OPTIONS_GRID_Z_UNDER_ITEMS'
                     reaper.Main_OnCommand(reaper.NamedCommandLookup(cmd_name), 0)
                 else
-                    reaper.Main_OnCommand(under_cmd, 0)
+                    reaper.Main_OnCommand(over_cmd, 0)
                 end
             end,
         },
     }
-end
+end ]]
 
 local main_menu = {
     {title = 'Straight', IsChecked = IsGridStraight, OnReturn = SetGridStraight},
@@ -756,14 +759,14 @@ local main_menu = {
         },
     },
     {separator = true},
-    {
-        title = 'Off',
-        IsChecked = function() return not IsGridVisible() end,
-        OnReturn = ShowGrid,
+    --[[ {
+        title = 'Grid visible',
+        IsChecked = IsGridVisible,
+        OnReturn = ToggleGrid,
         arg = false,
     },
-    under_items_menu,
-    {separator = true},
+    over_items_menu,
+    {separator = true}, ]]
     {
         title = 'MIDI editor',
         {
