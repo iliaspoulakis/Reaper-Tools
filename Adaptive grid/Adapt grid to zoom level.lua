@@ -84,6 +84,7 @@ function GetMIDIEditorView(hwnd)
 
     local take_chunk = GetTakeChunk(take)
     local start_ppq, hzoom_lvl = GetTakeChunkHZoom(take_chunk)
+    start_ppq = tonumber(start_ppq)
     if not start_ppq then return end
 
     local timebase = GetTakeChunkTimeBase(take_chunk) or 0
@@ -105,6 +106,8 @@ function GetMIDIEditorView(hwnd)
             end_time = start_time + width_in_pixels / hzoom_lvl
         end
     else
+        reaper.PreventUIRefresh(1)
+
         if timebase == 1 then
             -- Timebase: Toggle sync to arrange view
             reaper.MIDIEditor_OnCommand(hwnd, 40640)
@@ -117,13 +120,43 @@ function GetMIDIEditorView(hwnd)
         take_chunk = GetTakeChunk(take)
         end_ppq = GetTakeChunkHZoom(take_chunk)
 
-        -- Cmd: Scroll view left
-        reaper.MIDIEditor_OnCommand(hwnd, 40140)
+        -- Note: Scrolling back to the left doesn't always work because 
+        -- it won't scroll back further than 0 ppq
+        if start_ppq > 0 then
+            -- Cmd: Scroll view left
+            reaper.MIDIEditor_OnCommand(hwnd, 40140)
+        else
+            local editor_start_pos = GetProjTimeFromPPQ(take, start_ppq)
+            local editor_end_pos = GetProjTimeFromPPQ(take, end_ppq)
+
+            -- A factor is necessary to convert to the selection used for the
+            -- action "Zoom to project loop selection" which is smaller than
+            -- the actual visible area
+            local factor = timebase == 2 and 0.97087377 or 0.943396226415
+            local area = editor_end_pos - editor_start_pos
+            local center = editor_start_pos + area / 2
+            area = area * factor
+
+            -- Save current time selection
+            local GetSetTimeSel = reaper.GetSet_LoopTimeRange
+            local sel_start_pos, sel_end_pos = GetSetTimeSel(0, 1, 0, 0, 0)
+
+            -- Set selection to area for zoom
+            GetSetTimeSel(1, 1, center - area / 2, center + area / 2, 0)
+
+            -- View: Zoom to project loop selection
+            reaper.MIDIEditor_OnCommand(hwnd, 40726)
+
+            -- Restore initial time selection
+            GetSetTimeSel(1, 1, sel_start_pos, sel_end_pos, 0)
+        end
 
         if timebase == 1 then
             -- Timebase: Toggle sync to arrange view
             reaper.MIDIEditor_OnCommand(hwnd, 40640)
         end
+
+        reaper.PreventUIRefresh(-1)
     end
 
     -- Convert ppq to time based units
