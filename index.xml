@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="cceec8bc442d88f2aa2a8ad7d4390d5306a7b851">
+<index version="1" name="FTC Tools" commit="d854460b781a83453060ba82249c7b934a90f5f3">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -229,6 +229,21 @@
         <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/cceec8bc442d88f2aa2a8ad7d4390d5306a7b851/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
         <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/cceec8bc442d88f2aa2a8ad7d4390d5306a7b851/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
         <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/cceec8bc442d88f2aa2a8ad7d4390d5306a7b851/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+      <version name="1.5.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-14T21:14:06Z">
+        <changelog><![CDATA[- Choosing an already enabled adaptive mode in menu will turn adaptive grid off
+- Menu cleanup]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/d854460b781a83453060ba82249c7b934a90f5f3/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
       </version>
     </reapack>
   </category>
