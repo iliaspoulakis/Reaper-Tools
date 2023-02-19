@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="2523d21922eda889c9151e657b7207b96ad08594">
+<index version="1" name="FTC Tools" commit="69d2b1b4b42747d9d61ff440a7654f7d40ec66b2">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -309,6 +309,10 @@
         <changelog><![CDATA[- Fix issue where windows would appear in random dockers]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2523d21922eda889c9151e657b7207b96ad08594/Dockers/Toggle%20show%20bottom%20docker.lua</source>
       </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-19T21:07:26Z">
+        <changelog><![CDATA[- Fix issue with duplicate tab titles (rename)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/69d2b1b4b42747d9d61ff440a7654f7d40ec66b2/Dockers/Toggle%20show%20bottom%20docker.lua</source>
+      </version>
     </reapack>
     <reapack name="Toggle show left docker.lua" type="script">
       <metadata>
@@ -326,6 +330,10 @@
       <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-19T15:47:01Z">
         <changelog><![CDATA[- Fix issue where windows would appear in random dockers]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2523d21922eda889c9151e657b7207b96ad08594/Dockers/Toggle%20show%20left%20docker.lua</source>
+      </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-19T21:07:26Z">
+        <changelog><![CDATA[- Fix issue with duplicate tab titles (rename)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/69d2b1b4b42747d9d61ff440a7654f7d40ec66b2/Dockers/Toggle%20show%20left%20docker.lua</source>
       </version>
     </reapack>
     <reapack name="Toggle show right docker.lua" type="script">
@@ -345,6 +353,10 @@
         <changelog><![CDATA[- Fix issue where windows would appear in random dockers]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2523d21922eda889c9151e657b7207b96ad08594/Dockers/Toggle%20show%20right%20docker.lua</source>
       </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-19T21:07:26Z">
+        <changelog><![CDATA[- Fix issue with duplicate tab titles (rename)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/69d2b1b4b42747d9d61ff440a7654f7d40ec66b2/Dockers/Toggle%20show%20right%20docker.lua</source>
+      </version>
     </reapack>
     <reapack name="Toggle show top docker.lua" type="script">
       <metadata>
@@ -362,6 +374,10 @@
       <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-19T15:47:01Z">
         <changelog><![CDATA[- Fix issue where windows would appear in random dockers]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2523d21922eda889c9151e657b7207b96ad08594/Dockers/Toggle%20show%20top%20docker.lua</source>
+      </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-19T21:07:26Z">
+        <changelog><![CDATA[- Fix issue with duplicate tab titles (rename)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/69d2b1b4b42747d9d61ff440a7654f7d40ec66b2/Dockers/Toggle%20show%20top%20docker.lua</source>
       </version>
     </reapack>
   </category>
