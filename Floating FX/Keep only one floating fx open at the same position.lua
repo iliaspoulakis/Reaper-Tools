@@ -5,6 +5,7 @@
   @changelog
     - Potential performance improvements for screenset changing
 ]]
+local debug = false
 
 local prev_proj
 local prev_time = 0
@@ -20,8 +21,6 @@ local wnd_l
 local wnd_t
 
 local set_time = 0
-
-local debug = false
 
 function print(msg)
     if debug then reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
@@ -183,7 +182,7 @@ function PositionChunkWindows()
 end
 
 function Main()
-    local proj = reaper.EnumProjects(-1, '')
+    local proj = reaper.EnumProjects( -1, '')
     if prev_proj ~= proj then
         prev_proj = proj
         print('Project changed')

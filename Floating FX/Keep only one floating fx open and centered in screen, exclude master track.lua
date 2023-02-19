@@ -1,9 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
-  @changelog
-    - Fixed bug with empty takes
+  @version 1.0.0
 ]]
 local debug = false
 
@@ -76,11 +74,6 @@ function GetAllFloatingFXWindows()
     local TakeFX_GetFloatingWindow = reaper.TakeFX_GetFloatingWindow
 
     for _, proj in ipairs(projects) do
-        local master_track = reaper.GetMasterTrack(proj)
-        for fx = 0, reaper.TrackFX_GetCount(master_track) - 1 do
-            local hwnd = TrackFX_GetFloatingWindow(master_track, fx)
-            if hwnd then hwnds[#hwnds + 1] = hwnd end
-        end
         for t = 0, reaper.CountTracks(proj) - 1 do
             local track = reaper.GetTrack(proj, t)
             for fx = 0, reaper.TrackFX_GetCount(track) - 1 do
@@ -121,7 +114,8 @@ function GetLastFocusedFloatingFXWindow()
     if is_track_fx then
         local track
         if tnum == 0 then
-            track = reaper.GetMasterTrack(0)
+            -- Exclude master track
+            return nil
         else
             track = reaper.GetTrack(0, tnum - 1)
         end
@@ -164,11 +158,6 @@ function PositionChunkWindows()
     end
 
     local pattern = '(FLOATP?O?S?) (%-?%d+) (%-?%d+) (%-?%d+) (%-?%d+)'
-
-    local m_track = reaper.GetMasterTrack(0)
-    local _, m_chunk = reaper.GetTrackStateChunk(m_track, '', false)
-    m_chunk = m_chunk:gsub(pattern, SetPosition)
-    reaper.SetTrackStateChunk(m_track, m_chunk, false)
 
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)

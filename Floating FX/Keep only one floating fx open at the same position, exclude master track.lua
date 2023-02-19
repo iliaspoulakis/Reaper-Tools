@@ -1,9 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
-  @changelog
-    - Fixed bug with empty takes
+  @version 1.0.0
 ]]
 local debug = false
 
@@ -17,19 +15,16 @@ local prev_fx_wnd_cnt
 
 local active_hwnd
 
-local wnd_l = 0
-local wnd_t = 0
-local wnd_r = 0
-local wnd_b = 0
+local wnd_l
+local wnd_t
 
-local screen_l = 0
-local screen_t = 0
-local screen_r = 0
-local screen_b = 0
+local set_time = 0
 
 function print(msg)
     if debug then reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 end
+
+local is_mac = reaper.GetOS():match('OSX')
 
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_SetPosition then
@@ -59,15 +54,6 @@ function SetWindowPosition(hwnd, l, t, r, b)
     reaper.JS_Window_SetPosition(hwnd, l, t, r - l, math.abs(b - t))
 end
 
-function SetScreenPosition(l, t, r, b)
-    local s_l, s_t, s_r, s_b = reaper.my_getViewport(0, 0, 0, 0, l, t, r, b, 1)
-    local is_new_screen =
-        not (s_l == screen_l and screen_t == s_t and screen_r == s_r and
-        screen_b == s_b)
-    screen_l, screen_t, screen_r, screen_b = s_l, s_t, s_r, s_b
-    return is_new_screen
-end
-
 function GetAllFloatingFXWindows()
     local hwnds = {}
     local projects = GetOpenProjects()
@@ -76,11 +62,6 @@ function GetAllFloatingFXWindows()
     local TakeFX_GetFloatingWindow = reaper.TakeFX_GetFloatingWindow
 
     for _, proj in ipairs(projects) do
-        local master_track = reaper.GetMasterTrack(proj)
-        for fx = 0, reaper.TrackFX_GetCount(master_track) - 1 do
-            local hwnd = TrackFX_GetFloatingWindow(master_track, fx)
-            if hwnd then hwnds[#hwnds + 1] = hwnd end
-        end
         for t = 0, reaper.CountTracks(proj) - 1 do
             local track = reaper.GetTrack(proj, t)
             for fx = 0, reaper.TrackFX_GetCount(track) - 1 do
@@ -92,7 +73,6 @@ function GetAllFloatingFXWindows()
                 local hwnd = TrackFX_GetFloatingWindow(track, fx_in)
                 if hwnd then hwnds[#hwnds + 1] = hwnd end
             end
-
             for i = 0, reaper.CountTrackMediaItems(track) - 1 do
                 local item = reaper.GetTrackMediaItem(track, i)
                 for tk = 0, reaper.GetMediaItemNumTakes(item) - 1 do
@@ -121,7 +101,8 @@ function GetLastFocusedFloatingFXWindow()
     if is_track_fx then
         local track
         if tnum == 0 then
-            track = reaper.GetMasterTrack(0)
+            -- Exclude master track
+            return nil
         else
             track = reaper.GetTrack(0, tnum - 1)
         end
@@ -138,46 +119,50 @@ function GetLastFocusedFloatingFXWindow()
     end
 end
 
-function CenterInScreen(w, h)
-    local l = screen_l + (screen_r - screen_l - w) // 2
-    local t = screen_t + (screen_b - screen_t - h) // 2
-    local r = l + w
-    local b = t + h
-    return l, t, r, b
+function KeepTopLeftCorner(w, h)
+    local l = wnd_l
+    local t = is_mac and wnd_t - h or wnd_t
+    local r = wnd_l + w
+    local b = is_mac and wnd_t or wnd_t + h
+    return reaper.EnsureNotCompletelyOffscreen(l, t, r, b)
 end
 
 function PositionFloatingFXWindow(hwnd)
-    local l, t, r, b = GetWindowPosition(hwnd)
-    local is_new_screen = SetScreenPosition(l, t, r, b)
-    l, t, r, b = CenterInScreen(r - l, math.abs(b - t))
-    SetWindowPosition(hwnd, l, t, r, b)
-    if is_new_screen then PositionChunkWindows() end
+    if wnd_l and wnd_t then
+        local l, t, r, b = GetWindowPosition(hwnd)
+        l, t, r, b = KeepTopLeftCorner(r - l, math.abs(b - t))
+        SetWindowPosition(hwnd, l, t, r, b)
+        set_time = reaper.time_precise()
+    end
 end
 
 function PositionChunkWindows()
     local time = reaper.time_precise()
     reaper.Undo_BeginBlock()
 
+    local has_chunk_changed = false
     local function SetPosition(type, x, y, w, h)
-        local l, t, r, b = CenterInScreen(w, h)
+        local l, t, r, b = KeepTopLeftCorner(w, h)
+        if l ~= tonumber(x) or t ~= tonumber(y) then
+            has_chunk_changed = true
+        end
         return ('%s %d %d %d %d'):format(type, l, t, r - l, b - t)
     end
 
     local pattern = '(FLOATP?O?S?) (%-?%d+) (%-?%d+) (%-?%d+) (%-?%d+)'
 
-    local m_track = reaper.GetMasterTrack(0)
-    local _, m_chunk = reaper.GetTrackStateChunk(m_track, '', false)
-    m_chunk = m_chunk:gsub(pattern, SetPosition)
-    reaper.SetTrackStateChunk(m_track, m_chunk, false)
-
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local _, chunk = reaper.GetTrackStateChunk(track, '', false)
+
+        has_chunk_changed = false
         chunk = chunk:gsub(pattern, SetPosition)
-        reaper.SetTrackStateChunk(track, chunk, false)
+        if has_chunk_changed then
+            reaper.SetTrackStateChunk(track, chunk, false)
+        end
     end
 
-    reaper.Undo_EndBlock('Center FX Windows', -1)
+    reaper.Undo_EndBlock('Center FX Windows', 2)
     print('Chunk positioning time:')
     print(reaper.time_precise() - time)
 end
@@ -187,8 +172,8 @@ function Main()
     if prev_proj ~= proj then
         prev_proj = proj
         print('Project changed')
-        -- Retrigger PositionChunkWindows in new project (fake screen change)
-        screen_l = nil
+        -- Retrigger PositionChunkWindows in new project (fake position change)
+        wnd_l = nil
     end
 
     local time = reaper.time_precise()
@@ -251,20 +236,14 @@ function Main()
     end
 
     -- Monitor active window position
-    if reaper.ValidatePtr(active_hwnd, '*') then
+    if reaper.ValidatePtr(active_hwnd, '*') and time > set_time + 0.5 then
         local is_mouse_pressed = reaper.JS_Mouse_GetState(1) == 1
         if not is_mouse_pressed then
-            local l, t, r, b = GetWindowPosition(active_hwnd)
-            if not (wnd_l == l and wnd_t == t and wnd_r == r and wnd_b == b) then
-                print('Window position changed')
-                local is_new_screen = SetScreenPosition(l, t, r, b)
-                if is_new_screen then
-                    print('Screen changed')
-                    l, t, r, b = CenterInScreen(r - l, math.abs(b - t))
-                    SetWindowPosition(active_hwnd, l, t, r, b)
-                    PositionChunkWindows()
-                end
-                wnd_l, wnd_t, wnd_r, wnd_b = l, t, r, b
+            local l, t = GetWindowPosition(active_hwnd)
+            if l ~= wnd_l or t ~= wnd_t then
+                wnd_l = l
+                wnd_t = t
+                PositionChunkWindows()
             end
         end
     end
