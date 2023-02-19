@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.2.0
   @provides [main=main] .
   @about Toggle show dockers attached to one side of the main window
   @changelog
-    - Fix issue where windows would appear in random dockers
+    - Fix issue with duplicate tab titles (rename)
 ]]
 local extname = 'FTC_dockers'
 local _, file, sec, cmd = reaper.get_action_context()
@@ -45,6 +45,19 @@ function GetChildren(parent_hwnd, filter)
     return children
 end
 
+local title_children_map = {}
+
+function FindAvailableWindowTitle(title)
+    if not title_children_map[title] then
+        title_children_map[title] = {title}
+        return title
+    end
+    local num = tonumber(title:match(' %((%d+)%)$')) or 1
+    num = num + 1
+    title = title:gsub(' %(%d+%)$', '') .. (' (%d)'):format(num)
+    return FindAvailableWindowTitle(title)
+end
+
 local main_hwnd = reaper.GetMainHwnd()
 local docker_hwnds = GetChildren(main_hwnd, 'REAPER_dock')
 
@@ -55,18 +68,34 @@ local child_cnt = 0
 -- Get all dockers at position
 for _, docker_hwnd in ipairs(docker_hwnds) do
     local id = reaper.DockIsChildOfDock(docker_hwnd)
+    -- Note: Avoid children with empty names for MacOS
+    local children = GetChildren(docker_hwnd, '.')
     if reaper.DockGetPosition(id) == pos then
         local docker = {}
         docker.id = id
         docker.hwnd = docker_hwnd
         docker.is_visible = reaper.JS_Window_IsVisible(docker_hwnd)
-        -- Note: Avoid children with empty names
-        docker.children = GetChildren(docker_hwnd, '.')
+        docker.children = children
         table.insert(dockers, docker)
         -- Check if any docker at position is currently visible
         is_visible = is_visible or docker.is_visible
         -- Count total children of all docks at position
         child_cnt = child_cnt + #docker.children
+    end
+    -- Save all docker children in a table by title
+    for _, child in ipairs(children) do
+        local title = reaper.JS_Window_GetTitle(child)
+        title_children_map[title] = title_children_map[title] or {}
+        table.insert(title_children_map[title], child)
+    end
+end
+
+-- Rename children with duplicate titles (for Dock_UpdateDockID function)
+for title, children in pairs(title_children_map) do
+    for i = 2, #children do
+        local new_title = FindAvailableWindowTitle(title)
+        reaper.JS_Window_SetTitle(children[i], new_title)
+        reaper.DockWindowRefreshForHWND(children[i])
     end
 end
 
