@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @provides [main=main] .
   @about Toggle show dockers attached to one side of the main window
+  @changelog
+    - Fix issue where windows would appear in random dockers
 ]]
-
 local extname = 'FTC_dockers'
 local _, file, sec, cmd = reaper.get_action_context()
 
@@ -100,6 +101,8 @@ for _, docker in ipairs(dockers) do
             end
             -- Remove docker children from dock (hide dock)
             for _, child in ipairs(docker.children) do
+                local title = reaper.JS_Window_GetTitle(child)
+                reaper.Dock_UpdateDockID(title, docker.id)
                 reaper.DockWindowRemove(child)
             end
         else
