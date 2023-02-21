@@ -1,8 +1,8 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
-  @about Toggles between default and side mixer layouts
+  @version 1.0.2
+  @about Fix tracks not showing when exiting script
 ]]
 -------------------------------- SETTINGS -----------------------------------
 
@@ -31,17 +31,18 @@ local fx_send_sidemixer_master = 0.75
 --------------------------------------------------------------------------------
 
 local extname = 'FTC.SideMixer'
-local getTrackInfoValue = reaper.GetMediaTrackInfo_Value
-local setTrackInfoValue = reaper.SetMediaTrackInfo_Value
+local GetTrackInfo = reaper.GetMediaTrackInfo_Value
+local SetTrackInfo = reaper.SetMediaTrackInfo_Value
 
-function adjustTracks()
+function AdjustTracks()
     -- Set master send region scales
     local master = reaper.GetMasterTrack(0)
     if send_region_sidemixer_master >= 0 then
-        setTrackInfoValue(master, 'F_MCP_SENDRGN_SCALE', send_region_sidemixer_master)
+        SetTrackInfo(master, 'F_MCP_SENDRGN_SCALE',
+            send_region_sidemixer_master)
     end
     if fx_send_sidemixer_master >= 0 then
-        setTrackInfoValue(master, 'F_MCP_FXSEND_SCALE', fx_send_sidemixer_master)
+        SetTrackInfo(master, 'F_MCP_FXSEND_SCALE', fx_send_sidemixer_master)
     end
     -- Hide Tracks
     local track_states = ''
@@ -49,10 +50,10 @@ function adjustTracks()
         local track = reaper.GetTrack(0, i)
         local track_guid = reaper.GetTrackGUID(track)
 
-        local visible = tostring(getTrackInfoValue(track, 'B_SHOWINMIXER'))
+        local visible = tostring(GetTrackInfo(track, 'B_SHOWINMIXER'))
         visible = visible:gsub('(.)%..', '%1', 1)
 
-        setTrackInfoValue(track, 'B_SHOWINMIXER', 0)
+        SetTrackInfo(track, 'B_SHOWINMIXER', 0)
 
         local _, chunk = reaper.GetTrackStateChunk(track, '')
         local _, e = chunk:find('\nBUSCOMP %d %d')
@@ -66,77 +67,82 @@ function adjustTracks()
 
         -- Set track send region scales
         if send_region_sidemixer >= 0 then
-            setTrackInfoValue(track, 'F_MCP_SENDRGN_SCALE', send_region_sidemixer)
+            SetTrackInfo(track, 'F_MCP_SENDRGN_SCALE', send_region_sidemixer)
         end
         if fx_send_sidemixer >= 0 then
-            setTrackInfoValue(track, 'F_MCP_FXSEND_SCALE', fx_send_sidemixer)
+            SetTrackInfo(track, 'F_MCP_FXSEND_SCALE', fx_send_sidemixer)
         end
     end
     reaper.SetProjExtState(0, extname, 'track_states', track_states)
+    reaper.TrackList_AdjustWindows(false)
 end
 
-function restoreTracks()
+function RestoreTracks()
     -- Set master send region scales
     local master = reaper.GetMasterTrack(0)
     if send_region_default_master >= 0 then
-        setTrackInfoValue(master, 'F_MCP_SENDRGN_SCALE', send_region_default_master)
+        SetTrackInfo(master, 'F_MCP_SENDRGN_SCALE',
+            send_region_default_master)
     end
     if fx_send_default_master >= 0 then
-        setTrackInfoValue(master, 'F_MCP_FXSEND_SCALE', fx_send_default_master)
+        SetTrackInfo(master, 'F_MCP_FXSEND_SCALE', fx_send_default_master)
     end
     -- Restore track states
-    local _, track_states = reaper.GetProjExtState(0, extname, 'track_states')
-    if track_states ~= '' then
+    local _, states = reaper.GetProjExtState(0, extname, 'track_states')
+    if states ~= '' then
         for i = 0, reaper.CountTracks(0) - 1 do
             local track = reaper.GetTrack(0, i)
             local track_guid = reaper.GetTrackGUID(track)
 
-            _, guid_end = track_states:find(track_guid, 0, true)
+            local _, guid_end = states:find(track_guid, 0, true)
             if guid_end then
-                local visible = tonumber(track_states:sub(guid_end + 1, guid_end + 1))
+                local visible = tonumber(states:sub(guid_end + 1,
+                    guid_end + 1))
                 if not visible then
                     visible = 1
                 end
-                setTrackInfoValue(track, 'B_SHOWINMIXER', visible)
+                SetTrackInfo(track, 'B_SHOWINMIXER', visible)
 
-                local buscomp = track_states:sub(guid_end + 2, guid_end + 2)
+                local buscomp = states:sub(guid_end + 2, guid_end + 2)
                 if buscomp == '1' then
                     local _, chunk = reaper.GetTrackStateChunk(track, '')
                     chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 1', 1)
                     reaper.SetTrackStateChunk(track, chunk)
                 end
             else
-                setTrackInfoValue(track, 'B_SHOWINMIXER', 1)
+                SetTrackInfo(track, 'B_SHOWINMIXER', 1)
             end
             -- Set track send region scales
             if send_region_default >= 0 then
-                setTrackInfoValue(track, 'F_MCP_SENDRGN_SCALE', send_region_default)
+                SetTrackInfo(track, 'F_MCP_SENDRGN_SCALE',
+                    send_region_default)
             end
             if fx_send_default >= 0 then
-                setTrackInfoValue(track, 'F_MCP_FXSEND_SCALE', fx_send_default)
+                SetTrackInfo(track, 'F_MCP_FXSEND_SCALE', fx_send_default)
             end
         end
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
+    reaper.TrackList_AdjustWindows(false)
 end
 
 -- Select first track if no track selected
-function fallback()
+function FallBack()
     local sel_track = reaper.GetSelectedTrack(0, 0)
     if sel_track == nil and reaper.CountTracks(0) > 0 then
         sel_track = reaper.GetTrack(0, 0)
         reaper.SetCursorContext(0)
         reaper.SetTrackSelected(sel_track, true)
         reaper.SetCursorContext(0)
-        setTrackInfoValue(sel_track, 'B_SHOWINMIXER', 1)
+        SetTrackInfo(sel_track, 'B_SHOWINMIXER', 1)
         reaper.TrackList_AdjustWindows(false)
         reaper.UpdateArrange()
     end
 end
 
-function exit()
+function Exit()
     -- Restore tracks for all projects
-    local curr_proj, fn = reaper.EnumProjects(-1, '')
+    local curr_proj, fn = reaper.EnumProjects( -1, '')
     if not reaper.ValidatePtr(curr_proj, 'ReaProject*') then
         return
     end
@@ -144,7 +150,7 @@ function exit()
     local proj = reaper.EnumProjects(i)
     while reaper.ValidatePtr(proj, 'ReaProject*') do
         reaper.SelectProjectInstance(proj)
-        restoreTracks()
+        RestoreTracks()
         i = i + 1
         proj = reaper.EnumProjects(i)
     end
@@ -164,11 +170,11 @@ end
 -- Check state / Restore if necessary
 local _, track_states = reaper.GetProjExtState(0, extname, 'track_states')
 if track_states ~= '' then
-    exit()
+    Exit()
 end
 
 -- Check if mixer is open but not visible (and project exists for global startup)
-local _, fn = reaper.EnumProjects(-1, '')
+local _, fn = reaper.EnumProjects( -1, '')
 local mixer_visible = reaper.GetToggleCommandState(40078)
 
 if mixer_visible == 0 and fn ~= '' then
@@ -176,31 +182,31 @@ if mixer_visible == 0 and fn ~= '' then
     return
 end
 
-adjustTracks()
+AdjustTracks()
 
 -- Load track sidemixer screenset
 reaper.Main_OnCommand(40453 + screenset_sidemixer, 0)
 reaper.ThemeLayout_SetLayout('mcp', layout_sidemixer)
 reaper.ThemeLayout_SetLayout('master_mcp', layout_sidemixer_master)
 
-fallback()
+FallBack()
 
 local proj_old
 local file_name_old
 local old_sel_track
 local track_cnt_old = -1
 
-function run()
+function Main()
     -- Tab change
-    local proj_new, file_name_new = reaper.EnumProjects(-1, '')
+    local proj_new, file_name_new = reaper.EnumProjects( -1, '')
     if proj_old ~= proj_new or file_name_old ~= file_name_new then
         proj_old = proj_new
         file_name_old = file_name_new
-        local _, track_states = reaper.GetProjExtState(0, extname, 'track_states')
-        if track_states == '' then
-            adjustTracks()
+        local _, states = reaper.GetProjExtState(0, extname, 'track_states')
+        if states == '' then
+            AdjustTracks()
         end
-        fallback()
+        FallBack()
     end
 
     local new_sel_track = reaper.GetSelectedTrack(0, 0)
@@ -209,26 +215,26 @@ function run()
     local track_cnt_new = reaper.CountTracks(0)
     if track_cnt_old ~= track_cnt_new then
         track_cnt_old = track_cnt_new
-        local _, track_states = reaper.GetProjExtState(0, extname, 'track_states')
+        local _, states = reaper.GetProjExtState(0, extname, 'track_states')
         for i = 0, reaper.CountTracks(0) - 1 do
             local track = reaper.GetTrack(0, i)
             local track_guid = reaper.GetTrackGUID(track)
 
-            local visible = getTrackInfoValue(track, 'B_SHOWINMIXER')
+            local visible = GetTrackInfo(track, 'B_SHOWINMIXER')
             -- Append new tracks
             if visible and track ~= old_sel_track then
-                track_states = track_states .. track_guid .. visible .. '\n'
-                setTrackInfoValue(track, 'B_SHOWINMIXER', 0)
+                states = states .. track_guid .. visible .. '\n'
+                SetTrackInfo(track, 'B_SHOWINMIXER', 0)
             end
         end
-        reaper.SetProjExtState(0, extname, 'track_states', track_states)
+        reaper.SetProjExtState(0, extname, 'track_states', states)
 
         if not new_sel_track and track_cnt_new > 0 then
             local track_first = reaper.GetTrack(0, track_cnt_new - 1)
             reaper.SetCursorContext(0)
             reaper.SetTrackSelected(track_first, true)
             reaper.SetCursorContext(0)
-            setTrackInfoValue(track_first, 'B_SHOWINMIXER', 1)
+            SetTrackInfo(track_first, 'B_SHOWINMIXER', 1)
             old_sel_track = track_first
         end
         reaper.TrackList_AdjustWindows(false)
@@ -236,17 +242,17 @@ function run()
     end
     -- Track selection change
     if new_sel_track and new_sel_track ~= old_sel_track then
-        setTrackInfoValue(new_sel_track, 'B_SHOWINMIXER', 1)
+        SetTrackInfo(new_sel_track, 'B_SHOWINMIXER', 1)
         if old_sel_track and reaper.ValidatePtr(old_sel_track, 'MediaTrack*') then
-            setTrackInfoValue(old_sel_track, 'B_SHOWINMIXER', 0)
+            SetTrackInfo(old_sel_track, 'B_SHOWINMIXER', 0)
         end
         reaper.TrackList_AdjustWindows(false)
         reaper.UpdateArrange()
         old_sel_track = new_sel_track
     end
-    reaper.defer(run)
+    reaper.defer(Main)
 end
 
-run()
+Main()
 
-reaper.atexit(exit)
+reaper.atexit(Exit)
