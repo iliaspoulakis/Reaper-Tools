@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="69d2b1b4b42747d9d61ff440a7654f7d40ec66b2">
+<index version="1" name="FTC Tools" commit="844edc80fa8900f49a86e3db8b92cb8539885f53">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2059,11 +2059,11 @@
     </reapack>
     <reapack name="FTC_Side Mixer.lua" type="script">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Toggles between default and side mixer layouts\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Fix tracks not showing when exiting script\par}
 }
 ]]></description>
       </metadata>
@@ -2072,6 +2072,9 @@
       </version>
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-01-26T16:41:56Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c06e44063caf47120447efe0aaa65c9a8cd9e519/Various/FTC_Side%20Mixer.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-02-21T11:39:23Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/844edc80fa8900f49a86e3db8b92cb8539885f53/Various/FTC_Side%20Mixer.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Solo items under mouse cursor.lua" type="script">
