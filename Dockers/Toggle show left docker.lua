@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.3.0
   @provides [main=main] .
   @about Toggle show dockers attached to one side of the main window
   @changelog
-    - Fix issue with duplicate tab titles (rename)
+    - Fixed bug where windows inside dock could not be reopened individually
+    - Improved active tab preservation logic
 ]]
 local extname = 'FTC_dockers'
 local _, file, sec, cmd = reaper.get_action_context()
@@ -45,13 +46,45 @@ function GetChildren(parent_hwnd, filter)
     return children
 end
 
+function GetActiveDockerIndex(docker)
+    -- Get top window using Window_FromPoint
+    local _, l, t, r, b = reaper.JS_Window_GetClientRect(docker.hwnd)
+    -- Calculate margins (windows might be smaller than docker)
+    local m_x = (l - t) // 10
+    local m_y = (b - t) // 10
+    -- Try different points (e.g. center, corners etc)
+    local points = {}
+    -- Center
+    points[1] = {x = l + (r - l) // 2, y = t + (b - t) // 2}
+    -- Top left corner
+    points[2] = {x = l + m_x, y = t + m_y}
+    -- Bottom left corner
+    points[3] = {x = l + m_x, y = t + (b - t) - m_y}
+    -- Top right corner
+    points[4] = {x = l + r - m_x, y = t + m_y}
+    -- Bottom right corner
+    points[5] = {x = l + r - m_x, y = t + (b - t) - m_y}
+
+    for p, point in ipairs(points) do
+        local top_hwnd = reaper.JS_Window_FromPoint(point.x, point.y)
+        -- Go through all docker children and match top window
+        for c, child in ipairs(docker.children) do
+            if child == top_hwnd or reaper.JS_Window_IsChild(child, top_hwnd) then
+                return c
+            end
+        end
+    end
+end
+
 local title_children_map = {}
 
+-- Recursively find a window title that is not already used, e.g. title (3)
 function FindAvailableWindowTitle(title)
     if not title_children_map[title] then
         title_children_map[title] = {title}
         return title
     end
+    -- Increment current title appendix number
     local num = tonumber(title:match(' %((%d+)%)$')) or 1
     num = num + 1
     title = title:gsub(' %(%d+%)$', '') .. (' (%d)'):format(num)
@@ -114,18 +147,10 @@ for _, docker in ipairs(dockers) do
         if docker.is_visible then
             -- Save active docker child index for next script run
             if #docker.children > 1 then
-                local IsChild = reaper.JS_Window_IsChild
-                local GetClientRect = reaper.JS_Window_GetClientRect
-                -- Get top window at center of docker using Window_FromPoint
-                local _, l, t, r, b = GetClientRect(docker.hwnd)
-                local x, y = l + (r - l) // 2, t + (b - t) // 2
-                local top_hwnd = reaper.JS_Window_FromPoint(x, y)
-                -- Go through all docker children and match top window
-                for c, child in ipairs(docker.children) do
-                    if child == top_hwnd or IsChild(child, top_hwnd) then
-                        -- Save active index in extstate
-                        reaper.SetExtState(extname, docker.id, c, true)
-                    end
+                local index = GetActiveDockerIndex(docker)
+                if index then
+                    -- Save active index in extstate
+                    reaper.SetExtState(extname, docker.id, index, true)
                 end
             end
             -- Remove docker children from dock (hide dock)
@@ -145,6 +170,21 @@ for _, docker in ipairs(dockers) do
             local n = tonumber(reaper.GetExtState(extname, docker.id))
             if n and docker.children[n] and #docker.children > 1 then
                 reaper.DockWindowActivate(docker.children[n])
+            end
+        end
+    end
+end
+
+-- Add removed windows back to docker without showing them
+-- Note: When a user opens a window individually this will show the entire dock
+for _, docker in ipairs(dockers) do
+    -- Toggle docker visibility (only dockers that need change)
+    if docker.is_visible == is_visible then
+        if docker.is_visible then
+            -- Add docker children to dock (show dock)
+            for _, child in ipairs(docker.children) do
+                local title = reaper.JS_Window_GetTitle(child)
+                reaper.DockWindowAddEx(child, title, title, false)
             end
         end
     end
