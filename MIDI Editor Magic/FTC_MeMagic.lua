@@ -47,11 +47,11 @@ local MEP_vertical_zoom_mode = 2
 
 -- Context: MIDI editor ruler
 local MER_horizontal_zoom_mode = {1, 1, 5, 1}
-local MER_vertical_zoom_mode = {9, 9, 3, 9}
+local MER_vertical_zoom_mode = {11, 11, 11, 11}
 
 -- Context: MIDI editor CC lanes
 local MEC_horizontal_zoom_mode = {1, 1, 5, 1}
-local MEC_vertical_zoom_mode = {7, 7, 3, 7}
+local MEC_vertical_zoom_mode = {9, 9, 9, 9}
 
 -- Context: Arrange view area
 local AVA_horizontal_zoom_mode = 5
@@ -110,7 +110,7 @@ function print(msg)
     end
 end
 
-function setOnlyItemSelected(sel_item)
+function SetOnlyItemSelected(sel_item)
     for i = reaper.CountSelectedMediaItems(0) - 1, 0, -1 do
         local item = reaper.GetSelectedMediaItem(0, i)
         if item then
@@ -120,9 +120,8 @@ function setOnlyItemSelected(sel_item)
     reaper.SetMediaItemSelected(sel_item, true)
 end
 
-function getSelection()
-    local getSetLoopTimeRange = reaper.GetSet_LoopTimeRange
-    local sel_start_pos, sel_end_pos = getSetLoopTimeRange(false, true, 0, 0, false)
+function GetSelection()
+    local sel_start_pos, sel_end_pos = reaper.GetSet_LoopTimeRange(0, 1, 0, 0, 0)
     local is_valid_sel = sel_end_pos > 0 and sel_start_pos ~= sel_end_pos
     if is_valid_sel then
         local sel = {}
@@ -132,11 +131,11 @@ function getSelection()
     end
 end
 
-function setSelection(sel_start_pos, sel_end_pos)
-    reaper.GetSet_LoopTimeRange(true, true, sel_start_pos, sel_end_pos, false)
+function SetSelection(sel_start_pos, sel_end_pos)
+    reaper.GetSet_LoopTimeRange(1, 1, sel_start_pos, sel_end_pos, 0)
 end
 
-function getClickMode(cmd)
+function GetClickMode(cmd)
     local mode = 0
     local modifiers = {
         'MM_CTX_ITEM_CLK',
@@ -152,7 +151,7 @@ function getClickMode(cmd)
                 local modifier_cmd = reaper.NamedCommandLookup(action)
                 if modifier_cmd == cmd then
                     local mode_id = modifier:match('DBLCLK') and 2 or 1
-                    mode_id = modifier:match('MM_CTX_AREASEL_CLK') and 2 or mode_id
+                    if modifier:match('MM_CTX_AREASEL_CLK') then mode_id = 2 end
                     mode = mode | mode_id
                     break
                 end
@@ -162,7 +161,7 @@ function getClickMode(cmd)
     return mode
 end
 
-function getCursorPosition(play_state)
+function GetCursorPosition(play_state)
     local cursor_pos = reaper.BR_GetMouseCursorContext_Position()
     if not cursor_pos or cursor_pos < 0 or set_edit_cursor then
         cursor_pos = reaper.GetCursorPosition()
@@ -173,7 +172,7 @@ function getCursorPosition(play_state)
     return cursor_pos
 end
 
-function getZoomMode(context, timebase)
+function GetZoomMode(context, timebase)
     local modes = {}
 
     modes[0] = {}
@@ -287,41 +286,41 @@ function getZoomMode(context, timebase)
     return hzoom_mode, vzoom_mode
 end
 
-function setMode(hwnd, mode)
+function SetMode(hwnd, mode)
     if mode then
         local cmds = {40042, 40043, 40056, 40954}
         reaper.MIDIEditor_OnCommand(hwnd, cmds[mode])
     end
 end
 
-function setHideUnused(hwnd, unused)
+function SetHideUnused(hwnd, unused)
     if unused then
         local cmds = {40452, 40453, 40454}
         reaper.MIDIEditor_OnCommand(hwnd, cmds[unused])
     end
 end
 
-function setTimebase(hwnd, timebase)
+function SetTimebase(hwnd, timebase)
     if timebase then
         local cmds = {40459, 40470, 40460, 40461}
         reaper.MIDIEditor_OnCommand(hwnd, cmds[timebase])
     end
 end
 
-function getEditorTimeBase()
-    local timebase = 0
-    timebase = reaper.GetToggleCommandStateEx(32060, 40459) == 1 and 1 or timebase
-    timebase = reaper.GetToggleCommandStateEx(32060, 40470) == 1 and 2 or timebase
-    timebase = reaper.GetToggleCommandStateEx(32060, 40460) == 1 and 3 or timebase
-    timebase = reaper.GetToggleCommandStateEx(32060, 40461) == 1 and 4 or timebase
-    return timebase
+function GetEditorTimeBase()
+    local tb = 0
+    tb = reaper.GetToggleCommandStateEx(32060, 40459) == 1 and 1 or tb
+    tb = reaper.GetToggleCommandStateEx(32060, 40470) == 1 and 2 or tb
+    tb = reaper.GetToggleCommandStateEx(32060, 40460) == 1 and 3 or tb
+    tb = reaper.GetToggleCommandStateEx(32060, 40461) == 1 and 4 or tb
+    return tb
 end
 
-function getItemChunkConfig(item, chunk, config)
+function GetItemChunkConfig(item, chunk, config)
     -- Parse the chunk to get the correct config for the active take
     local curr_tk = reaper.GetMediaItemInfo_Value(item, 'I_CURTAKE')
     local pattern = config .. ' .-\n'
-    local s, e = chunk:find(pattern, s)
+    local s, e = chunk:find(pattern)
     local i = 0
     for _ = 0, curr_tk do
         s = i
@@ -335,7 +334,7 @@ function getItemChunkConfig(item, chunk, config)
     return s and chunk:sub(s, e)
 end
 
-function getConfigMode(cfg_edit)
+function GetConfigMode(cfg_edit)
     local pattern = 'CFGEDIT .- .- .- .- .- (.-) '
     if cfg_edit then
         local mode = tonumber(cfg_edit:match(pattern))
@@ -344,23 +343,23 @@ function getConfigMode(cfg_edit)
     end
 end
 
-function getConfigHideUnused(cfg_edit)
-    local pattern = 'CFGEDIT .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- (.-) '
+function GetConfigHideUnused(cfg_edit)
+    local pattern = 'CFGEDIT ' .. ('.- '):rep(17) .. '(.-) '
     if cfg_edit then
         local unused = tonumber(cfg_edit:match(pattern))
         return unused + 1
     end
 end
 
-function getConfigTimebase(cfg_edit)
-    local pattern = 'CFGEDIT .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- .- (.-) '
+function GetConfigTimebase(cfg_edit)
+    local pattern = 'CFGEDIT ' .. ('.- '):rep(18) .. '(.-) '
     if cfg_edit then
         local tb = tonumber(cfg_edit:match(pattern))
         return tb == 1 and 4 or tb == 2 and 3 or tb == 4 and 2 or 1
     end
 end
 
-function getConfigHZoom(cfg_edit_view)
+function GetConfigHZoom(cfg_edit_view)
     local pattern = 'CFGEDITVIEW (.-) (.-) '
     if cfg_edit_view then
         local offset, level = cfg_edit_view:match(pattern)
@@ -369,7 +368,7 @@ function getConfigHZoom(cfg_edit_view)
     return -1, -1
 end
 
-function getConfigVZoom(cfg_edit_view)
+function GetConfigVZoom(cfg_edit_view)
     local pattern = 'CFGEDITVIEW .- .- (.-) (.-) '
     if cfg_edit_view then
         local offset, size = cfg_edit_view:match(pattern)
@@ -378,57 +377,57 @@ function getConfigVZoom(cfg_edit_view)
     return -1, -1
 end
 
-function getItemHZoom(item)
+function GetItemHZoom(item)
     local _, chunk = reaper.GetItemStateChunk(item, '', true)
-    local cfg_edit_view = getItemChunkConfig(item, chunk, 'CFGEDITVIEW')
-    return getConfigHZoom(cfg_edit_view)
+    local cfg_edit_view = GetItemChunkConfig(item, chunk, 'CFGEDITVIEW')
+    return GetConfigHZoom(cfg_edit_view)
 end
 
-function getItemVZoom(item)
+function GetItemVZoom(item)
     local _, chunk = reaper.GetItemStateChunk(item, '', true)
-    local cfg_edit_view = getItemChunkConfig(item, chunk, 'CFGEDITVIEW')
-    return getConfigVZoom(cfg_edit_view)
+    local cfg_edit_view = GetItemChunkConfig(item, chunk, 'CFGEDITVIEW')
+    return GetConfigVZoom(cfg_edit_view)
 end
 
-function getRelativeSourcePPQ(take, pos)
+function GetRelativeSourcePPQ(take, pos)
     local ppq_pos = reaper.MIDI_GetPPQPosFromProjTime(take, pos)
     local qn_pos = reaper.TimeMap2_timeToQN(0, pos)
 
-    local source = reaper.GetMediaItemTake_Source(take)
-    local source_length = reaper.GetMediaSourceLength(source)
+    local src = reaper.GetMediaItemTake_Source(take)
+    local src_length = reaper.GetMediaSourceLength(src)
 
     local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
-    local source_qn_pos = start_qn + (qn_pos - start_qn) % source_length
-    return reaper.MIDI_GetPPQPosFromProjQN(take, source_qn_pos)
+    local src_qn_pos = start_qn + (qn_pos - start_qn) % src_length
+    return reaper.MIDI_GetPPQPosFromProjQN(take, src_qn_pos)
 end
 
-function getRelativeSourcePos(take, pos)
-    local source_ppq_pos = getRelativeSourcePPQ(take, pos)
-    return reaper.MIDI_GetProjTimeFromPPQPos(take, source_ppq_pos)
+function GetRelativeSourcePos(take, pos)
+    local src_ppq_pos = GetRelativeSourcePPQ(take, pos)
+    return reaper.MIDI_GetProjTimeFromPPQPos(take, src_ppq_pos)
 end
 
-function getSourcePPQLength(take)
-    local source = reaper.GetMediaItemTake_Source(take)
-    local source_length = reaper.GetMediaSourceLength(source)
+function GetSourcePPQLength(take)
+    local src = reaper.GetMediaItemTake_Source(take)
+    local src_length = reaper.GetMediaSourceLength(src)
     local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
-    return reaper.MIDI_GetPPQPosFromProjQN(take, start_qn + source_length)
+    return reaper.MIDI_GetPPQPosFromProjQN(take, start_qn + src_length)
 end
 
-function getHorizontalEditorLength(hwnd, item, timebase)
+function GetMIDIEditorView(hwnd, item, timebase)
     if timebase == 2 or timebase == 4 then
-        setTimebase(hwnd, 1)
+        SetTimebase(hwnd, 1)
     end
 
-    local _, offset = getItemHZoom(item)
+    local _, offset = GetItemHZoom(item)
     -- Cmd: Scroll view right
     reaper.MIDIEditor_OnCommand(hwnd, 40141)
 
-    local _, scroll_offset = getItemHZoom(item)
+    local _, scroll_offset = GetItemHZoom(item)
     -- Cmd: Scroll view left
     reaper.MIDIEditor_OnCommand(hwnd, 40140)
 
     if timebase == 2 or timebase == 4 then
-        setTimebase(hwnd, timebase)
+        SetTimebase(hwnd, timebase)
     end
 
     local take = reaper.GetActiveTake(item)
@@ -443,7 +442,7 @@ function getHorizontalEditorLength(hwnd, item, timebase)
     return area * factor, center
 end
 
-function getSmartZoomRange(take, pos, item_start_pos, item_end_pos)
+function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
     -- Algorithm is based on Shephard's method of inverse distance weighting
     -- https://en.wikipedia.org/wiki/Inverse_distance_weighting
 
@@ -455,7 +454,7 @@ function getSmartZoomRange(take, pos, item_start_pos, item_end_pos)
     -- A smoothing factor of 0, would make the distance to the given position irrelevant.
 
     local item = reaper.GetMediaItemTake_Item(take)
-    local source_ppq_length = getSourcePPQLength(take)
+    local src_ppq_length = GetSourcePPQLength(take)
 
     local ppq_pos = reaper.MIDI_GetPPQPosFromProjTime(take, pos)
     local start_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_start_pos)
@@ -463,9 +462,9 @@ function getSmartZoomRange(take, pos, item_start_pos, item_end_pos)
 
     local loop_start, loop_end = 0, 0
     if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
-        local curr_iteration = math.floor(ppq_pos / source_ppq_length)
+        local curr_iteration = math.floor(ppq_pos / src_ppq_length)
         -- For looped items
-        if end_ppq - start_ppq > source_ppq_length then
+        if end_ppq - start_ppq > src_ppq_length then
             loop_start = math.max(0, curr_iteration - 1)
             loop_end = curr_iteration + 1
         end
@@ -493,8 +492,8 @@ function getSmartZoomRange(take, pos, item_start_pos, item_end_pos)
                 prev_eppq = eppq
             end
             for n = loop_start, loop_end do
-                local sppq_o = sppq + n * source_ppq_length
-                local eppq_o = eppq + n * source_ppq_length
+                local sppq_o = sppq + n * src_ppq_length
+                local eppq_o = eppq + n * src_ppq_length
                 if eppq_o > start_ppq and sppq_o < end_ppq then
                     local note_center_ppq = sppq_o + note_length / 2
                     local note_distance = math.abs(note_center_ppq - ppq_pos)
@@ -504,7 +503,8 @@ function getSmartZoomRange(take, pos, item_start_pos, item_end_pos)
 
                     local note_weight = 1 / note_distance ^ smoothing
                     local gap_note_length = note_length + gap_length
-                    note_length_sum = note_length_sum + note_weight * gap_note_length
+                    local weighted_gap_length = note_weight * gap_note_length
+                    note_length_sum = note_length_sum + weighted_gap_length
                     note_weight_sum = note_weight_sum + note_weight
                 end
             end
@@ -529,7 +529,7 @@ function getSmartZoomRange(take, pos, item_start_pos, item_end_pos)
     return zoom_ppq_length
 end
 
-function getPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
+function GetPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     local item = reaper.GetMediaItemTake_Item(take)
     local item_start_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_start_pos)
     local item_end_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_end_pos)
@@ -541,17 +541,17 @@ function getPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     end_ppq = math.min(end_ppq, item_end_ppq)
 
     if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
-        local source_ppq_length = getSourcePPQLength(take)
-        if end_ppq - start_ppq >= source_ppq_length then
+        local src_ppq_length = GetSourcePPQLength(take)
+        if end_ppq - start_ppq >= src_ppq_length then
             start_ppq = 0
-            end_ppq = source_ppq_length
+            end_ppq = src_ppq_length
         else
-            start_ppq = start_ppq % source_ppq_length
-            end_ppq = end_ppq % source_ppq_length
+            start_ppq = start_ppq % src_ppq_length
+            end_ppq = end_ppq % src_ppq_length
         end
     end
 
-    local function isNoteVisible(sppq, eppq)
+    local function IsNoteVisible(sppq, eppq)
         if end_ppq < start_ppq then
             return eppq > start_ppq or sppq < end_ppq
         else
@@ -568,7 +568,7 @@ function getPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     local i = 0
     repeat
         local ret, _, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
-        if ret and isNoteVisible(sppq, eppq) then
+        if ret and IsNoteVisible(sppq, eppq) then
             note_lo = math.min(note_lo, pitch)
             note_hi = math.max(note_hi, pitch)
             density = density + pitch
@@ -580,7 +580,7 @@ function getPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     return note_lo, note_hi, density_cnt > 0 and density / density_cnt
 end
 
-function zoomToPitchRange(hwnd, item, note_lo, note_hi)
+function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
     -- Get previous active note row
     local setting = 'active_note_row'
     local active_row = reaper.MIDIEditor_GetSetting_int(hwnd, setting)
@@ -588,7 +588,7 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     note_lo = math.max(note_lo, 0)
     note_hi = math.min(note_hi, 127)
     local target_row = math.floor((note_lo + note_hi) / 2)
-    local curr_row = getItemVZoom(item)
+    local curr_row = GetItemVZoom(item)
 
     local target_range = math.ceil((note_hi - note_lo) / 2)
 
@@ -605,8 +605,8 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
 
     local i = 0
     repeat
-        local row, size = getItemVZoom(item)
-        local pitch_range = math.min(-2, curr_row - row + 1) * -1
+        local row, size = GetItemVZoom(item)
+        local pitch_range = math.min( -2, curr_row - row + 1) * -1
 
         if curr_row > target_row then
             curr_row = math.max(target_row, curr_row - pitch_range)
@@ -632,7 +632,7 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     zoom_string = zoom_string .. ' |'
 
     repeat
-        local row, size = getItemVZoom(item)
+        local row, size = GetItemVZoom(item)
         local pitch_range = math.abs(curr_row - row)
         if size > max_vertical_note_pixels then
             print('Reached max zoom size!')
@@ -645,7 +645,7 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     until i == 50 or pitch_range < target_range
 
     repeat
-        local row, size = getItemVZoom(item)
+        local row, size = GetItemVZoom(item)
         local pitch_range = math.abs(curr_row - row)
         if size == 4 then
             print('Reached min zoom size!')
@@ -669,12 +669,12 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     end
 end
 
-function scrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
+function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     -- Get previous active note row
     local setting = 'active_note_row'
     local active_row = reaper.MIDIEditor_GetSetting_int(hwnd, setting)
 
-    local curr_row = getItemVZoom(item)
+    local curr_row = GetItemVZoom(item)
     -- Set active note row to set center of vertical zoom
     reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
 
@@ -698,8 +698,8 @@ function scrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
 
     local i = 0
     repeat
-        local row, size = getItemVZoom(item)
-        local pitch_range = math.min(-2, curr_row - row + 1) * -1
+        local row, size = GetItemVZoom(item)
+        local pitch_range = math.min( -2, curr_row - row + 1) * -1
 
         if row == 127 and i == 0 and not backup_target_row then
             -- When row 127 is visible it's not possible to get the target range.
@@ -790,9 +790,8 @@ local editor_type = config % 4
 
 -- Force setting: One MIDI editor per project
 if not use_toolbar_context_only and editor_type ~= 1 then
-    local msg =
-        'This script requires the setting: One MIDI editor per project\z
-    \n\nChange settings now?'
+    local msg = 'This script requires the setting: One MIDI editor per project\z
+        \n\nChange settings now?'
     local ret = reaper.MB(msg, mb_title, 4)
     if ret == 6 then
         config = config - editor_type + 1
@@ -818,14 +817,12 @@ local exec_time = tonumber(reaper.GetExtState(extname, 'exec_time'))
 local click_mode = 0
 local context = -1
 
-local hzoom_mode
-local vzoom_mode
 local sel_item
 local cursor_pos
 
 -- Handle mouse modifiers
 if window == 'arrange' and not is_hotkey then
-    click_mode = getClickMode(cmd)
+    click_mode = GetClickMode(cmd)
     if click_mode == 0 then
         -- This should only happen on item edges
         print('No mouse modifer found. Exiting')
@@ -934,22 +931,22 @@ if window == 'arrange' and (context > 0 or click_mode > 0) then
         -- Handle non-MIDI takes
         if not reaper.TakeIsMIDI(take) then
             if click_mode == 2 then
-                local source = reaper.GetMediaItemTake_Source(take)
-                local file_name = reaper.GetMediaSourceFileName(source, '')
+                local src = reaper.GetMediaItemTake_Source(take)
+                local file_name = reaper.GetMediaSourceFileName(src, '')
                 local video_extensions = {'mp4', 'gif'}
+                -- Open video window for video items
                 for _, extension in ipairs(video_extensions) do
                     if file_name:lower():match('[^.]+$') == extension then
-                        local is_video_visible = reaper.GetToggleCommandState(50125) == 1
-                        if not is_video_visible then
+                        local video_window = reaper.GetToggleCommandState(50125)
+                        if video_window == 0 then
                             reaper.Main_OnCommand(50125, 0)
                             reaper.Undo_EndBlock(undo_name, -1)
                             return
                         end
                     end
                 end
-                local _, chunk = reaper.GetItemStateChunk(sel_item, '', true)
-                local is_subproject = chunk:match('SOURCE RPP_PROJECT')
-                if is_subproject then
+                local src_type = reaper.GetMediaSourceType(src)
+                if src_type == 'RPP_PROJECT' then
                     -- Cmd: Open associated project in new tab
                     reaper.Main_OnCommand(41816, 0)
                     undo_name = 'Item: Open associated project in new tab'
@@ -979,23 +976,23 @@ if context == 20 or context == 22 or context == 23 then
     end
     -- Select closest item to cursor
     if editor_item then
-        local getItemInfoValue = reaper.GetMediaItemInfo_Value
-        local item_length = getItemInfoValue(editor_item, 'D_LENGTH')
-        local item_start_pos = getItemInfoValue(editor_item, 'D_POSITION')
+        local GetItemInfoValue = reaper.GetMediaItemInfo_Value
+        local item_length = GetItemInfoValue(editor_item, 'D_LENGTH')
+        local item_start_pos = GetItemInfoValue(editor_item, 'D_POSITION')
         local item_end_pos = item_start_pos + item_length
         local editor_track = reaper.GetMediaItem_Track(editor_item)
-        cursor_pos = getCursorPosition(play_state)
+        cursor_pos = GetCursorPosition(play_state)
         -- Check for other items on the same track
         if cursor_pos < item_start_pos then
             for i = 0, reaper.CountTrackMediaItems(editor_track) - 1 do
                 local item = reaper.GetTrackMediaItem(editor_track, i)
-                local length = getItemInfoValue(item, 'D_LENGTH')
-                local start_pos = getItemInfoValue(item, 'D_POSITION')
+                local length = GetItemInfoValue(item, 'D_LENGTH')
+                local start_pos = GetItemInfoValue(item, 'D_POSITION')
                 local end_pos = start_pos + length
                 if cursor_pos < end_pos then
                     if item ~= editor_item then
                         sel_item = item
-                        setOnlyItemSelected(sel_item)
+                        SetOnlyItemSelected(sel_item)
                     end
                     break
                 end
@@ -1004,11 +1001,11 @@ if context == 20 or context == 22 or context == 23 then
         if cursor_pos > item_end_pos then
             for i = reaper.CountTrackMediaItems(editor_track) - 1, 0, -1 do
                 local item = reaper.GetTrackMediaItem(editor_track, i)
-                local start_pos = getItemInfoValue(item, 'D_POSITION')
+                local start_pos = GetItemInfoValue(item, 'D_POSITION')
                 if cursor_pos > start_pos then
                     if item ~= editor_item then
                         sel_item = item
-                        setOnlyItemSelected(sel_item)
+                        SetOnlyItemSelected(sel_item)
                     end
                     break
                 end
@@ -1023,7 +1020,7 @@ if not is_valid_take and not sel_item then
     return
 end
 
-cursor_pos = cursor_pos or getCursorPosition(play_state)
+cursor_pos = cursor_pos or GetCursorPosition(play_state)
 
 local hlength, hcenter
 local prev_hzoom_lvl = tonumber(reaper.GetExtState(extname, 'hzoom_lvl'))
@@ -1033,15 +1030,16 @@ if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode == 
     local cfg_edit
     if is_valid_take then
         local chunk = select(2, reaper.GetItemStateChunk(editor_item, '', true))
-        local cfg_edit_view = getItemChunkConfig(editor_item, chunk, 'CFGEDITVIEW')
-        cfg_edit = getItemChunkConfig(editor_item, chunk, 'CFGEDIT')
+        local cfg_edit_view = GetItemChunkConfig(editor_item, chunk,
+            'CFGEDITVIEW')
+        cfg_edit = GetItemChunkConfig(editor_item, chunk, 'CFGEDIT')
         -- Check editor length in case reaper will change zoom level
-        local hzoom_lvl = getConfigHZoom(cfg_edit_view)
+        local hzoom_lvl = GetConfigHZoom(cfg_edit_view)
         if hzoom_lvl ~= prev_hzoom_lvl then
             print('Getting horizontal editor length')
-            local timebase = getEditorTimeBase()
+            local timebase = GetEditorTimeBase()
             prev_hzoom_lvl = hzoom_lvl
-            hlength, hcenter = getHorizontalEditorLength(hwnd, editor_item, timebase)
+            hlength, hcenter = GetMIDIEditorView(hwnd, editor_item, timebase)
         end
     end
 
@@ -1053,8 +1051,8 @@ if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode == 
 
     if cfg_edit then
         -- Sometimes editor modes are not kept. This fixes this issue
-        local item_mode = getConfigMode(cfg_edit)
-        setMode(hwnd, item_mode)
+        local item_mode = GetConfigMode(cfg_edit)
+        SetMode(hwnd, item_mode)
     end
 end
 
@@ -1063,22 +1061,23 @@ local item_length = reaper.GetMediaItemInfo_Value(editor_item, 'D_LENGTH')
 local item_start_pos = reaper.GetMediaItemInfo_Value(editor_item, 'D_POSITION')
 local item_end_pos = item_start_pos + item_length
 
-local timebase = getEditorTimeBase()
+local timebase = GetEditorTimeBase()
 
 if timebase == 2 then
     if window == 'arrange' then
-        cursor_pos = getRelativeSourcePos(editor_take, cursor_pos)
+        cursor_pos = GetRelativeSourcePos(editor_take, cursor_pos)
     end
-    local source_ppq_length = getSourcePPQLength(editor_take)
+    local src_ppq_length = GetSourcePPQLength(editor_take)
     item_start_pos = reaper.MIDI_GetProjTimeFromPPQPos(editor_take, 0)
-    item_end_pos = reaper.MIDI_GetProjTimeFromPPQPos(editor_take, source_ppq_length)
+    item_end_pos = reaper.MIDI_GetProjTimeFromPPQPos(editor_take, src_ppq_length)
     item_length = item_end_pos - item_start_pos
 end
-local is_cursor_inside_item = cursor_pos >= item_start_pos and cursor_pos <= item_end_pos
+local is_cursor_inside_item = cursor_pos >= item_start_pos and
+    cursor_pos <= item_end_pos
 
 ----------------------------------- ZOOM MODES ---------------------------------------
 
-local hzoom_mode, vzoom_mode = getZoomMode(context, timebase)
+local hzoom_mode, vzoom_mode = GetZoomMode(context, timebase)
 
 local prev_note_row, prev_note_lo, prev_note_hi
 local timespan = tonumber(reaper.GetExtState(extname, 'timespan'))
@@ -1119,11 +1118,11 @@ if not vzoom_mode or not hzoom_mode then
 end
 
 local is_smart_zoom_mode = hzoom_mode == 5 or hzoom_mode == 6
-local hzoom_lvl = getItemHZoom(editor_item)
+local hzoom_lvl = GetItemHZoom(editor_item)
 
 if not hlength or not hcenter or prev_hzoom_lvl ~= hzoom_lvl and not is_smart_zoom_mode then
     print('Getting horizontal editor length')
-    hlength, hcenter = getHorizontalEditorLength(hwnd, editor_item, timebase)
+    hlength, hcenter = GetMIDIEditorView(hwnd, editor_item, timebase)
 end
 
 if is_hotkey and is_smart_zoom_mode and not is_cursor_inside_item then
@@ -1162,12 +1161,15 @@ end
 -- Set zoom to number of notes
 if hzoom_mode == 5 or hzoom_mode == 6 then
     local zoom_ppq_length =
-        getSmartZoomRange(editor_take, cursor_pos, item_start_pos, item_end_pos)
+        GetSmartZoomRange(editor_take, cursor_pos, item_start_pos, item_end_pos)
     if zoom_ppq_length then
-        local cursor_ppq_pos = reaper.MIDI_GetPPQPosFromProjTime(editor_take, cursor_pos)
-        local getTimeFromPPQ = reaper.MIDI_GetProjTimeFromPPQPos
-        zoom_start_pos = getTimeFromPPQ(editor_take, cursor_ppq_pos - zoom_ppq_length / 2)
-        zoom_end_pos = getTimeFromPPQ(editor_take, cursor_ppq_pos + zoom_ppq_length / 2)
+        local GetTimeFromPPQ = reaper.MIDI_GetProjTimeFromPPQPos
+        local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
+        local cursor_ppq_pos = GetPPQFromTime(editor_take, cursor_pos)
+        zoom_start_pos = GetTimeFromPPQ(editor_take,
+            cursor_ppq_pos - zoom_ppq_length / 2)
+        zoom_end_pos = GetTimeFromPPQ(editor_take,
+            cursor_ppq_pos + zoom_ppq_length / 2)
     else
         zoom_start_pos = item_start_pos
         zoom_end_pos = item_end_pos
@@ -1230,7 +1232,8 @@ if vzoom_mode > 0 and not is_notation then
     end
 
     local note_lo, note_hi, note_density =
-        getPitchRange(editor_take, start_pos, end_pos, item_start_pos, item_end_pos)
+        GetPitchRange(editor_take, start_pos, end_pos, item_start_pos,
+            item_end_pos)
 
     if are_notes_hidden then
         print('Notes are hidden. Zooming to content')
@@ -1252,8 +1255,9 @@ if vzoom_mode > 0 and not is_notation then
             end
 
             if prev_note_lo ~= note_lo or prev_note_hi ~= note_hi then
-                print('Vertically zooming to notes ' .. note_lo .. ' - ' .. note_hi)
-                zoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
+                print('Vertically zooming to notes ' ..
+                note_lo .. ' - ' .. note_hi)
+                ZoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
             end
         end
         if vzoom_mode >= 4 and vzoom_mode <= 12 then
@@ -1281,7 +1285,8 @@ if vzoom_mode > 0 and not is_notation then
                 if scroll_changed then
                     print('Vertically scrolling to note ' .. note_row)
                     print('Scroll lo/hi limit: ' .. note_lo .. '/' .. note_hi)
-                    scrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1, note_hi + 1)
+                    ScrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1,
+                        note_hi + 1)
                 end
             end
         end
@@ -1294,10 +1299,10 @@ end
 ---------------------------------- HORIZONTAL ZOOM ----------------------------------
 
 -- Get previous time selection
-local sel = getSelection()
+local sel = GetSelection()
 reaper.PreventUIRefresh(1)
 
-setSelection(zoom_start_pos, zoom_end_pos)
+SetSelection(zoom_start_pos, zoom_end_pos)
 -- Cmd: Zoom to project loop selection
 reaper.MIDIEditor_OnCommand(hwnd, 40726)
 
@@ -1305,12 +1310,12 @@ reaper.MIDIEditor_OnCommand(hwnd, 40726)
 local sel_start_pos = sel and sel.start_pos or 0
 local sel_end_pos = sel and sel.end_pos or 0
 if not debug then
-    setSelection(sel_start_pos, sel_end_pos)
+    SetSelection(sel_start_pos, sel_end_pos)
 end
 
-reaper.PreventUIRefresh(-1)
+reaper.PreventUIRefresh( -1)
 
-local exec_time = reaper.time_precise() - start_time
+exec_time = reaper.time_precise() - start_time
 print('\nExecution time: ' .. math.floor(exec_time * 1000 + 0.5) .. ' ms')
 reaper.SetExtState(extname, 'exec_time', exec_time, false)
 
