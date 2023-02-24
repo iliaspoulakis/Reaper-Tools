@@ -836,7 +836,7 @@ if window == 'arrange' and not is_hotkey then
     end
 end
 
-if timestamp then
+if is_hotkey and timestamp then
     reaper.SetExtState(extname, 'timespan', start_time - timestamp, false)
     if exec_time then
         local min_time = timestamp + exec_time * 4
@@ -1025,7 +1025,7 @@ cursor_pos = cursor_pos or GetCursorPosition(play_state)
 local hlength, hcenter
 local prev_hzoom_lvl = tonumber(reaper.GetExtState(extname, 'hzoom_lvl'))
 
-if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode == 2) then
+if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode > 0) then
     print('Opening selected item in editor')
     local cfg_edit
     if is_valid_take then
@@ -1082,7 +1082,7 @@ local hzoom_mode, vzoom_mode = GetZoomMode(context, timebase)
 local prev_note_row, prev_note_lo, prev_note_hi
 local timespan = tonumber(reaper.GetExtState(extname, 'timespan'))
 
-if timespan and timespan < 0.25 then
+if is_hotkey and timespan and timespan < 0.25 then
     print('Fast mode: Preloading settings')
     prev_note_row = tonumber(reaper.GetExtState(extname, 'note_row'))
     prev_note_lo = tonumber(reaper.GetExtState(extname, 'note_lo'))
