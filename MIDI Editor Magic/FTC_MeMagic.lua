@@ -82,7 +82,7 @@ local set_edit_cursor = false
 local number_of_measures = 4
 
 -- Number of (approximate) notes to zoom to (for horizontal modes 5 and 6)
-local number_of_notes = 10
+local number_of_notes = 20
 
 -- Determines how influential the cursor position is on smart zoom levels
 -- No influence: 0,  High influence: >1,  Default: 0.75
@@ -1273,7 +1273,11 @@ if vzoom_mode > 0 and not is_notation then
             if prev_note_lo ~= note_lo or prev_note_hi ~= note_hi then
                 print('Vertically zooming to notes ' ..
                 note_lo .. ' - ' .. note_hi)
-                ZoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
+                if note_hi - note_lo < 28 then
+                    ZoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
+                else
+                    ZoomToPitchRange(hwnd, editor_item, note_lo, note_hi)
+                end
             end
         end
         if vzoom_mode >= 4 and vzoom_mode <= 12 then
@@ -1335,7 +1339,6 @@ exec_time = reaper.time_precise() - start_time
 print('\nExecution time: ' .. math.floor(exec_time * 1000 + 0.5) .. ' ms')
 reaper.SetExtState(extname, 'exec_time', exec_time, false)
 
-if click_mode == 1 then
-    reaper.SetCursorContext(1, 0)
-end
+local is_docked = reaper.GetToggleCommandStateEx(32060, 40018) == 1
+if is_docked and click_mode == 1 then reaper.SetCursorContext(1, 0) end
 reaper.Undo_EndBlock(undo_name, -1)
