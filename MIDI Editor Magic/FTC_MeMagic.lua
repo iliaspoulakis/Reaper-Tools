@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.2.0
   @about Contextual zooming & scrolling for the MIDI editor in reaper
 ]]
 ------------------------------ ZOOM MODES -----------------------------
@@ -13,7 +13,9 @@
 -- 4: Zoom to number of measures at mouse or edit cursor, restrict to item
 -- 5: Smart zoom to number of notes at mouse or edit cursor
 -- 6: Smart zoom to number of notes at mouse or edit cursor, restrict to item
--- 7: Scroll to mouse or edit cursor
+-- 7: Smart zoom to measures at mouse or edit cursor
+-- 8: Smart zoom to measures at mouse or edit cursor, restrict to item
+-- 9: Scroll to mouse or edit cursor
 
 -- VERTICAL MODES
 -- 1: No change
@@ -222,7 +224,7 @@ function GetZoomMode(context, timebase)
     end
 
     local hzoom_min = 1
-    local hzoom_max = 7
+    local hzoom_max = 9
 
     local vzoom_min = 1
     local vzoom_max = 12
@@ -1175,7 +1177,7 @@ if hzoom_mode == 3 or hzoom_mode == 4 then
 end
 
 -- Set zoom to number of notes
-if hzoom_mode == 5 or hzoom_mode == 6 then
+if hzoom_mode >= 5 and hzoom_mode <= 8 then
     local zoom_ppq_length =
         GetSmartZoomRange(editor_take, cursor_pos, item_start_pos, item_end_pos)
     if zoom_ppq_length then
@@ -1190,9 +1192,29 @@ if hzoom_mode == 5 or hzoom_mode == 6 then
         zoom_start_pos = item_start_pos
         zoom_end_pos = item_end_pos
     end
+
+    if hzoom_mode >= 7 then
+        local TimeToBeats = reaper.TimeMap2_timeToBeats
+        local BeatsToTime = reaper.TimeMap2_beatsToTime
+        local _, _, _, zoom_start_beats = TimeToBeats(0, zoom_start_pos)
+        local _, _, _, zoom_end_beats = TimeToBeats(0, zoom_end_pos)
+        local convQNToTime = reaper.TimeMap2_QNToTime
+        local sig_num = reaper.TimeMap_GetTimeSigAtTime(0, cursor_pos)
+        local cursor_qn = reaper.TimeMap2_timeToQN(0, cursor_pos)
+        local measures = (zoom_end_beats - zoom_start_beats) / sig_num
+        if measures < 10 then
+            -- Find multiple of 2
+            local exp = math.log(measures, 2)
+            measures = 2 ^ math.floor(exp + 0.5)
+        else
+            measures = math.floor(measures + 0.5)
+        end
+        zoom_start_pos = convQNToTime(0, cursor_qn - sig_num * measures / 2)
+        zoom_end_pos = convQNToTime(0, cursor_qn + sig_num * measures / 2)
+    end
 end
 
-if hzoom_mode == 7 then
+if hzoom_mode == 9 then
     zoom_start_pos = cursor_pos - hlength / 2
     zoom_end_pos = cursor_pos + hlength / 2
 end
@@ -1214,7 +1236,7 @@ if timebase == 2 and zoom_start_pos < item_start_pos then
 end
 
 -- Restrict zoom to item edges based on mode
-if hzoom_mode == 4 or hzoom_mode == 6 then
+if hzoom_mode == 4 or hzoom_mode == 6 or hzoom_mode == 8 then
     if zoom_length < item_length then
         if zoom_start_pos < item_start_pos then
             zoom_start_pos = item_start_pos

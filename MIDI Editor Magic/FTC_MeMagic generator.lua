@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.2
+  @version 1.1.0
   @noindex
   @about Generates non-contextual configurations of MeMagic
 ]]
@@ -15,7 +15,8 @@ local content = {}
 if file then
     for line in file:lines() do
         if line:match('@about') then
-            line = '  @noindex\n  @about Automatically generated configuration of MeMagic'
+            line =
+            '  @noindex\n  @about Automatically generated configuration of MeMagic'
         end
         content[#content + 1] = line
     end
@@ -52,8 +53,10 @@ local hmodes = {
     'zoom to item',
     'zoom to 4 measures at mouse or edit cursor',
     'zoom to 4 measures at mouse or edit cursor, restrict to item',
-    'smart zoom to 10 notes at mouse or edit cursor',
-    'smart zoom to 10 notes at mouse or edit cursor, restrict to item',
+    'smart zoom to 20 notes at mouse or edit cursor',
+    'smart zoom to 20 notes at mouse or edit cursor, restrict to item',
+    'smart zoom to measures at mouse or edit cursor',
+    'smart zoom to measures at mouse or edit cursor, restrict to item',
     'scroll to mouse or edit cursor'
 }
 
@@ -71,8 +74,6 @@ local vmodes = {
     'scroll to highest note in visible area',
     'scroll to highest note in item'
 }
-
-local hmode_cnt, vmode_cnt = 7, 12
 
 local exceptions = {
     {1, 1},
@@ -100,7 +101,15 @@ local exceptions = {
     {7, 9},
     {7, 10},
     {7, 11},
-    {7, 12}
+    {7, 12},
+    {8, 9},
+    {8, 10},
+    {8, 11},
+    {8, 12},
+    {9, 9},
+    {9, 10},
+    {9, 11},
+    {9, 12},
 }
 
 local function isException(h, v)
@@ -116,8 +125,8 @@ local provides = '    [main=main,midi_editor] '
 local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
 
 -- Generate MeMagic configurations
-for h = 1, hmode_cnt do
-    for v = 1, vmode_cnt do
+for h = 1, #hmodes do
+    for v = 1, #vmodes do
         if not isException(h, v) then
             local hmode = hmodes[h]
             local vmode = vmodes[v]
@@ -127,29 +136,32 @@ for h = 1, hmode_cnt do
             local new_file_name = name_pattern:format(h, v, hmode, space, vmode)
             local new_file_path = dir_path .. new_file_name
             local new_file = io.open(new_file_path, 'w')
-
-            for _, line in ipairs(content) do
-                if line:match('local TBB_horizontal_zoom_mode = ') then
-                    line = 'local TBB_horizontal_zoom_mode = ' .. h
+            if new_file then
+                for _, line in ipairs(content) do
+                    if line:match('local TBB_horizontal_zoom_mode = ') then
+                        line = 'local TBB_horizontal_zoom_mode = ' .. h
+                    end
+                    if line:match('local TBB_vertical_zoom_mode = ') then
+                        line = 'local TBB_vertical_zoom_mode = ' .. v
+                    end
+                    if line:match('local use_toolbar_context_only = ') then
+                        line = 'local use_toolbar_context_only = true'
+                    end
+                    if line:match('local set_edit_cursor = ') then
+                        line = 'local set_edit_cursor = false'
+                    end
+                    if line:match('local debug = ') then
+                        line = 'local debug = false'
+                    end
+                    new_file:write(line, '\n')
                 end
-                if line:match('local TBB_vertical_zoom_mode = ') then
-                    line = 'local TBB_vertical_zoom_mode = ' .. v
-                end
-                if line:match('local use_toolbar_context_only = ') then
-                    line = 'local use_toolbar_context_only = true'
-                end
-                if line:match('local set_edit_cursor = ') then
-                    line = 'local set_edit_cursor = false'
-                end
-                if line:match('local debug = ') then
-                    line = 'local debug = false'
-                end
-                new_file:write(line, '\n')
+                new_file:close()
             end
-            new_file:close()
             reaper.AddRemoveReaScript(true, 0, new_file_path, false)
-            reaper.AddRemoveReaScript(true, 32060, new_file_path, h == 7 and v == 8)
-            config = config .. provides .. gen_folder_name .. '/' .. new_file_name .. '\n'
+            local is_commit = h == #hmodes and v == #vmodes
+            reaper.AddRemoveReaScript(true, 32060, new_file_path, is_commit)
+            local add = provides .. gen_folder_name .. '/' .. new_file_name
+            config = config .. add .. '\n'
         end
     end
 end
@@ -160,7 +172,8 @@ if file then
     -- Create package with configurations
     for _, line in ipairs(content) do
         if line:match('@about') then
-            local about = '  @about Bundle with feasible configurations of MeMagic\n'
+            local about =
+            '  @about Bundle with feasible configurations of MeMagic\n'
             local meta_pkg = '  @metapackage\n'
             line = about .. meta_pkg .. '  @provides\n' .. config .. ']]'
             content[#content + 1] = line
