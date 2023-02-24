@@ -788,10 +788,13 @@ end
 local config = reaper.SNM_GetIntConfigVar('midieditor', 0)
 local editor_type = config % 4
 
+local has_js_api = reaper.JS_MIDIEditor_ListAll ~= nil
+
 -- Force setting: One MIDI editor per project
-if not use_toolbar_context_only and editor_type ~= 1 then
-    local msg = 'This script requires the setting: One MIDI editor per project\z
-        \n\nChange settings now?'
+if not use_toolbar_context_only and editor_type ~= 1 and not has_js_api then
+    local msg = 'This script requires the mode: One MIDI editor per project\z
+        \n\n(You can also install JS_ReaScriptAPI to use it with other modes)\z
+        \n\nChange mode now?'
     local ret = reaper.MB(msg, mb_title, 4)
     if ret == 6 then
         config = config - editor_type + 1
@@ -1045,7 +1048,20 @@ if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode > 0
 
     -- Cmd: Open in built-in MIDI editor
     reaper.Main_OnCommand(40153, 0)
-    hwnd = reaper.MIDIEditor_GetActive()
+
+    if has_js_api then
+        local _, list = reaper.JS_MIDIEditor_ListAll()
+        local sel_take = reaper.GetActiveTake(sel_item)
+        for addr in (list .. ','):gmatch('(.-),') do
+            local editor_hwnd = reaper.JS_Window_HandleFromAddress(addr)
+            if reaper.MIDIEditor_GetTake(editor_hwnd) == sel_take then
+                hwnd = editor_hwnd
+                break
+            end
+        end
+    else
+        hwnd = reaper.MIDIEditor_GetActive()
+    end
     editor_take = reaper.GetActiveTake(sel_item)
     editor_item = sel_item
 
