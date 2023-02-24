@@ -1,10 +1,8 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.4
+  @version 1.1.5
   @about Opens multiple items in the MIDI editor and zooms to all of their content
-  @changelog
-    - Use SWS zoom to selected items (to also show track envelopes)
 ]]
 ------------------------------ SETTINGS -----------------------------
 
@@ -42,13 +40,8 @@ function print(msg)
     end
 end
 
-function setSelection(sel_start_pos, sel_end_pos)
-    reaper.GetSet_LoopTimeRange(true, true, sel_start_pos, sel_end_pos, false)
-end
-
-function getSelection()
-    local getSetLoopTimeRange = reaper.GetSet_LoopTimeRange
-    local sel_start_pos, sel_end_pos = getSetLoopTimeRange(false, true, 0, 0, false)
+function GetSelection()
+    local sel_start_pos, sel_end_pos = reaper.GetSet_LoopTimeRange(0, 1, 0, 0, 0)
     local is_valid_sel = sel_end_pos > 0 and sel_start_pos ~= sel_end_pos
     if is_valid_sel then
         local sel = {}
@@ -58,11 +51,15 @@ function getSelection()
     end
 end
 
-function getItemChunkConfig(item, chunk, config)
+function SetSelection(sel_start_pos, sel_end_pos)
+    reaper.GetSet_LoopTimeRange(1, 1, sel_start_pos, sel_end_pos, 0)
+end
+
+function GetItemChunkConfig(item, chunk, config)
     -- Parse the chunk to get the correct config for the active take
     local curr_tk = reaper.GetMediaItemInfo_Value(item, 'I_CURTAKE')
     local pattern = config .. ' .-\n'
-    local s, e = chunk:find(pattern, s)
+    local s, e = chunk:find(pattern)
     local i = 0
     for _ = 0, curr_tk do
         s = i
@@ -76,7 +73,7 @@ function getItemChunkConfig(item, chunk, config)
     return s and chunk:sub(s, e)
 end
 
-function getConfigVZoom(cfg_edit_view)
+function GetConfigVZoom(cfg_edit_view)
     local pattern = 'CFGEDITVIEW .- .- (.-) (.-) '
     if cfg_edit_view then
         local offset, size = cfg_edit_view:match(pattern)
@@ -85,20 +82,20 @@ function getConfigVZoom(cfg_edit_view)
     return -1, -1
 end
 
-function getItemVZoom(item)
+function GetItemVZoom(item)
     local _, chunk = reaper.GetItemStateChunk(item, '', true)
-    local cfg_edit_view = getItemChunkConfig(item, chunk, 'CFGEDITVIEW')
-    return getConfigVZoom(cfg_edit_view)
+    local cfg_edit_view = GetItemChunkConfig(item, chunk, 'CFGEDITVIEW')
+    return GetConfigVZoom(cfg_edit_view)
 end
 
-function getSourcePPQLength(take)
-    local source = reaper.GetMediaItemTake_Source(take)
-    local source_length = reaper.GetMediaSourceLength(source)
+function GetSourcePPQLength(take)
+    local src = reaper.GetMediaItemTake_Source(take)
+    local src_length = reaper.GetMediaSourceLength(src)
     local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
-    return reaper.MIDI_GetPPQPosFromProjQN(take, start_qn + source_length)
+    return reaper.MIDI_GetPPQPosFromProjQN(take, start_qn + src_length)
 end
 
-function zoomToPitchRange(hwnd, item, note_lo, note_hi)
+function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
     -- Get previous active note row
     local setting = 'active_note_row'
     local active_row = reaper.MIDIEditor_GetSetting_int(hwnd, setting)
@@ -106,7 +103,7 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     note_lo = math.max(note_lo, 0)
     note_hi = math.min(note_hi, 127)
     local target_row = math.floor((note_lo + note_hi) / 2)
-    local curr_row = getItemVZoom(item)
+    local curr_row = GetItemVZoom(item)
 
     local target_range = math.ceil((note_hi - note_lo) / 2)
 
@@ -123,8 +120,8 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
 
     local i = 0
     repeat
-        local row, size = getItemVZoom(item)
-        local pitch_range = math.min(-2, curr_row - row + 1) * -1
+        local row, size = GetItemVZoom(item)
+        local pitch_range = math.min( -2, curr_row - row + 1) * -1
 
         if curr_row > target_row then
             curr_row = math.max(target_row, curr_row - pitch_range)
@@ -150,7 +147,7 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     zoom_string = zoom_string .. ' |'
 
     repeat
-        local row, size = getItemVZoom(item)
+        local row, size = GetItemVZoom(item)
         local pitch_range = math.abs(curr_row - row)
         if size > max_vertical_note_pixels then
             print('Reached max zoom size!')
@@ -163,7 +160,7 @@ function zoomToPitchRange(hwnd, item, note_lo, note_hi)
     until i == 50 or pitch_range < target_range
 
     repeat
-        local row, size = getItemVZoom(item)
+        local row, size = GetItemVZoom(item)
         local pitch_range = math.abs(curr_row - row)
         if size == 4 then
             print('Reached min zoom size!')
@@ -226,7 +223,7 @@ reaper.Undo_BeginBlock()
 
 local sel_item_cnt = reaper.CountSelectedMediaItems(0)
 if sel_item_cnt == 0 then
-    reaper.PreventUIRefresh(-1)
+    reaper.PreventUIRefresh( -1)
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
@@ -241,25 +238,25 @@ if init_item then
 
     if not is_valid or not reaper.TakeIsMIDI(take) then
         if is_valid then
-            local source = reaper.GetMediaItemTake_Source(take)
-            local file_name = reaper.GetMediaSourceFileName(source, '')
+            local src = reaper.GetMediaItemTake_Source(take)
+            local file_name = reaper.GetMediaSourceFileName(src, '')
             local video_extensions = {'mp4', 'gif'}
             for _, extension in ipairs(video_extensions) do
                 if file_name:lower():match('[^.]+$') == extension then
-                    local is_video_visible = reaper.GetToggleCommandState(50125) == 1
-                    if not is_video_visible then
+                    local video_window = reaper.GetToggleCommandState(50125)
+                    if video_window == 0 then
                         -- Video: Show/hide video window
                         reaper.Main_OnCommand(50125, 0)
-                        reaper.PreventUIRefresh(-1)
+                        reaper.PreventUIRefresh( -1)
                         reaper.Undo_EndBlock(undo_name, -1)
                         return
                     end
                 end
             end
-            local _, chunk = reaper.GetItemStateChunk(init_item, '', true)
-            local is_subproject = chunk:match('SOURCE RPP_PROJECT')
-            reaper.PreventUIRefresh(-1)
-            if is_subproject then
+
+            reaper.PreventUIRefresh( -1)
+            local src_type = reaper.GetMediaSourceType(src)
+            if src_type == 'RPP_PROJECT' then
                 -- Cmd: Open associated project in new tab
                 reaper.Main_OnCommand(41816, 0)
                 undo_name = 'Item: Open associated project in new tab'
@@ -313,17 +310,17 @@ for _, item in ipairs(sel_items) do
         local end_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_end_pos)
 
         if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
-            local source_ppq_length = getSourcePPQLength(take)
-            if end_ppq - start_ppq >= source_ppq_length then
+            local src_ppq_length = GetSourcePPQLength(take)
+            if end_ppq - start_ppq >= src_ppq_length then
                 start_ppq = 0
-                end_ppq = source_ppq_length
+                end_ppq = src_ppq_length
             else
-                start_ppq = start_ppq % source_ppq_length
-                end_ppq = end_ppq % source_ppq_length
+                start_ppq = start_ppq % src_ppq_length
+                end_ppq = end_ppq % src_ppq_length
             end
         end
 
-        local function isNoteVisible(sppq, eppq)
+        local function IsNoteVisible(sppq, eppq)
             if end_ppq < start_ppq then
                 return eppq > start_ppq or sppq < end_ppq
             else
@@ -333,7 +330,7 @@ for _, item in ipairs(sel_items) do
         local i = 0
         repeat
             local ret, _, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
-            if ret and isNoteVisible(sppq, eppq) then
+            if ret and IsNoteVisible(sppq, eppq) then
                 note_lo = math.min(note_lo, pitch)
                 note_hi = math.max(note_hi, pitch)
                 density = density + pitch
@@ -346,7 +343,7 @@ end
 
 -- No MIDI items found
 if zoom_start_pos == math.huge then
-    reaper.PreventUIRefresh(-1)
+    reaper.PreventUIRefresh( -1)
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
@@ -380,7 +377,7 @@ local hwnd = reaper.MIDIEditor_GetActive()
 local editor_take = reaper.MIDIEditor_GetTake(hwnd)
 
 if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
-    reaper.PreventUIRefresh(-1)
+    reaper.PreventUIRefresh( -1)
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
@@ -434,12 +431,12 @@ else
 
     print('Vertically zooming to notes ' .. note_lo .. ' - ' .. note_hi)
     local editor_item = reaper.GetMediaItemTake_Item(editor_take)
-    zoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
+    ZoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
 end
 
 -- Get previous time selection
-local sel = getSelection()
-setSelection(zoom_start_pos, zoom_end_pos)
+local sel = GetSelection()
+SetSelection(zoom_start_pos, zoom_end_pos)
 
 -- Cmd: Zoom to project loop selection
 reaper.MIDIEditor_OnCommand(hwnd, 40726)
@@ -448,10 +445,10 @@ reaper.MIDIEditor_OnCommand(hwnd, 40726)
 local sel_start_pos = sel and sel.start_pos or 0
 local sel_end_pos = sel and sel.end_pos or 0
 if not debug then
-    setSelection(sel_start_pos, sel_end_pos)
+    SetSelection(sel_start_pos, sel_end_pos)
 end
 
-reaper.PreventUIRefresh(-1)
+reaper.PreventUIRefresh( -1)
 reaper.Undo_EndBlock(undo_name, -1)
 
 local exec_time = math.floor((reaper.time_precise() - start_time) * 1000 + 0.5)
