@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.4.0
   @provides [main=main] .
   @about Toggle show dockers attached to one side of the main window
   @changelog
-    - Fixed bug where windows inside dock could not be reopened individually
-    - Improved active tab preservation logic
+    - Regress behavior of reopening window
 ]]
 local extname = 'FTC_dockers'
 local _, file, sec, cmd = reaper.get_action_context()
@@ -170,21 +169,6 @@ for _, docker in ipairs(dockers) do
             local n = tonumber(reaper.GetExtState(extname, docker.id))
             if n and docker.children[n] and #docker.children > 1 then
                 reaper.DockWindowActivate(docker.children[n])
-            end
-        end
-    end
-end
-
--- Add removed windows back to docker without showing them
--- Note: When a user opens a window individually this will show the entire dock
-for _, docker in ipairs(dockers) do
-    -- Toggle docker visibility (only dockers that need change)
-    if docker.is_visible == is_visible then
-        if docker.is_visible then
-            -- Add docker children to dock (show dock)
-            for _, child in ipairs(docker.children) do
-                local title = reaper.JS_Window_GetTitle(child)
-                reaper.DockWindowAddEx(child, title, title, false)
             end
         end
     end
