@@ -1,12 +1,16 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @about Hides silent tracks from MCP during playback
+  @changelog
+    - Fix tracks not hiding after release time
 ]]
-
-local peak_threshold = 0.001
-local release_time = 75
+-- Volume threshold at which track is shown
+_G.peak_threshold = 0.005
+-- Release time in defer cycles (30 cycles is about 1 second)
+_G.release_time = 65
+------------------------------------------------------------------------
 
 local extname = 'FTC.AutoHideMCP'
 local GetTrackInfoValue = reaper.GetMediaTrackInfo_Value
@@ -68,7 +72,6 @@ local prev_play_state
 local timers = {}
 
 function Main()
-
     local is_update = false
     local track_cnt = reaper.CountTracks(0)
     local play_state = reaper.GetPlayState()
@@ -90,12 +93,14 @@ function Main()
             SaveTracksVisibilityState()
             is_update = true
         end
-
     end
 
     -- Count down timers
     for t = 1, track_cnt do
-        if timers[t] > 0 then timers[t] = timers[t] - 1 end
+        if timers[t] > 0 then
+            timers[t] = timers[t] - 1
+            if timers[t] == 0 then is_update = true end
+        end
     end
 
     if play_state == 0 then
@@ -110,6 +115,7 @@ function Main()
         return
     end
 
+    reaper.ClearConsole()
     for t = 1, track_cnt do
         local track = reaper.GetTrack(0, t - 1)
         local peak_l = reaper.Track_GetPeakInfo(track, 0)
@@ -125,7 +131,9 @@ function Main()
         SetTrackInfoValue(track, 'B_SHOWINMIXER', is_visible and 1 or 0)
     end
 
-    if is_update then reaper.TrackList_AdjustWindows(false) end
+    if is_update then
+        reaper.TrackList_AdjustWindows(false)
+    end
 
     reaper.defer(Main)
 end

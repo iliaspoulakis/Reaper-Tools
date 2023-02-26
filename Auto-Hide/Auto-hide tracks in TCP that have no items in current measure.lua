@@ -1,13 +1,31 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @about Hides tracks in the TCP that have no items in the current measure
+  @changelog
+    - Added user-definable exceptions
 ]]
+-- Exceptions: Track names separated by ; (e.g. "My track 1;My track 2")
+_G.always_visible_tracks = ''
+_G.always_hidden_tracks = ''
+------------------------------------------------------------------------
 
 local extname = 'FTC.AutoHideTCP'
 local GetTrackInfoValue = reaper.GetMediaTrackInfo_Value
 local SetTrackInfoValue = reaper.SetMediaTrackInfo_Value
+
+-- Parse exceptions
+local vis_track_names = {}
+local hidden_track_names = {}
+
+for track_name in (_G.always_visible_tracks .. ';'):gmatch('(.-);') do
+    vis_track_names[#vis_track_names + 1] = track_name
+end
+
+for track_name in (_G.always_hidden_tracks .. ';'):gmatch('(.-);') do
+    hidden_track_names[#hidden_track_names + 1] = track_name
+end
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -49,6 +67,17 @@ end
 function HasItemsInMeasure(track, measure)
     local measure_start_pos = reaper.TimeMap_GetMeasureInfo(0, measure)
     local measure_end_pos = reaper.TimeMap_GetMeasureInfo(0, measure + 1)
+
+    local ret, track_name = reaper.GetTrackName(track)
+    if ret then
+        -- Check track name for exceptions
+        for _, name in ipairs(vis_track_names) do
+            if name == track_name then return true end
+        end
+        for _, name in ipairs(hidden_track_names) do
+            if name == track_name then return false end
+        end
+    end
 
     for i = 0, reaper.CountTrackMediaItems(track) - 1 do
         local item = reaper.GetTrackMediaItem(track, i)
