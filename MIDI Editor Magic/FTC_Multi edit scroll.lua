@@ -1,31 +1,46 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.5
+  @version 1.2.0
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
+  @changelog
+    - Rework mouse modifier behavior (check thread for details)
 ]]
------------------------------- SETTINGS -----------------------------
+------------------------------- GENERAL SETTINGS --------------------------------
+
+-- When to zoom to items horizontally (inside MIDI editor)
+-- 0: Never
+-- 1: Always
+-- 2: Only when multiple MIDI items are selected
+_G.hzoom_mode = 1
 
 -- Which note to scroll to when item/visible area contains no notes
-local base_note = 60
+_G.base_note = 60
 
--- When double clicking midi items, keep all items selected (Mouse modifier)
-local keep_items_selected = true
+---------------------------- MOUSE MODIFIER SETTINGS ----------------------------
 
--- Behavior when double-clicking on audio items
-local zoom_to_audio_items = true
+-- Snap cursor to grid
+_G.snap_edit_cursor = true
 
--- Make script close MIDI editor when already open (toggle)
-local toggle_editor = false
+-- Keep all items selected after click (zoom will go to all items)
+_G.keep_items_selected = true
 
----------------------------------------------------------------------
+-- Zoom to items instead of opening media item properties
+_G.zoom_to_audio_items = false
+
+--------------------------- KEYBOARD SHORTCUT SETTINGS -------------------------
+
+-- Script closes MIDI editor when already open (toggle)
+_G.toggle_editor = false
+
+--------------------------------------------------------------------------------
 
 local debug = false
-local undo_name = 'Multi edit scroll'
-local start_time = reaper.time_precise()
+local extname = 'FTC.MultiEditScroll'
 
-if debug then
-    reaper.ClearConsole()
+if not reaper.SNM_GetIntConfigVar then
+    reaper.MB('Please install SWS extension', 'Error', 0)
+    return
 end
 
 function print(msg)
@@ -119,7 +134,7 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     local i = 0
     repeat
         local row, size = GetItemVZoom(item)
-        local pitch_range = math.min( -2, curr_row - row + 1) * -1
+        local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
         if row == 127 and i == 0 and not backup_target_row then
             -- When row 127 is visible it's not possible to get the target range.
@@ -190,99 +205,192 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     end
 end
 
-if not reaper.SNM_GetIntConfigVar then
-    reaper.MB('Please install SWS extension', 'Error', 0)
-    return
+function SaveItemSelection()
+    local sel_state = ''
+    for i = 0, reaper.CountSelectedMediaItems(0) - 1 do
+        local item = reaper.GetSelectedMediaItem(0, i)
+        local track = reaper.GetMediaItem_Track(item)
+        local item_num = reaper.GetMediaItemInfo_Value(item, 'IP_ITEMNUMBER')
+        local track_num = reaper.GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
+        item_num = math.floor(item_num)
+        track_num = math.floor(track_num)
+        sel_state = sel_state .. track_num .. '_' .. item_num .. ';'
+    end
+    reaper.SetExtState(extname, 'sel_state', sel_state, false)
 end
 
-if toggle_editor then
+function RestoreItemSelection()
+    local sel_state = reaper.GetExtState(extname, 'sel_state')
+    reaper.SetExtState(extname, 'sel_state', '', false)
+    for s in sel_state:gmatch('(.-);') do
+        local track_num = s:match('(%d+)_')
+        local item_num = s:match('_(%d+)')
+        local track = reaper.GetTrack(0, track_num - 1)
+        local item = reaper.GetTrackMediaItem(track, item_num)
+        if reaper.ValidatePtr(item, 'MediaItem*') then
+            reaper.SetMediaItemSelected(item, true)
+            reaper.UpdateItemInProject(item)
+        end
+    end
+end
+
+function NoUndo()
+end
+
+reaper.defer(NoUndo)
+
+local time = reaper.time_precise()
+local prev_time = tonumber(reaper.GetExtState(extname, 'timestamp')) or 0
+reaper.SetExtState(extname, 'timestamp', time, false)
+
+local mouse_item
+local _, _, _, cmd, rel, res, val, a = reaper.get_action_context()
+local window = reaper.BR_GetMouseCursorContext()
+
+-- Check if action is executed through item context mouse modifier
+if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
+    -- Get item under mouse
+    local x, y = reaper.GetMousePosition()
+    mouse_item = reaper.GetItemFromPoint(x, y, true)
+    if not reaper.ValidatePtr(mouse_item, 'MediaItem*') then
+        return
+    end
+
+    local cmd_name = '_' .. reaper.ReverseNamedCommandLookup(cmd)
+    local is_double_click_mod = false
+    local is_single_click_mod = false
+
+    for i = 0, 15 do
+        local dc_mod = reaper.GetMouseModifier('MM_CTX_ITEM_DBLCLK', i, '')
+        local sc_mod = reaper.GetMouseModifier('MM_CTX_ITEM_CLK', i, '')
+        if dc_mod == cmd_name then
+            is_double_click_mod = true
+            if sc_mod ~= cmd_name then
+                local msg =
+                'For the script to function as a double click modifier it also \z
+                has to be set as\na single click modifier for the same context.\z
+                \n\nSet script as single click modifier?'
+                local ret = reaper.MB(msg, 'FTC Multi edit', 1)
+                if ret == 1 then
+                    -- Set single click mouse modifier to script
+                    reaper.SetMouseModifier('MM_CTX_ITEM_CLK', i, cmd)
+                end
+                return
+            end
+            break
+        end
+        if sc_mod == cmd_name then
+            is_single_click_mod = true
+            break
+        end
+    end
+
+    if is_double_click_mod then
+        -- Check if item changed (avoid wrong double clicks on different items)
+        local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
+        local _, guid = GetSetItemInfo(mouse_item, 'GUID', '', false)
+
+        local prev_guid = reaper.GetExtState(extname, 'item_guid')
+        reaper.SetExtState(extname, 'item_guid', guid, false)
+
+        if guid ~= prev_guid then
+            prev_time = 0
+        end
+
+        -- Single click mode
+        if time - prev_time > 0.3 then
+            reaper.SetExtState(extname, 'mode', 'sc', false)
+
+            if not _G.snap_edit_cursor then
+                -- View: Move edit cursor to mouse cursor (no snapping)
+                reaper.Main_OnCommand(40514, 0)
+            end
+            SaveItemSelection()
+            -- Keep only mouse item selected
+            for i = reaper.CountSelectedMediaItems(0) - 1, 0, -1 do
+                local item = reaper.GetSelectedMediaItem(0, i)
+                reaper.SetMediaItemSelected(item, item == mouse_item)
+            end
+            return
+        end
+
+        -- Exit mode (avoid double single click script runs)
+        if reaper.GetExtState(extname, 'mode') == 'sc' then
+            reaper.SetExtState(extname, 'mode', 'dc', false)
+            return
+        end
+
+        -- Double click mode
+        local take = reaper.GetActiveTake(mouse_item)
+
+        -- Handle empty takes
+        if not reaper.ValidatePtr(take, 'MediaItem_Take*') then
+            if reaper.GetMediaItemNumTakes(mouse_item) == 0 then
+                -- Item: Show notes for items...
+                reaper.Main_OnCommand(40850, 0)
+            end
+            return
+        end
+
+        local src = reaper.GetMediaItemTake_Source(take)
+        local src_type = reaper.GetMediaSourceType(src, '')
+
+        -- Open video window if not already open (else item properties)
+        if src_type == 'VIDEO' and reaper.GetToggleCommandState(50125) == 0 then
+            -- Video: Show/hide video window
+            reaper.Main_OnCommand(50125, 0)
+            return
+        end
+
+        if src_type == 'RPP_PROJECT' then
+            -- Cmd: Open associated project in new tab
+            reaper.Main_OnCommand(41816, 0)
+            return
+        end
+
+        if not reaper.TakeIsMIDI(take) then
+            if _G.zoom_to_audio_items then
+                if _G.keep_items_selected then RestoreItemSelection() end
+                reaper.Main_OnCommand(41622, 0)
+            else
+                -- Cmd: Show media item/take properties
+                reaper.Main_OnCommand(40009, 0)
+            end
+            return
+        end
+    elseif is_single_click_mod then
+        if not _G.snap_edit_cursor then
+            -- View: Move edit cursor to mouse cursor (no snapping)
+            reaper.Main_OnCommand(40514, 0)
+        end
+        local take = reaper.GetActiveTake(mouse_item)
+        local is_valid = reaper.ValidatePtr(take, 'MediaItem_Take*')
+        if not is_valid or not reaper.TakeIsMIDI(take) then
+            -- Keep only mouse item selected
+            for i = reaper.CountSelectedMediaItems(0) - 1, 0, -1 do
+                local item = reaper.GetSelectedMediaItem(0, i)
+                reaper.SetMediaItemSelected(item, item == mouse_item)
+            end
+            return
+        end
+    end
+elseif _G.toggle_editor then
     local hwnd = reaper.MIDIEditor_GetActive()
     if hwnd then
         -- View: Toggle show MIDI editor windows
         reaper.Main_OnCommand(40716, 0)
-        reaper.Undo_OnStateChange(undo_name)
         return
     end
 end
 
-reaper.PreventUIRefresh(1)
-
-local init_item
-local window = reaper.BR_GetMouseCursorContext()
-local _, _, _, _, rel, res, val = reaper.get_action_context()
-
--- Check if action is executed through item context mouse modifier
-if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
-    -- Commit potential item selection change caused by left click
-    reaper.Undo_BeginBlock()
-    reaper.Undo_EndBlock('Uncommitted', -1)
-    -- Check if there were uncommited changes and revert them
-    if reaper.Undo_CanUndo2(0) == 'Uncommitted' then
-        init_item = reaper.GetSelectedMediaItem(0, 0)
-        local cursor_pos = reaper.GetCursorPosition()
-        reaper.Undo_DoUndo2(0)
-        reaper.SetEditCurPos(cursor_pos, false, false)
-    end
-end
-
-reaper.Undo_BeginBlock()
+RestoreItemSelection()
 
 local sel_item_cnt = reaper.CountSelectedMediaItems(0)
 if sel_item_cnt == 0 then
-    reaper.PreventUIRefresh( -1)
-    reaper.Undo_EndBlock(undo_name, -1)
     return
 end
 
-if not init_item and sel_item_cnt == 1 then
-    init_item = reaper.GetSelectedMediaItem(0, 0)
-end
-
-if init_item then
-    local take = reaper.GetActiveTake(init_item)
-    local is_valid = reaper.ValidatePtr(take, 'MediaItem_Take*')
-
-    if not is_valid or not reaper.TakeIsMIDI(take) then
-        if is_valid then
-            local src = reaper.GetMediaItemTake_Source(take)
-            local file_name = reaper.GetMediaSourceFileName(src, '')
-            local video_extensions = {'mp4', 'gif'}
-            for _, extension in ipairs(video_extensions) do
-                if file_name:lower():match('[^.]+$') == extension then
-                    local video_window = reaper.GetToggleCommandState(50125)
-                    if video_window == 0 then
-                        -- Video: Show/hide video window
-                        reaper.Main_OnCommand(50125, 0)
-                        reaper.PreventUIRefresh( -1)
-                        reaper.Undo_EndBlock(undo_name, -1)
-                        return
-                    end
-                end
-            end
-
-            reaper.PreventUIRefresh( -1)
-            local src_type = reaper.GetMediaSourceType(src)
-            if src_type == 'RPP_PROJECT' then
-                -- Cmd: Open associated project in new tab
-                reaper.Main_OnCommand(41816, 0)
-                undo_name = 'Item: Open associated project in new tab'
-            else
-                if zoom_to_audio_items then
-                    -- SWS: Toggle zoom to selected items
-                    local cmd = reaper.NamedCommandLookup('_SWS_TOGZOOMIONLY')
-                    reaper.Main_OnCommand(cmd, 0)
-                    undo_name = 'Toggle zoom to selected items'
-                else
-                    -- Cmd: Show media item/take properties
-                    reaper.Main_OnCommand(40009, 0)
-                    undo_name = 'Show media item/take properties'
-                end
-            end
-        end
-        reaper.Undo_EndBlock(undo_name, -1)
-        return
-    end
-end
+reaper.PreventUIRefresh(1)
 
 local sel_items = {}
 
@@ -290,6 +398,8 @@ local sel_items = {}
 for i = 0, sel_item_cnt - 1 do
     sel_items[#sel_items + 1] = reaper.GetSelectedMediaItem(0, i)
 end
+
+local midi_item_cnt = 0
 
 local zoom_start_pos = math.huge
 local zoom_end_pos = 0
@@ -304,6 +414,7 @@ local density_cnt = 0
 for _, item in ipairs(sel_items) do
     local take = reaper.GetActiveTake(item)
     if reaper.ValidatePtr(take, 'MediaItem_Take*') and reaper.TakeIsMIDI(take) then
+        midi_item_cnt = midi_item_cnt + 1
         -- Get mininum item start position and maximum item end position
         local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
         local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
@@ -348,9 +459,8 @@ for _, item in ipairs(sel_items) do
 end
 
 -- No MIDI items found
-if zoom_start_pos == math.huge then
-    reaper.PreventUIRefresh( -1)
-    reaper.Undo_EndBlock(undo_name, -1)
+if midi_item_cnt == 0 then
+    reaper.PreventUIRefresh(-1)
     return
 end
 
@@ -383,8 +493,7 @@ local hwnd = reaper.MIDIEditor_GetActive()
 local editor_take = reaper.MIDIEditor_GetTake(hwnd)
 
 if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
-    reaper.PreventUIRefresh( -1)
-    reaper.Undo_EndBlock(undo_name, -1)
+    reaper.PreventUIRefresh(-1)
     return
 end
 
@@ -403,17 +512,17 @@ end
 -- Reset config to original state
 reaper.SNM_SetIntConfigVar('midieditor', config)
 
-if visibility == 0 or keep_items_selected then
-    init_item = nil
+if visibility == 0 or _G.keep_items_selected then
+    mouse_item = nil
 end
 
 -- Restore previous item selection
-if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt or init_item then
+if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt or mouse_item then
     reaper.SelectAllMediaItems(0, false)
     for _, item in ipairs(sel_items) do
-        reaper.SetMediaItemSelected(item, not init_item or item == init_item)
+        reaper.SetMediaItemSelected(item, not mouse_item or item == mouse_item)
+        reaper.UpdateItemInProject(item)
     end
-    reaper.UpdateArrange()
 end
 
 local are_notes_hidden = reaper.GetToggleCommandStateEx(32060, 40452) ~= 1
@@ -427,31 +536,35 @@ else
         note_lo = 0
         note_hi = 127
     end
-
-    local note_row = math.floor(density_cnt > 0 and density / density_cnt or
-    base_note)
+    local note_row = _G.base_note
+    if density_cnt > 0 then
+        note_row = density // density_cnt
+    end
     print('Vertically scrolling to note ' .. note_row)
     print('Scroll lo/hi limit: ' .. note_lo .. '/' .. note_hi)
     local editor_item = reaper.GetMediaItemTake_Item(editor_take)
     ScrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1, note_hi + 1)
 end
 
--- Get previous time selection
-local sel = GetSelection()
-SetSelection(zoom_start_pos, zoom_end_pos)
+if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and midi_item_cnt >= 2 then
+    -- Get previous time selection
+    local sel = GetSelection()
+    SetSelection(zoom_start_pos, zoom_end_pos)
 
--- Cmd: Zoom to project loop selection
-reaper.MIDIEditor_OnCommand(hwnd, 40726)
+    -- Cmd: Zoom to project loop selection
+    reaper.MIDIEditor_OnCommand(hwnd, 40726)
 
--- Reset previous time selection
-local sel_start_pos = sel and sel.start_pos or 0
-local sel_end_pos = sel and sel.end_pos or 0
-if not debug then
-    SetSelection(sel_start_pos, sel_end_pos)
+    -- Reset previous time selection
+    local sel_start_pos = sel and sel.start_pos or 0
+    local sel_end_pos = sel and sel.end_pos or 0
+    if not debug then
+        SetSelection(sel_start_pos, sel_end_pos)
+    end
+else
+    reaper.MIDIEditor_OnCommand(hwnd, 40151)
 end
 
-reaper.PreventUIRefresh( -1)
-reaper.Undo_EndBlock(undo_name, -1)
+reaper.PreventUIRefresh(-1)
 
-local exec_time = math.floor((reaper.time_precise() - start_time) * 1000 + 0.5)
+local exec_time = math.floor((reaper.time_precise() - time) * 1000 + 0.5)
 print('\nExecution time: ' .. exec_time .. ' ms')
