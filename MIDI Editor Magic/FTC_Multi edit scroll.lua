@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.1
+  @version 1.2.2
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Fix double click behavior on Windows/MacOS
-    - Improve undo point creatino on Windows/MacOS
+    - Delay selection change to avoid flickering
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -24,7 +23,7 @@ _G.base_note = 60
 _G.snap_edit_cursor = true
 
 -- Keep all items selected after click (zoom will go to all items)
-_G.keep_items_selected = true
+_G.keep_items_selected = false
 
 -- Zoom to items instead of opening media item properties
 _G.zoom_to_audio_items = false
@@ -246,10 +245,9 @@ reaper.SetExtState(extname, 'timestamp', time, false)
 
 local mouse_item
 local _, _, _, cmd, rel, res, val = reaper.get_action_context()
-local window = reaper.BR_GetMouseCursorContext()
 
 -- Check if action is executed through item context mouse modifier
-if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
+if rel == -1 and res == -1 and val == -1 then
     -- Get item under mouse
     local x, y = reaper.GetMousePosition()
     mouse_item = reaper.GetItemFromPoint(x, y, true)
@@ -286,26 +284,44 @@ if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
         end
     end
 
+    local is_linux = reaper.GetOS():match('Other')
+
+    -- Check if item changed (avoid wrong double clicks on different items)
+    local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
+    local _, item_guid = GetSetItemInfo(mouse_item, 'GUID', '', false)
+    local prev_item_guid = reaper.GetExtState(extname, 'item_guid')
+    reaper.SetExtState(extname, 'item_guid', item_guid, false)
+
+    local has_item_changed = item_guid ~= prev_item_guid
+
+    -- Check if track changed
+    local track = reaper.GetMediaItem_Track(mouse_item)
+    local GetSetTrackInfo = reaper.GetSetMediaTrackInfo_String
+    local _, track_guid = GetSetTrackInfo(track, 'GUID', '', false)
+    local prev_track_guid = reaper.GetExtState(extname, 'track_guid')
+    reaper.SetExtState(extname, 'track_guid', track_guid, false)
+
+    local has_track_changed = track_guid ~= prev_track_guid
+
+    local function CreateUserUndoPoints(sel_item_cnt)
+        -- Create undo points according to user preferences
+        local _, undo_mask = reaper.get_config_var_string('undomask')
+        undo_mask = tonumber(undo_mask)
+
+        -- Note: Linux creates it's own  undo points
+        if undo_mask and not is_linux then
+            if (sel_item_cnt > 1 or has_item_changed) and undo_mask & 1 == 1 then
+                reaper.Undo_OnStateChange('Change media item selection')
+                return
+            end
+            if has_track_changed and undo_mask & 16 == 16 then
+                reaper.Undo_OnStateChange('Change track selection')
+                return
+            end
+        end
+    end
+
     if is_double_click_mod then
-        local is_linux = reaper.GetOS():match('Other')
-
-        -- Check if item changed (avoid wrong double clicks on different items)
-        local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
-        local _, item_guid = GetSetItemInfo(mouse_item, 'GUID', '', false)
-        local prev_item_guid = reaper.GetExtState(extname, 'item_guid')
-        reaper.SetExtState(extname, 'item_guid', item_guid, false)
-
-        local has_item_changed = item_guid ~= prev_item_guid
-
-        -- Check if track changed
-        local track = reaper.GetMediaItem_Track(mouse_item)
-        local GetSetTrackInfo = reaper.GetSetMediaTrackInfo_String
-        local _, track_guid = GetSetTrackInfo(track, 'GUID', '', false)
-        local prev_track_guid = reaper.GetExtState(extname, 'track_guid')
-        reaper.SetExtState(extname, 'track_guid', track_guid, false)
-
-        local has_track_changed = track_guid ~= prev_track_guid
-
         -- Single click mode
         if has_item_changed or time - prev_time > 0.3 then
             reaper.SetExtState(extname, 'mode', 'sc', false)
@@ -315,25 +331,31 @@ if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
                 reaper.Main_OnCommand(40514, 0)
             end
             SaveItemSelection()
-            -- Keep only mouse item selected
-            for i = reaper.CountSelectedMediaItems(0) - 1, 0, -1 do
-                local item = reaper.GetSelectedMediaItem(0, i)
-                reaper.SetMediaItemSelected(item, item == mouse_item)
+
+            local defer_cnt = 0
+
+            local function DelaySelectionChange()
+                -- Delay selection change for a few defer cycles
+                if defer_cnt < 2 then
+                    defer_cnt = defer_cnt + 1
+                    reaper.defer(DelaySelectionChange)
+                    return
+                end
+                -- Do not change selection when double click detected
+                local is_dc = reaper.GetExtState(extname, 'mode') == 'dc'
+                if is_dc and _G.keep_items_selected then return end
+
+                -- Keep only mouse item selected
+                local sel_item_cnt = reaper.CountSelectedMediaItems(0)
+                for i = sel_item_cnt - 1, 0, -1 do
+                    local item = reaper.GetSelectedMediaItem(0, i)
+                    reaper.SetMediaItemSelected(item, item == mouse_item)
+                end
+                CreateUserUndoPoints(sel_item_cnt)
+                reaper.defer(reaper.UpdateArrange)
             end
 
-            -- Create undo points according to user preferences
-            local _, undo_mask = reaper.get_config_var_string('undomask')
-            undo_mask = tonumber(undo_mask)
-            if undo_mask and not is_linux then
-                if has_item_changed and undo_mask & 1 == 1 then
-                    reaper.Undo_OnStateChange('Change media item selection')
-                    return
-                end
-                if has_track_changed and undo_mask & 16 == 16 then
-                    reaper.Undo_OnStateChange('Change track selection')
-                    return
-                end
-            end
+            reaper.defer(DelaySelectionChange)
             return
         end
 
@@ -390,10 +412,13 @@ if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
         local is_valid = reaper.ValidatePtr(take, 'MediaItem_Take*')
         if not is_valid or not reaper.TakeIsMIDI(take) then
             -- Keep only mouse item selected
-            for i = reaper.CountSelectedMediaItems(0) - 1, 0, -1 do
+            local sel_item_cnt = reaper.CountSelectedMediaItems(0)
+            for i = sel_item_cnt - 1, 0, -1 do
                 local item = reaper.GetSelectedMediaItem(0, i)
                 reaper.SetMediaItemSelected(item, item == mouse_item)
+                reaper.UpdateItemInProject(item)
             end
+            CreateUserUndoPoints(sel_item_cnt)
             return
         end
     end
