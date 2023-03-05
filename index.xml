@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="3bc8de58f4dc2b44f64c96db50f5cf9f0701be6f">
+<index version="1" name="FTC Tools" commit="ea521adb1f332687047528f1027ab7177647d8cc">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1746,6 +1746,10 @@
         <changelog><![CDATA[- Fix double click behavior on Windows/MacOS
 - Improve undo point creatino on Windows/MacOS]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3bc8de58f4dc2b44f64c96db50f5cf9f0701be6f/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
+      <version name="1.2.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-05T16:16:49Z">
+        <changelog><![CDATA[- Delay selection change to avoid flickering]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/ea521adb1f332687047528f1027ab7177647d8cc/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
