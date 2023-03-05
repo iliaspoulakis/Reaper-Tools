@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.2
+  @version 1.2.3
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Delay selection change to avoid flickering
+    - Fix wrong default setting: Keep items selected
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -23,7 +23,7 @@ _G.base_note = 60
 _G.snap_edit_cursor = true
 
 -- Keep all items selected after click (zoom will go to all items)
-_G.keep_items_selected = false
+_G.keep_items_selected = true
 
 -- Zoom to items instead of opening media item properties
 _G.zoom_to_audio_items = false
