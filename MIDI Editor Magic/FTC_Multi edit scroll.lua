@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Rework mouse modifier behavior (check thread for details)
+    - Fix double click behavior on Windows/MacOS
+    - Improve undo point creatino on Windows/MacOS
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -244,7 +245,7 @@ local prev_time = tonumber(reaper.GetExtState(extname, 'timestamp')) or 0
 reaper.SetExtState(extname, 'timestamp', time, false)
 
 local mouse_item
-local _, _, _, cmd, rel, res, val, a = reaper.get_action_context()
+local _, _, _, cmd, rel, res, val = reaper.get_action_context()
 local window = reaper.BR_GetMouseCursorContext()
 
 -- Check if action is executed through item context mouse modifier
@@ -286,19 +287,27 @@ if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
     end
 
     if is_double_click_mod then
+        local is_linux = reaper.GetOS():match('Other')
+
         -- Check if item changed (avoid wrong double clicks on different items)
         local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
-        local _, guid = GetSetItemInfo(mouse_item, 'GUID', '', false)
+        local _, item_guid = GetSetItemInfo(mouse_item, 'GUID', '', false)
+        local prev_item_guid = reaper.GetExtState(extname, 'item_guid')
+        reaper.SetExtState(extname, 'item_guid', item_guid, false)
 
-        local prev_guid = reaper.GetExtState(extname, 'item_guid')
-        reaper.SetExtState(extname, 'item_guid', guid, false)
+        local has_item_changed = item_guid ~= prev_item_guid
 
-        if guid ~= prev_guid then
-            prev_time = 0
-        end
+        -- Check if track changed
+        local track = reaper.GetMediaItem_Track(mouse_item)
+        local GetSetTrackInfo = reaper.GetSetMediaTrackInfo_String
+        local _, track_guid = GetSetTrackInfo(track, 'GUID', '', false)
+        local prev_track_guid = reaper.GetExtState(extname, 'track_guid')
+        reaper.SetExtState(extname, 'track_guid', track_guid, false)
+
+        local has_track_changed = track_guid ~= prev_track_guid
 
         -- Single click mode
-        if time - prev_time > 0.3 then
+        if has_item_changed or time - prev_time > 0.3 then
             reaper.SetExtState(extname, 'mode', 'sc', false)
 
             if not _G.snap_edit_cursor then
@@ -311,13 +320,27 @@ if window == 'arrange' and rel == -1 and res == -1 and val == -1 then
                 local item = reaper.GetSelectedMediaItem(0, i)
                 reaper.SetMediaItemSelected(item, item == mouse_item)
             end
+
+            -- Create undo points according to user preferences
+            local _, undo_mask = reaper.get_config_var_string('undomask')
+            undo_mask = tonumber(undo_mask)
+            if undo_mask and not is_linux then
+                if has_item_changed and undo_mask & 1 == 1 then
+                    reaper.Undo_OnStateChange('Change media item selection')
+                    return
+                end
+                if has_track_changed and undo_mask & 16 == 16 then
+                    reaper.Undo_OnStateChange('Change track selection')
+                    return
+                end
+            end
             return
         end
 
         -- Exit mode (avoid double single click script runs)
         if reaper.GetExtState(extname, 'mode') == 'sc' then
             reaper.SetExtState(extname, 'mode', 'dc', false)
-            return
+            if is_linux then return end
         end
 
         -- Double click mode
