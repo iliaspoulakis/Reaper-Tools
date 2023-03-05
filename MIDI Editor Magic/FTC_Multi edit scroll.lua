@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.3
+  @version 1.2.4
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Fix wrong default setting: Keep items selected
+    - Improve undo block creation based on user preferences
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -311,11 +311,13 @@ if rel == -1 and res == -1 and val == -1 then
         -- Note: Linux creates it's own  undo points
         if undo_mask and not is_linux then
             if (sel_item_cnt > 1 or has_item_changed) and undo_mask & 1 == 1 then
-                reaper.Undo_OnStateChange('Change media item selection')
+                reaper.Undo_BeginBlock()
+                reaper.Undo_EndBlock('Change media item selection', 4)
                 return
             end
             if has_track_changed and undo_mask & 16 == 16 then
-                reaper.Undo_OnStateChange('Change track selection')
+                reaper.Undo_BeginBlock()
+                reaper.Undo_EndBlock('Change track selection', 1)
                 return
             end
         end
@@ -343,7 +345,11 @@ if rel == -1 and res == -1 and val == -1 then
                 end
                 -- Do not change selection when double click detected
                 local is_dc = reaper.GetExtState(extname, 'mode') == 'dc'
-                if is_dc and _G.keep_items_selected then return end
+                if is_dc and _G.keep_items_selected then
+                    has_item_changed = false
+                    CreateUserUndoPoints(0)
+                    return
+                end
 
                 -- Keep only mouse item selected
                 local sel_item_cnt = reaper.CountSelectedMediaItems(0)
@@ -355,7 +361,11 @@ if rel == -1 and res == -1 and val == -1 then
                 reaper.defer(reaper.UpdateArrange)
             end
 
-            reaper.defer(DelaySelectionChange)
+            if reaper.CountSelectedMediaItems(0) == 1 then
+                CreateUserUndoPoints(0)
+            else
+                reaper.defer(DelaySelectionChange)
+            end
             return
         end
 
