@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="90047e9c2960885dde27421531cdd52ee8607360">
+<index version="1" name="FTC Tools" commit="d034e6e8d028de6cf592b42c4c07b8a5644d753a">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1754,6 +1754,10 @@
       <version name="1.2.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-05T16:43:55Z">
         <changelog><![CDATA[- Fix wrong default setting: Keep items selected]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/90047e9c2960885dde27421531cdd52ee8607360/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
+      <version name="1.2.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-05T23:55:27Z">
+        <changelog><![CDATA[- Improve undo block creation based on user preferences]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/d034e6e8d028de6cf592b42c4c07b8a5644d753a/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
