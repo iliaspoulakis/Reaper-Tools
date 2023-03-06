@@ -267,7 +267,7 @@ if rel == -1 and res == -1 and val == -1 then
             if sc_mod ~= cmd_name then
                 local msg =
                 'For the script to function as a double click modifier it also \z
-                has to be set as\na single click modifier for the same context.\z
+                has to be set as a single click modifier for the same context.\z
                 \n\nSet script as single click modifier?'
                 local ret = reaper.MB(msg, 'FTC Multi edit', 1)
                 if ret == 1 then
