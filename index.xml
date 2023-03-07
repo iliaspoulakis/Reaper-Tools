@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="6c0b5618f4fe6e31e13af113f52f761c197a3e82">
+<index version="1" name="FTC Tools" commit="e7c2ad5dbeaeac6c811b51148c4015443084da45">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1758,6 +1758,11 @@
       <version name="1.2.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-05T23:55:27Z">
         <changelog><![CDATA[- Improve undo block creation based on user preferences]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/6c0b5618f4fe6e31e13af113f52f761c197a3e82/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
+      <version name="1.2.5" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-07T16:57:04Z">
+        <changelog><![CDATA[- Fix script not working in toolbars
+- Add script to MIDI Editor section]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/e7c2ad5dbeaeac6c811b51148c4015443084da45/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
