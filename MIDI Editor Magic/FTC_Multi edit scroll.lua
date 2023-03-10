@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.5
+  @version 1.2.6
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Fix script not working in toolbars
-    - Add script to MIDI Editor section
+    - Use native function instead of SWS BR_GetMouseCursorContext
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -247,12 +246,13 @@ reaper.SetExtState(extname, 'timestamp', time, false)
 
 local mouse_item
 local _, _, _, cmd, rel, res, val = reaper.get_action_context()
-local mouse_context = reaper.BR_GetMouseCursorContext()
+
+local x, y = reaper.GetMousePosition()
+local _, mouse_context = reaper.GetThingFromPoint(x, y)
 
 -- Check if action is executed through item context mouse modifier
 if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
     -- Get item under mouse
-    local x, y = reaper.GetMousePosition()
     mouse_item = reaper.GetItemFromPoint(x, y, true)
     if not reaper.ValidatePtr(mouse_item, 'MediaItem*') then
         return
