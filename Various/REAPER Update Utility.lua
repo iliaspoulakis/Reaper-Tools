@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.4
+  @version 1.8.5
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fixed permission issue with log file on Windows
+    - Eject disk images on MacOS to remove disk utility entries
 ]]
 
 -- App version & platform architecture
@@ -902,7 +902,7 @@ function Main()
             cmd = cmd:format(install_path, log_path)
             -- Unmount file
             cmd = cmd .. ' ; cd'
-            cmd = cmd .. ' && hdiutil unmount \"$mount_dir\" >> \"%s\" 2>&1'
+            cmd = cmd .. ' && hdiutil eject \"$mount_dir\" >> \"%s\" 2>&1'
             cmd = cmd:format(log_path)
             -- Execute hook script (if it exists)
             if hook_cmd ~= '' then
