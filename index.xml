@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="46b28b7b2dedcd69c87942571a6e0ebfdffc2a7c">
+<index version="1" name="FTC Tools" commit="c55fc5ab12a37778ca34acdd77171ed2c7118675">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2490,6 +2490,10 @@
       <version name="1.8.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2022-10-17T09:42:33Z">
         <changelog><![CDATA[- Fixed permission issue with log file on Windows]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/dd3d084d919e63cbfcb524684d505f7af1eb0aa3/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.8.5" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-17T10:53:05Z">
+        <changelog><![CDATA[- Eject disk images on MacOS to remove disk utility entries]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c55fc5ab12a37778ca34acdd77171ed2c7118675/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
