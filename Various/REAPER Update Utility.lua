@@ -885,7 +885,7 @@ function Main()
             end
 
             -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
-            local cmd = 'mount_dir=$(yes | hdiutil attach %s%s '
+            local cmd = 'mount_dir=$(yes | hdiutil attach \"%s%s\" '
             cmd = cmd .. '| grep Volumes | cut -f 3) >> \"%s\" 2>&1'
             cmd = cmd .. ' && echo \"mount_dir: $mount_dir\" >> \"%s\" 2>&1'
             cmd = cmd:format(tmp_path, dfile_name, log_path, log_path)
