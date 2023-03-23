@@ -1,14 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.6
+  @version 1.7.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Live input: Allow input from virtual keyboard
-    - Live input: Fixed handling of MIDI channels
+    - Support creating MIDI text events from chords
 ]]
-
 local box_x_offs = 0
 local box_y_offs = 0
 local box_w_offs = 0
@@ -535,7 +533,6 @@ function GetMIDIInputChord(track)
                             input_note_map[msg2] = nil
                             input_note_cnt = input_note_cnt - 1
                         end
-
                     end
                 end
             end
@@ -599,6 +596,7 @@ function IsStartupHookEnabled()
     if reaper.file_exists(startup_path) then
         -- Read content of __startup.lua
         local startup_file = io.open(startup_path, 'r')
+        if not startup_file then return false end
         local content = startup_file:read('*a')
         startup_file:close()
 
@@ -627,8 +625,8 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
 
     -- Check startup script for existing hook
     if reaper.file_exists(startup_path) then
-
         local startup_file = io.open(startup_path, 'r')
+        if not startup_file then return end
         content = startup_file:read('*a')
         startup_file:close()
 
@@ -645,6 +643,7 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
 
             -- Write changes to file
             local new_startup_file = io.open(startup_path, 'w')
+            if not new_startup_file then return end
             new_startup_file:write(content)
             new_startup_file:close()
 
@@ -660,6 +659,7 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
             Main_OnCommand(reaper.NamedCommandLookup(%s), 0)\n\n'
         hook = hook:format(comment, var_name, cmd_name, var_name)
         local startup_file = io.open(startup_path, 'w')
+        if not startup_file then return end
         startup_file:write(hook .. content)
         startup_file:close()
     end
@@ -895,7 +895,6 @@ function CreateChordRegions()
     end
     reaper.Undo_EndBlock('Create chord regions', -1)
     if true then return end ]]
-
     local loops = 1
     local source_ppq_length = 0
     -- Calculate how often item is looped (and loop length)
@@ -1026,8 +1025,38 @@ function CreateChordTakeMarkers()
     reaper.Undo_EndBlock('Create chord take markers', -1)
 end
 
-function GetCursorPPQPosition(take, cursor_pos)
+function CreateChordTextEvents()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
 
+    reaper.Undo_BeginBlock()
+    local _, _, _, evt_cnt = reaper.MIDI_CountEvts(take)
+
+    -- Delete text event markers
+    for i = evt_cnt - 1, 0, -1 do
+        local ret, _, _, _, evt_type = reaper.MIDI_GetTextSysexEvt(take, i)
+        if ret and evt_type == 6 then
+            reaper.MIDI_DeleteTextSysexEvt(take, i)
+        end
+    end
+    -- Add chord text event markers
+    local prev_name
+    for _, chord in ipairs(curr_chords) do
+        local name = BuildChordName(chord)
+        if name ~= prev_name then
+            reaper.MIDI_InsertTextSysexEvt(take, 0, 0, chord.sppq, 6, name)
+        end
+        prev_name = name
+    end
+
+    -- CC: Set CC lane to Text Events
+    reaper.MIDIEditor_OnCommand(hwnd, 40370)
+
+    reaper.Undo_EndBlock('Create chord text events', -1)
+end
+
+function GetCursorPPQPosition(take, cursor_pos)
     local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, cursor_pos)
 
     -- In timebase source simply return cursor ppq position
@@ -1132,7 +1161,7 @@ function DrawLICE(chord, mode)
         reaper.JS_LICE_Line(bitmap, x1, y1, x3, y3, play_color, 1, 0, 1)
         reaper.JS_LICE_Line(bitmap, x2, y2, x3, y3 + 1, play_color, 1, 0, 1)
         reaper.JS_LICE_FillTriangle(bitmap, x1, y1, x2, y2, x3, y3, play_color,
-                                    1, 0)
+            1, 0)
     end
 
     if mode == 2 then
@@ -1156,14 +1185,13 @@ function DrawLICE(chord, mode)
     -- Note: Green box to help measure text
     --[[ reaper.JS_LICE_FillRect(bitmap, text_x, text_y, text_w, text_h, 0xFF00FF00,
                             1, 0) ]]
-
     local len = chord:len()
     reaper.JS_LICE_DrawText(bitmap, lice_font, chord, len, text_x, text_y, bm_w,
-                            bm_h)
+        bm_h)
 
     -- Refresh window
     reaper.JS_Window_InvalidateRect(piano_pane, bm_x, bm_y, bm_x + bm_w,
-                                    bm_y + bm_h, false)
+        bm_y + bm_h, false)
 end
 
 function Main()
@@ -1229,7 +1257,7 @@ function Main()
 
         -- Draw LICE bitmap on piano pane
         reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
-                            bm_w, bm_h)
+            bm_w, bm_h)
         reaper.JS_Composite_Delay(piano_pane, 0.03, 0.03, 2)
         is_forced_redraw = true
     end
@@ -1265,12 +1293,19 @@ function Main()
             local menu = {
                 {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
-                    title = 'Create regions from chords',
-                    OnReturn = CreateChordRegions,
-                },
-                {
-                    title = 'Create take markers from chords',
-                    OnReturn = CreateChordTakeMarkers,
+                    title = 'Create chord markers',
+                    {
+                        title = 'Project regions',
+                        OnReturn = CreateChordRegions,
+                    },
+                    {
+                        title = 'Take markers',
+                        OnReturn = CreateChordTakeMarkers,
+                    },
+                    {
+                        title = 'MIDI text events',
+                        OnReturn = CreateChordTextEvents,
+                    },
                 },
                 {
                     title = 'Solfège mode (Do, Re, Mi)',
