@@ -1,10 +1,8 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
-  @about Hides silent tracks from MCP during playback
-  @changelog
-    - Pause auto-hide when mouse is over pan control (in addition to volume)
+  @version 1.0.0
+  @about Hides silent tracks from TCP during playback
 ]]
 -- Volume threshold at which track is shown
 _G.peak_threshold = 0.005
@@ -12,7 +10,7 @@ _G.peak_threshold = 0.005
 _G.release_time = 65
 ------------------------------------------------------------------------
 
-local extname = 'FTC.AutoHideMCP'
+local extname = 'FTC.AutoHideTCP'
 local GetTrackInfoValue = reaper.GetMediaTrackInfo_Value
 local SetTrackInfoValue = reaper.SetMediaTrackInfo_Value
 
@@ -24,21 +22,9 @@ function SaveTracksVisibilityState()
         local track = reaper.GetTrack(0, t)
         local track_guid = reaper.GetTrackGUID(track)
 
-        local visible = GetTrackInfoValue(track, 'B_SHOWINMIXER')
+        local visible = GetTrackInfoValue(track, 'B_SHOWINTCP')
 
-        local bus_comp = 0
-        local is_folder = GetTrackInfoValue(track, 'I_FOLDERDEPTH') == 1
-        if is_folder then
-            local _, chunk = reaper.GetTrackStateChunk(track, '')
-            bus_comp = chunk:match('\nBUSCOMP %d+ (%d+)')
-
-            if bus_comp == '1' then
-                chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 0', 1)
-                reaper.SetTrackStateChunk(track, chunk)
-            end
-        end
-
-        local state = ('%s:%d:%d'):format(track_guid, visible, bus_comp)
+        local state = ('%s:%d'):format(track_guid, visible)
         states[#states + 1] = state
     end
     local states_str = table.concat(states, ';')
@@ -55,14 +41,9 @@ function RestoreTracksVisibilityState()
         local track_guid = reaper.GetTrackGUID(track)
         track_guid = track_guid:gsub('%-', '%%-')
 
-        local visible, bus_comp = states_str:match(track_guid .. ':(%d):(%d)')
+        local visible = states_str:match(track_guid .. ':(%d)')
         if visible then
-            SetTrackInfoValue(track, 'B_SHOWINMIXER', tonumber(visible))
-            if bus_comp == '1' then
-                local _, chunk = reaper.GetTrackStateChunk(track, '')
-                chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 1', 1)
-                reaper.SetTrackStateChunk(track, chunk)
-            end
+            SetTrackInfoValue(track, 'B_SHOWINTCP', tonumber(visible))
         end
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
@@ -86,7 +67,7 @@ function Main()
         -- Save/Restore tracks visibility
         if play_state == 0 then
             RestoreTracksVisibilityState()
-            reaper.TrackList_AdjustWindows(false)
+            reaper.TrackList_AdjustWindows(true)
             reaper.defer(Main)
             return
         else
@@ -110,7 +91,7 @@ function Main()
 
     local x, y = reaper.GetMousePosition()
     local _, hover = reaper.GetThingFromPoint(x, y)
-    if hover == 'mcp.volume' or hover == 'mcp.pan' then
+    if hover == 'tcp.volume' or hover == 'tcp.pan' then
         reaper.defer(Main)
         return
     end
@@ -128,11 +109,11 @@ function Main()
         end
 
         local is_visible = timers[t] > 0
-        SetTrackInfoValue(track, 'B_SHOWINMIXER', is_visible and 1 or 0)
+        SetTrackInfoValue(track, 'B_SHOWINTCP', is_visible and 1 or 0)
     end
 
     if is_update then
-        reaper.TrackList_AdjustWindows(false)
+        reaper.TrackList_AdjustWindows(true)
     end
 
     reaper.defer(Main)
@@ -146,7 +127,7 @@ function Exit()
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
     RestoreTracksVisibilityState()
-    reaper.TrackList_AdjustWindows(false)
+    reaper.TrackList_AdjustWindows(true)
 end
 
 reaper.atexit(Exit)
