@@ -1,10 +1,8 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
-  @about Hides silent tracks in MCP during playback
-  @changelog
-    - Freeze auto-hide over solo and mute buttons
+  @version 1.0.0
+  @about Hides silent tracks during playback
 ]]
 -- Volume threshold at which track is shown
 _G.peak_threshold = 0.005
@@ -12,7 +10,7 @@ _G.peak_threshold = 0.005
 _G.release_time = 65
 ------------------------------------------------------------------------
 
-local extname = 'FTC.AutoHideSilentMCP'
+local extname = 'FTC.AutoHideSilent'
 local GetTrackInfo = reaper.GetMediaTrackInfo_Value
 local SetTrackInfo = reaper.SetMediaTrackInfo_Value
 
@@ -26,6 +24,7 @@ function SaveTracksVisibilityState()
         local track = reaper.GetTrack(0, t)
         local guid = reaper.GetTrackGUID(track)
 
+        local show_tcp = GetTrackInfo(track, 'B_SHOWINTCP')
         local show_mcp = GetTrackInfo(track, 'B_SHOWINMIXER')
 
         local comp = 0
@@ -40,7 +39,7 @@ function SaveTracksVisibilityState()
             end
         end
 
-        local state = ('%s:%d:%d'):format(guid, show_mcp, comp)
+        local state = ('%s:%d:%d:%d'):format(guid, show_tcp, show_mcp, comp)
         states[#states + 1] = state
     end
     local states_str = table.concat(states, ';')
@@ -55,9 +54,10 @@ function RestoreTracksVisibilityState()
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local guid = reaper.GetTrackGUID(track)
-        local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d)'
+        local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d):(%d)'
 
-        local show_mcp, comp = states_str:match(pattern)
+        local show_tcp, show_mcp, comp = states_str:match(pattern)
+        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
         SetTrackInfo(track, 'B_SHOWINMIXER', tonumber(show_mcp))
 
         if comp == '1' then
@@ -96,6 +96,11 @@ function Main()
         end
     end
 
+    if play_state == 0 then
+        reaper.defer(Main)
+        return
+    end
+
     -- Count down timers
     for t = 1, track_cnt do
         if timers[t] > 0 then
@@ -104,16 +109,11 @@ function Main()
         end
     end
 
-    if play_state == 0 then
-        reaper.defer(Main)
-        return
-    end
-
     -- Freeze auto-hide when hovering over specific controls
     local x, y = reaper.GetMousePosition()
     local _, hovered_control = reaper.GetThingFromPoint(x, y)
     for _, control in ipairs(freeze_controls) do
-        if hovered_control:match('^mcp%.' .. control) then
+        if hovered_control:match('^[mt]cp%.' .. control) then
             reaper.defer(Main)
             return
         end
@@ -132,6 +132,10 @@ function Main()
         local is_visible = timers[t] > 0
         local vis_state = is_visible and 1 or 0
 
+        if vis_state ~= GetTrackInfo(track, 'B_SHOWINTCP') then
+            SetTrackInfo(track, 'B_SHOWINTCP', vis_state)
+            is_update = true
+        end
         if vis_state ~= GetTrackInfo(track, 'B_SHOWINMIXER') then
             SetTrackInfo(track, 'B_SHOWINMIXER', vis_state)
             is_update = true

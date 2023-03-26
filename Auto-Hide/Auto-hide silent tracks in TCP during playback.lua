@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
-  @about Hides silent tracks from TCP during playback
+  @version 1.0.1
+  @about Hides silent tracks in TCP during playback
+  @chanelog
+    - Freeze auto-hide over solo and mute buttons
 ]]
 -- Volume threshold at which track is shown
 _G.peak_threshold = 0.005
@@ -10,9 +12,11 @@ _G.peak_threshold = 0.005
 _G.release_time = 65
 ------------------------------------------------------------------------
 
-local extname = 'FTC.AutoHideTCP'
-local GetTrackInfoValue = reaper.GetMediaTrackInfo_Value
-local SetTrackInfoValue = reaper.SetMediaTrackInfo_Value
+local extname = 'FTC.AutoHideSilentTCP'
+local GetTrackInfo = reaper.GetMediaTrackInfo_Value
+local SetTrackInfo = reaper.SetMediaTrackInfo_Value
+
+local freeze_controls = {'volume', 'pan', 'mute', 'solo'}
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -20,11 +24,11 @@ function SaveTracksVisibilityState()
     local states = {}
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
-        local track_guid = reaper.GetTrackGUID(track)
+        local guid = reaper.GetTrackGUID(track)
 
-        local visible = GetTrackInfoValue(track, 'B_SHOWINTCP')
+        local show_tcp = GetTrackInfo(track, 'B_SHOWINTCP')
 
-        local state = ('%s:%d'):format(track_guid, visible)
+        local state = ('%s:%d'):format(guid, show_tcp)
         states[#states + 1] = state
     end
     local states_str = table.concat(states, ';')
@@ -38,13 +42,11 @@ function RestoreTracksVisibilityState()
 
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
-        local track_guid = reaper.GetTrackGUID(track)
-        track_guid = track_guid:gsub('%-', '%%-')
+        local guid = reaper.GetTrackGUID(track)
+        local pattern = guid:gsub('%-', '%%-') .. ':(%d)'
 
-        local visible = states_str:match(track_guid .. ':(%d)')
-        if visible then
-            SetTrackInfoValue(track, 'B_SHOWINTCP', tonumber(visible))
-        end
+        local show_tcp = states_str:match(pattern)
+        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
 end
@@ -89,14 +91,16 @@ function Main()
         return
     end
 
+    -- Freeze auto-hide when hovering over specific controls
     local x, y = reaper.GetMousePosition()
-    local _, hover = reaper.GetThingFromPoint(x, y)
-    if hover == 'tcp.volume' or hover == 'tcp.pan' then
-        reaper.defer(Main)
-        return
+    local _, hovered_control = reaper.GetThingFromPoint(x, y)
+    for _, control in ipairs(freeze_controls) do
+        if hovered_control:match('^tcp%.' .. control) then
+            reaper.defer(Main)
+            return
+        end
     end
 
-    reaper.ClearConsole()
     for t = 1, track_cnt do
         local track = reaper.GetTrack(0, t - 1)
         local peak_l = reaper.Track_GetPeakInfo(track, 0)
@@ -104,12 +108,16 @@ function Main()
         local peak = math.max(peak_l, peak_r)
 
         if peak > peak_threshold then
-            if timers[t] == 0 then is_update = true end
             timers[t] = release_time
         end
 
         local is_visible = timers[t] > 0
-        SetTrackInfoValue(track, 'B_SHOWINTCP', is_visible and 1 or 0)
+        local vis_state = is_visible and 1 or 0
+
+        if vis_state ~= GetTrackInfo(track, 'B_SHOWINTCP') then
+            SetTrackInfo(track, 'B_SHOWINTCP', vis_state)
+            is_update = true
+        end
     end
 
     if is_update then

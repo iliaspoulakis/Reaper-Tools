@@ -1,19 +1,19 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @about Hides tracks in the TCP that have no items in the current measure
   @changelog
-    - Added user-definable exceptions
+    - Optimize CPU usage
 ]]
 -- Exceptions: Track names separated by ; (e.g. "My track 1;My track 2")
 _G.always_visible_tracks = ''
 _G.always_hidden_tracks = ''
 ------------------------------------------------------------------------
 
-local extname = 'FTC.AutoHideTCP'
-local GetTrackInfoValue = reaper.GetMediaTrackInfo_Value
-local SetTrackInfoValue = reaper.SetMediaTrackInfo_Value
+local extname = 'FTC.AutoHideItemTCP'
+local GetTrackInfo = reaper.GetMediaTrackInfo_Value
+local SetTrackInfo = reaper.SetMediaTrackInfo_Value
 
 -- Parse exceptions
 local vis_track_names = {}
@@ -33,12 +33,11 @@ function SaveTracksVisibilityState()
     local states = {}
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
-        local track_guid = reaper.GetTrackGUID(track)
+        local guid = reaper.GetTrackGUID(track)
 
-        local visible = GetTrackInfoValue(track, 'B_SHOWINTCP')
-        local compact = GetTrackInfoValue(track, 'I_FOLDERCOMPACT')
+        local show_tcp = GetTrackInfo(track, 'B_SHOWINTCP')
 
-        local state = ('%s:%d:%d'):format(track_guid, visible, compact)
+        local state = ('%s:%d'):format(guid, show_tcp)
         states[#states + 1] = state
     end
     local states_str = table.concat(states, ';')
@@ -52,22 +51,16 @@ function RestoreTracksVisibilityState()
 
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
-        local track_guid = reaper.GetTrackGUID(track)
-        track_guid = track_guid:gsub('%-', '%%-')
+        local guid = reaper.GetTrackGUID(track)
+        local pattern = guid:gsub('%-', '%%-') .. ':(%d)'
 
-        local visible, compact = states_str:match(track_guid .. ':(%d):(%d)')
-        if visible then
-            SetTrackInfoValue(track, 'B_SHOWINTCP', tonumber(visible))
-            SetTrackInfoValue(track, 'I_FOLDERCOMPACT', tonumber(compact))
-        end
+        local show_tcp = states_str:match(pattern)
+        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
 end
 
 function HasItemsInMeasure(track, measure)
-    local measure_start_pos = reaper.TimeMap_GetMeasureInfo(0, measure)
-    local measure_end_pos = reaper.TimeMap_GetMeasureInfo(0, measure + 1)
-
     local ret, track_name = reaper.GetTrackName(track)
     if ret then
         -- Check track name for exceptions
@@ -78,6 +71,9 @@ function HasItemsInMeasure(track, measure)
             if name == track_name then return false end
         end
     end
+
+    local measure_start_pos = reaper.TimeMap_GetMeasureInfo(0, measure)
+    local measure_end_pos = reaper.TimeMap_GetMeasureInfo(0, measure + 1)
 
     for i = 0, reaper.CountTrackMediaItems(track) - 1 do
         local item = reaper.GetTrackMediaItem(track, i)
@@ -101,12 +97,22 @@ function Main()
 
     if cursor_measure ~= prev_measure then
         prev_measure = cursor_measure
+
+        local is_update = false
         for t = 0, reaper.CountTracks(0) - 1 do
             local track = reaper.GetTrack(0, t)
-            local visible = HasItemsInMeasure(track, cursor_measure) and 1 or 0
-            SetTrackInfoValue(track, 'B_SHOWINTCP', visible)
+            local is_visible = HasItemsInMeasure(track, cursor_measure)
+            local vis_state = is_visible and 1 or 0
+
+            if vis_state ~= GetTrackInfo(track, 'B_SHOWINTCP') then
+                SetTrackInfo(track, 'B_SHOWINTCP', vis_state)
+                is_update = true
+            end
         end
-        reaper.TrackList_AdjustWindows(false)
+
+        if is_update then
+            reaper.TrackList_AdjustWindows(true)
+        end
     end
 
     reaper.defer(Main)
@@ -120,7 +126,7 @@ function Exit()
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
     RestoreTracksVisibilityState()
-    reaper.TrackList_AdjustWindows(false)
+    reaper.TrackList_AdjustWindows(true)
 end
 
 SaveTracksVisibilityState()

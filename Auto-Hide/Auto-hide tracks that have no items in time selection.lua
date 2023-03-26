@@ -1,18 +1,15 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
-  @about Hides tracks in the TCP that have no items in the time selection
-  @changelog
-    - Added user-definable exceptions
-    - Optimize CPU usage
+  @version 1.0.0
+  @about Hides tracks that have no items in the time selection
 ]]
 -- Exceptions: Track names separated by ; (e.g. "My track 1;My track 2")
 _G.always_visible_tracks = ''
 _G.always_hidden_tracks = ''
 ------------------------------------------------------------------------
 
-local extname = 'FTC.AutoHideSelTCP'
+local extname = 'FTC.AutoHideSel'
 local GetTrackInfo = reaper.GetMediaTrackInfo_Value
 local SetTrackInfo = reaper.SetMediaTrackInfo_Value
 
@@ -37,8 +34,21 @@ function SaveTracksVisibilityState()
         local guid = reaper.GetTrackGUID(track)
 
         local show_tcp = GetTrackInfo(track, 'B_SHOWINTCP')
+        local show_mcp = GetTrackInfo(track, 'B_SHOWINMIXER')
 
-        local state = ('%s:%d'):format(guid, show_tcp)
+        local comp = 0
+        local is_folder = GetTrackInfo(track, 'I_FOLDERDEPTH') == 1
+        if is_folder then
+            local _, chunk = reaper.GetTrackStateChunk(track, '')
+            comp = chunk:match('\nBUSCOMP %d+ (%d+)')
+            -- Expand folders in mixer
+            if comp == '1' then
+                chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 0', 1)
+                reaper.SetTrackStateChunk(track, chunk)
+            end
+        end
+
+        local state = ('%s:%d:%d:%d'):format(guid, show_tcp, show_mcp, comp)
         states[#states + 1] = state
     end
     local states_str = table.concat(states, ';')
@@ -53,10 +63,17 @@ function RestoreTracksVisibilityState()
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local guid = reaper.GetTrackGUID(track)
-        local pattern = guid:gsub('%-', '%%-') .. ':(%d)'
+        local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d):(%d)'
 
-        local show_tcp = states_str:match(pattern)
+        local show_tcp, show_mcp, comp = states_str:match(pattern)
         SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
+        SetTrackInfo(track, 'B_SHOWINMIXER', tonumber(show_mcp))
+
+        if comp == '1' then
+            local _, chunk = reaper.GetTrackStateChunk(track, '')
+            chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 1', 1)
+            reaper.SetTrackStateChunk(track, chunk)
+        end
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
 end
@@ -102,10 +119,10 @@ function Main()
 
         if not is_sel_valid then
             RestoreTracksVisibilityState()
+            reaper.TrackList_AdjustWindows(false)
         else
             if is_prev_sel_valid ~= is_sel_valid then
                 SaveTracksVisibilityState()
-                reaper.TrackList_AdjustWindows(true)
             end
             local is_update = false
             for t = 0, reaper.CountTracks(0) - 1 do
@@ -117,10 +134,13 @@ function Main()
                     SetTrackInfo(track, 'B_SHOWINTCP', vis_state)
                     is_update = true
                 end
+                if vis_state ~= GetTrackInfo(track, 'B_SHOWINMIXER') then
+                    SetTrackInfo(track, 'B_SHOWINMIXER', vis_state)
+                    is_update = true
+                end
             end
-
             if is_update then
-                reaper.TrackList_AdjustWindows(true)
+                reaper.TrackList_AdjustWindows(false)
             end
         end
         is_prev_sel_valid = is_sel_valid
@@ -137,7 +157,7 @@ function Exit()
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
     RestoreTracksVisibilityState()
-    reaper.TrackList_AdjustWindows(true)
+    reaper.TrackList_AdjustWindows(false)
 end
 
 reaper.atexit(Exit)
