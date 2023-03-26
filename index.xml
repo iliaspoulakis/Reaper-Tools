@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="075c510cc68a0364bd02677410a451d30d54ad58">
+<index version="1" name="FTC Tools" commit="b588e78533a2064ddc7bf6a0fff9fda07b439af1">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -261,6 +261,10 @@
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T12:47:36Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20silent%20tracks%20during%20playback.lua</source>
       </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20silent%20tracks%20during%20playback.lua</source>
+      </version>
     </reapack>
     <reapack name="Auto-hide silent tracks in MCP during playback.lua" type="script">
       <metadata>
@@ -287,6 +291,10 @@
         <changelog><![CDATA[- Freeze auto-hide over solo and mute buttons]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20silent%20tracks%20in%20MCP%20during%20playback.lua</source>
       </version>
+      <version name="1.1.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20silent%20tracks%20in%20MCP%20during%20playback.lua</source>
+      </version>
     </reapack>
     <reapack name="Auto-hide silent tracks in TCP during playback.lua" type="script">
       <metadata>
@@ -303,6 +311,10 @@
       </version>
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T12:47:36Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20silent%20tracks%20in%20TCP%20during%20playback.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20silent%20tracks%20in%20TCP%20during%20playback.lua</source>
       </version>
     </reapack>
     <reapack name="Auto-hide tracks in TCP that have no items in current measure.lua" type="script">
@@ -326,6 +338,10 @@
         <changelog><![CDATA[- Optimize CPU usage]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20current%20measure.lua</source>
       </version>
+      <version name="1.1.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20current%20measure.lua</source>
+      </version>
     </reapack>
     <reapack name="Auto-hide tracks in TCP that have no items in time selection.lua" type="script">
       <metadata>
@@ -345,6 +361,11 @@
 - Optimize CPU usage]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20time%20selection.lua</source>
       </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Fix issue with restoring visible tracks
+- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20tracks%20in%20TCP%20that%20have%20no%20items%20in%20time%20selection.lua</source>
+      </version>
     </reapack>
     <reapack name="Auto-hide tracks that have no items in current measure.lua" type="script">
       <metadata>
@@ -359,6 +380,10 @@
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T12:47:36Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20tracks%20that%20have%20no%20items%20in%20current%20measure.lua</source>
       </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20tracks%20that%20have%20no%20items%20in%20current%20measure.lua</source>
+      </version>
     </reapack>
     <reapack name="Auto-hide tracks that have no items in time selection.lua" type="script">
       <metadata>
@@ -372,6 +397,10 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T12:47:36Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/075c510cc68a0364bd02677410a451d30d54ad58/Auto-Hide/Auto-hide%20tracks%20that%20have%20no%20items%20in%20time%20selection.lua</source>
+      </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-03-26T20:04:22Z">
+        <changelog><![CDATA[- Improve behavior when adding new tracks while script is running]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/b588e78533a2064ddc7bf6a0fff9fda07b439af1/Auto-Hide/Auto-hide%20tracks%20that%20have%20no%20items%20in%20time%20selection.lua</source>
       </version>
     </reapack>
   </category>
