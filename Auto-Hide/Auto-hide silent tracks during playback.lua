@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Hides silent tracks during playback
+  @changelog
+    - Improve behavior when adding new tracks while script is running
 ]]
 -- Volume threshold at which track is shown
 _G.peak_threshold = 0.005
@@ -57,8 +59,10 @@ function RestoreTracksVisibilityState()
         local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d):(%d)'
 
         local show_tcp, show_mcp, comp = states_str:match(pattern)
-        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
-        SetTrackInfo(track, 'B_SHOWINMIXER', tonumber(show_mcp))
+        show_tcp = tonumber(show_tcp) or 1
+        show_mcp = tonumber(show_mcp) or 1
+        SetTrackInfo(track, 'B_SHOWINTCP', show_tcp)
+        SetTrackInfo(track, 'B_SHOWINMIXER', show_mcp)
 
         if comp == '1' then
             local _, chunk = reaper.GetTrackStateChunk(track, '')
@@ -103,6 +107,7 @@ function Main()
 
     -- Count down timers
     for t = 1, track_cnt do
+        timers[t] = timers[t] or 0
         if timers[t] > 0 then
             timers[t] = timers[t] - 1
             if timers[t] == 0 then is_update = true end

@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Hides silent tracks in TCP during playback
-  @chanelog
-    - Freeze auto-hide over solo and mute buttons
+  @changelog
+    - Improve behavior when adding new tracks while script is running
 ]]
 -- Volume threshold at which track is shown
 _G.peak_threshold = 0.005
@@ -46,7 +46,8 @@ function RestoreTracksVisibilityState()
         local pattern = guid:gsub('%-', '%%-') .. ':(%d)'
 
         local show_tcp = states_str:match(pattern)
-        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
+        show_tcp = tonumber(show_tcp) or 1
+        SetTrackInfo(track, 'B_SHOWINTCP', show_tcp)
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
 end
@@ -78,17 +79,18 @@ function Main()
         end
     end
 
+    if play_state == 0 then
+        reaper.defer(Main)
+        return
+    end
+
     -- Count down timers
     for t = 1, track_cnt do
+        timers[t] = timers[t] or 0
         if timers[t] > 0 then
             timers[t] = timers[t] - 1
             if timers[t] == 0 then is_update = true end
         end
-    end
-
-    if play_state == 0 then
-        reaper.defer(Main)
-        return
     end
 
     -- Freeze auto-hide when hovering over specific controls

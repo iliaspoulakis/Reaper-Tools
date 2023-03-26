@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
+  @version 1.1.3
   @about Hides silent tracks in MCP during playback
   @changelog
-    - Freeze auto-hide over solo and mute buttons
+    - Improve behavior when adding new tracks while script is running
 ]]
 -- Volume threshold at which track is shown
 _G.peak_threshold = 0.005
@@ -58,7 +58,8 @@ function RestoreTracksVisibilityState()
         local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d)'
 
         local show_mcp, comp = states_str:match(pattern)
-        SetTrackInfo(track, 'B_SHOWINMIXER', tonumber(show_mcp))
+        show_mcp = tonumber(show_mcp) or 1
+        SetTrackInfo(track, 'B_SHOWINMIXER', show_mcp)
 
         if comp == '1' then
             local _, chunk = reaper.GetTrackStateChunk(track, '')
@@ -96,17 +97,18 @@ function Main()
         end
     end
 
+    if play_state == 0 then
+        reaper.defer(Main)
+        return
+    end
+
     -- Count down timers
     for t = 1, track_cnt do
+        timers[t] = timers[t] or 0
         if timers[t] > 0 then
             timers[t] = timers[t] - 1
             if timers[t] == 0 then is_update = true end
         end
-    end
-
-    if play_state == 0 then
-        reaper.defer(Main)
-        return
     end
 
     -- Freeze auto-hide when hovering over specific controls

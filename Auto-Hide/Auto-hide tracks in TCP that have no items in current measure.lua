@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @about Hides tracks in the TCP that have no items in the current measure
   @changelog
-    - Optimize CPU usage
+    - Improve behavior when adding new tracks while script is running
 ]]
 -- Exceptions: Track names separated by ; (e.g. "My track 1;My track 2")
 _G.always_visible_tracks = ''
@@ -55,7 +55,8 @@ function RestoreTracksVisibilityState()
         local pattern = guid:gsub('%-', '%%-') .. ':(%d)'
 
         local show_tcp = states_str:match(pattern)
-        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
+        show_tcp = tonumber(show_tcp) or 1
+        SetTrackInfo(track, 'B_SHOWINTCP', show_tcp)
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
 end

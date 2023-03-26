@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Hides tracks that have no items in the time selection
+  @changelog
+    - Improve behavior when adding new tracks while script is running
 ]]
 -- Exceptions: Track names separated by ; (e.g. "My track 1;My track 2")
 _G.always_visible_tracks = ''
@@ -66,8 +68,10 @@ function RestoreTracksVisibilityState()
         local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d):(%d)'
 
         local show_tcp, show_mcp, comp = states_str:match(pattern)
-        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
-        SetTrackInfo(track, 'B_SHOWINMIXER', tonumber(show_mcp))
+        show_tcp = tonumber(show_tcp) or 1
+        show_mcp = tonumber(show_mcp) or 1
+        SetTrackInfo(track, 'B_SHOWINTCP', show_tcp)
+        SetTrackInfo(track, 'B_SHOWINMIXER', show_mcp)
 
         if comp == '1' then
             local _, chunk = reaper.GetTrackStateChunk(track, '')

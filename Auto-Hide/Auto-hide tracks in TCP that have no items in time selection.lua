@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Hides tracks in the TCP that have no items in the time selection
   @changelog
-    - Added user-definable exceptions
-    - Optimize CPU usage
+    - Fix issue with restoring visible tracks
+    - Improve behavior when adding new tracks while script is running
 ]]
 -- Exceptions: Track names separated by ; (e.g. "My track 1;My track 2")
 _G.always_visible_tracks = ''
@@ -56,7 +56,8 @@ function RestoreTracksVisibilityState()
         local pattern = guid:gsub('%-', '%%-') .. ':(%d)'
 
         local show_tcp = states_str:match(pattern)
-        SetTrackInfo(track, 'B_SHOWINTCP', tonumber(show_tcp))
+        show_tcp = tonumber(show_tcp) or 1
+        SetTrackInfo(track, 'B_SHOWINTCP', show_tcp)
     end
     reaper.SetProjExtState(0, extname, 'track_states', '')
 end
@@ -102,10 +103,10 @@ function Main()
 
         if not is_sel_valid then
             RestoreTracksVisibilityState()
+            reaper.TrackList_AdjustWindows(true)
         else
             if is_prev_sel_valid ~= is_sel_valid then
                 SaveTracksVisibilityState()
-                reaper.TrackList_AdjustWindows(true)
             end
             local is_update = false
             for t = 0, reaper.CountTracks(0) - 1 do
