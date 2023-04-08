@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.0
+  @version 1.7.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Support creating MIDI text events from chords
+    - Support exporting chords as project markers
+    - Support exporting chords as notation events
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -846,7 +847,7 @@ function GetMIDIEditorView(hwnd, item_chunk)
     return start_time, end_time
 end
 
-function CreateChordRegions()
+function CreateChordProjectRegions()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
@@ -969,7 +970,68 @@ function CreateChordRegions()
         end
     end
 
-    reaper.Undo_EndBlock('Create chord regions', -1)
+    reaper.Undo_EndBlock('Create chord project regions', -1)
+end
+
+function CreateChordProjectMarkers()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    local item = reaper.GetMediaItemTake_Item(take)
+    local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local item_end_pos = item_start_pos + item_length
+
+    local EnumMarkers = reaper.EnumProjectMarkers2
+    local AddMarker = reaper.AddProjectMarker
+
+    local GetProjTimeFromPPQPos = reaper.MIDI_GetProjTimeFromPPQPos
+    local GetPPQPosFromProjTime = reaper.MIDI_GetPPQPosFromProjTime
+
+    reaper.Undo_BeginBlock()
+
+    -- Delete markers over item
+    for i = reaper.CountProjectMarkers(0) - 1, 0, -1 do
+        local _, is_reg, start_pos, end_pos, name, idx = EnumMarkers(0, i)
+        if not is_reg then
+            if start_pos >= item_start_pos and end_pos < item_end_pos then
+                reaper.DeleteProjectMarker(0, idx, false)
+            end
+        end
+    end
+
+    local loops = 1
+    local source_ppq_length = 0
+    -- Calculate how often item is looped (and loop length)
+    if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
+        local source = reaper.GetMediaItemTake_Source(take)
+        local source_length = reaper.GetMediaSourceLength(source)
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        local end_qn = start_qn + source_length
+        source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
+
+        local item_start_ppq = GetPPQPosFromProjTime(take, item_start_pos)
+        local item_end_ppq = GetPPQPosFromProjTime(take, item_end_pos)
+        local item_ppq_length = item_end_ppq - item_start_ppq
+        -- Note: Looped items repeat after full ppq length
+        loops = math.ceil(item_ppq_length / source_ppq_length)
+    end
+
+    for loop = 1, loops do
+        local prev_name
+        for _, chord in ipairs(curr_chords) do
+            local loop_ppq = source_ppq_length * (loop - 1)
+            local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
+            local name = BuildChordName(chord)
+            if name ~= prev_name then
+                AddMarker(0, false, start_pos, 0, name, -1)
+            end
+            prev_name = name
+        end
+    end
+
+    reaper.Undo_EndBlock('Create chord project markers', -1)
 end
 
 function CreateChordTakeMarkers()
@@ -1054,6 +1116,40 @@ function CreateChordTextEvents()
     reaper.MIDIEditor_OnCommand(hwnd, 40370)
 
     reaper.Undo_EndBlock('Create chord text events', -1)
+end
+
+function CreateChordNotationEvents()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    reaper.Undo_BeginBlock()
+    local _, _, _, evt_cnt = reaper.MIDI_CountEvts(take)
+
+    -- Delete text event markers
+    for i = evt_cnt - 1, 0, -1 do
+        local ret, _, _, _, evt_type, msg = reaper.MIDI_GetTextSysexEvt(take, i)
+        if ret and evt_type == 15 and msg:match('" chord$') then
+            reaper.MIDI_DeleteTextSysexEvt(take, i)
+        end
+    end
+    -- Add chord text event markers
+    local prev_name
+    for _, chord in ipairs(curr_chords) do
+        local name = BuildChordName(chord)
+        if name ~= prev_name then
+            local msg = 'TRAC custom "' .. name .. '" chord'
+            reaper.MIDI_InsertTextSysexEvt(take, 0, 0, chord.sppq, 15, msg)
+        end
+        prev_name = name
+    end
+
+    -- CC: Set CC lane to Text Events
+    reaper.MIDIEditor_OnCommand(hwnd, 40370)
+    -- CC: Next CC lane
+    reaper.MIDIEditor_OnCommand(hwnd, 40234)
+
+    reaper.Undo_EndBlock('Create chord notation events', -1)
 end
 
 function GetCursorPPQPosition(take, cursor_pos)
@@ -1291,22 +1387,30 @@ function Main()
         local is_right_click = mouse_state == 2
         if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
             local menu = {
-                {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
                     title = 'Create chord markers',
                     {
                         title = 'Project regions',
-                        OnReturn = CreateChordRegions,
+                        OnReturn = CreateChordProjectRegions,
+                    },
+                    {
+                        title = 'Project markers',
+                        OnReturn = CreateChordProjectMarkers,
                     },
                     {
                         title = 'Take markers',
                         OnReturn = CreateChordTakeMarkers,
                     },
                     {
-                        title = 'MIDI text events',
+                        title = 'Text events',
                         OnReturn = CreateChordTextEvents,
                     },
+                    {
+                        title = 'Notation events',
+                        OnReturn = CreateChordNotationEvents,
+                    },
                 },
+                {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
                     title = 'Solfège mode (Do, Re, Mi)',
                     OnReturn = ToggleSolfegeMode,
