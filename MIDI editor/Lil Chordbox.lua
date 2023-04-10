@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.3
+  @version 1.8.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
     - Add chord degree display options
+    - Support exporting to chord track
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -959,6 +960,123 @@ function CreateChordProjectRegions()
     reaper.Undo_EndBlock('Create chord project regions', -1)
 end
 
+function CreateChordTrack()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    local item = reaper.GetMediaItemTake_Item(take)
+    local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local item_end_pos = item_start_pos + item_length
+
+    local AddItem = reaper.AddMediaItemToTrack
+    local SetItemInfo = reaper.SetMediaItemInfo_Value
+    local GetItemInfo = reaper.GetMediaItemInfo_Value
+    local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
+
+    local GetProjTimeFromPPQPos = reaper.MIDI_GetProjTimeFromPPQPos
+    local GetPPQPosFromProjTime = reaper.MIDI_GetPPQPosFromProjTime
+
+    reaper.Undo_BeginBlock()
+
+    -- Create chord track
+    local track = reaper.GetMediaItem_Track(item)
+    local track_num = reaper.GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
+    reaper.InsertTrackAtIndex(track_num - 1, true)
+    local chord_track = reaper.GetTrack(0, track_num - 1)
+    reaper.GetSetMediaTrackInfo_String(chord_track, 'P_NAME', 'Chords', 1)
+
+    local loops = 1
+    local source_ppq_length = 0
+    -- Calculate how often item is looped (and loop length)
+    if GetItemInfo(item, 'B_LOOPSRC') == 1 then
+        local source = reaper.GetMediaItemTake_Source(take)
+        local source_length = reaper.GetMediaSourceLength(source)
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        local end_qn = start_qn + source_length
+        source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
+
+        local item_start_ppq = GetPPQPosFromProjTime(take, item_start_pos)
+        local item_end_ppq = GetPPQPosFromProjTime(take, item_end_pos)
+        local item_ppq_length = item_end_ppq - item_start_ppq
+        -- Note: Looped items repeat after full ppq length
+        loops = math.ceil(item_ppq_length / source_ppq_length)
+    end
+
+    local prev_name
+    local prev_start_pos
+    local prev_end_pos
+
+    for loop = 1, loops do
+        for _, chord in ipairs(curr_chords) do
+            local loop_ppq = source_ppq_length * (loop - 1)
+            local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
+            local end_pos = GetProjTimeFromPPQPos(take, chord.eppq + loop_ppq)
+
+            if prev_start_pos then
+                local reg_start_pos = prev_start_pos
+                local reg_end_pos = start_pos
+                if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
+                    reg_start_pos = math.max(reg_start_pos, item_start_pos)
+                    if reg_end_pos > item_end_pos then
+                        reg_end_pos = math.min(prev_end_pos, item_end_pos)
+                    end
+                    if prev_name ~= '' then
+                        local chord_item = AddItem(chord_track)
+                        local length = reg_end_pos - reg_start_pos
+                        SetItemInfo(chord_item, 'D_POSITION', reg_start_pos)
+                        SetItemInfo(chord_item, 'D_LENGTH', length)
+                        GetSetItemInfo(chord_item, 'P_NOTES', prev_name, 1)
+                    end
+                end
+            end
+
+            prev_name = BuildChordName(chord)
+            prev_start_pos = start_pos
+            prev_end_pos = end_pos
+        end
+    end
+
+    if prev_start_pos then
+        local reg_start_pos = prev_start_pos
+        local reg_end_pos = prev_end_pos
+        if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
+            reg_start_pos = math.max(reg_start_pos, item_start_pos)
+            reg_end_pos = math.min(reg_end_pos, item_end_pos)
+            if prev_name ~= '' then
+                local chord_item = AddItem(chord_track)
+                local length = reg_end_pos - reg_start_pos
+                SetItemInfo(chord_item, 'D_POSITION', reg_start_pos)
+                SetItemInfo(chord_item, 'D_LENGTH', length)
+                GetSetItemInfo(chord_item, 'P_NOTES', prev_name, 1)
+            end
+        end
+    end
+
+    -- Combine regions with same chord name
+    local prev_name
+    local prev_chord_item
+    for i = reaper.CountTrackMediaItems(chord_track) - 1, 0, -1 do
+        local chord_item = reaper.GetTrackMediaItem(chord_track, i)
+        local _, name = GetSetItemInfo(chord_item, 'P_NOTES', '', 0)
+        if name == prev_name then
+            local prev_length = GetItemInfo(prev_chord_item, 'D_LENGTH')
+            local prev_start_pos = GetItemInfo(prev_chord_item, 'D_POSITION')
+            local prev_end_pos = prev_start_pos + prev_length
+
+            reaper.DeleteTrackMediaItem(chord_track, prev_chord_item)
+
+            local curr_start_pos = GetItemInfo(chord_item, 'D_POSITION')
+            SetItemInfo(chord_item, 'D_LENGTH', prev_end_pos - curr_start_pos)
+        end
+        prev_name = name
+        prev_chord_item = chord_item
+    end
+    reaper.UpdateArrange()
+    reaper.Undo_EndBlock('Create chord track', -1)
+end
+
 function CreateChordProjectMarkers()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
@@ -1375,6 +1493,10 @@ function Main()
             local menu = {
                 {
                     title = 'Export chords as',
+                    {
+                        title = 'Chord track',
+                        OnReturn = CreateChordTrack,
+                    },
                     {
                         title = 'Project regions',
                         OnReturn = CreateChordProjectRegions,
