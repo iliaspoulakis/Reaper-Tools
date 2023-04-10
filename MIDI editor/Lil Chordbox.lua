@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.1
+  @version 1.7.2
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Support exporting chords as project markers
-    - Support exporting chords as notation events
+    - Improve interaction with tooltips on Windows
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -82,6 +81,13 @@ local is_linux = os:match('Other')
 
 local piano_pane_scale1_w = is_windows and 128 or is_macos and 145 or 161
 local edit_box_scale1_w = is_windows and 52 or is_macos and 60 or 68
+
+local tooltip_delay = 0.6
+
+if is_windows then
+    tooltip_delay = select(2, reaper.get_config_var_string('tooltipdelay'))
+    tooltip_delay = 2 * (tonumber(tooltip_delay) or 200) / 1000
+end
 
 local chord_names = {}
 -- Dyads
@@ -209,50 +215,14 @@ chord_names['1 3 4 8'] = 'm add9'
 chord_names['1 3 5 8'] = 'maj add9'
 chord_names['1 5 10 11'] = '7 add13'
 
-local degrees = {
-    'I',
-    'II',
-    'II',
-    'III',
-    'III',
-    'IV',
-    'V',
-    'V',
-    'VI',
-    'VI',
-    'VII',
-    'VII',
-}
+local degrees = {'I', 'II', 'II', 'III', 'III', 'IV', 'V', 'V', 'VI', 'VI',
+    'VII', 'VII'}
 
-local note_names_abc = {
-    'C',
-    'C#',
-    'D',
-    'D#',
-    'E',
-    'F',
-    'F#',
-    'G',
-    'G#',
-    'A',
-    'A#',
-    'B',
-}
+local note_names_abc = {'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A',
+    'A#', 'B'}
 
-local note_names_solfege = {
-    'Do ',
-    'Do# ',
-    'Re ',
-    'Re# ',
-    'Mi ',
-    'Fa ',
-    'Fa ',
-    'Sol ',
-    'Sol# ',
-    'La ',
-    'La# ',
-    'Si ',
-}
+local note_names_solfege = {'Do ', 'Do# ', 'Re ', 'Re# ', 'Mi ', 'Fa ', 'Fa# ',
+    'Sol ', 'Sol# ', 'La ', 'La# ', 'Si '}
 
 local use_input = reaper.GetExtState(extname, 'input') ~= '0'
 
@@ -1509,14 +1479,18 @@ function Main()
     -- Note: Avoid using GetItemStateChunk every defer cycle so that tooltips
     -- will show on Windows
     local curr_time = reaper.time_precise()
-    if not prev_time or curr_time > prev_time + 0.6 then
+    if not prev_time or curr_time > prev_time + tooltip_delay then
         prev_time = curr_time
-        local item = reaper.GetMediaItemTake_Item(take)
-        local _, item_chunk = reaper.GetItemStateChunk(item, '', false)
-
-        if item_chunk ~= prev_item_chunk then
-            prev_item_chunk = item_chunk
-            curr_start_time, curr_end_time = GetMIDIEditorView(hwnd, item_chunk)
+        local tooltip_hwnd = reaper.GetTooltipWindow()
+        local tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd)
+        -- Avoid getting chunk as long as tooltip is shown
+        if tooltip == '' then
+            local item = reaper.GetMediaItemTake_Item(take)
+            local _, chunk = reaper.GetItemStateChunk(item, '', false)
+            if chunk ~= prev_item_chunk then
+                prev_item_chunk = chunk
+                curr_start_time, curr_end_time = GetMIDIEditorView(hwnd, chunk)
+            end
         end
     end
 
