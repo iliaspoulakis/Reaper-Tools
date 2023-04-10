@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.2
+  @version 1.7.3
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Improve interaction with tooltips on Windows
+    - Add chord degree display options
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -225,6 +225,7 @@ local note_names_solfege = {'Do ', 'Do# ', 'Re ', 'Re# ', 'Mi ', 'Fa ', 'Fa# ',
     'Sol ', 'Sol# ', 'La ', 'La# ', 'Si '}
 
 local use_input = reaper.GetExtState(extname, 'input') ~= '0'
+local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_only')) or 3
 
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local note_names = use_solfege and note_names_solfege or note_names_abc
@@ -244,6 +245,11 @@ function ToggleInputMode()
     input_note_map = {}
     prev_input_idx = reaper.MIDI_GetRecentInputEvent(0)
     reaper.SetExtState(extname, 'input', use_input and '1' or '0', true)
+end
+
+function SetDegreeMode(mode)
+    degree_mode = mode
+    reaper.SetExtState(extname, 'degree_mode', mode, true)
 end
 
 function IdentifyChord(notes)
@@ -357,8 +363,14 @@ function BuildChordName(chord)
     if not chord then return '' end
     if chord.name then return chord.name end
     local name = PitchToName(chord.root) .. chord_names[chord.key]
-    local degree = prev_is_key_snap and GetChordDegree(chord)
-    if degree then name = name .. ' - ' .. degree end
+    if prev_is_key_snap and degree_mode > 1 then
+        local degree = GetChordDegree(chord)
+        if degree_mode == 2 then
+            name = degree or ''
+        elseif degree then
+            name = name .. ' - ' .. degree
+        end
+    end
     return name
 end
 
@@ -901,7 +913,9 @@ function CreateChordProjectRegions()
                     if reg_end_pos > item_end_pos then
                         reg_end_pos = math.min(prev_end_pos, item_end_pos)
                     end
-                    AddMarker(0, true, reg_start_pos, reg_end_pos, prev_name, -1)
+                    if prev_name ~= '' then
+                        AddMarker(0, 1, reg_start_pos, reg_end_pos, prev_name, -1)
+                    end
                 end
             end
 
@@ -917,7 +931,9 @@ function CreateChordProjectRegions()
         if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
             reg_start_pos = math.max(reg_start_pos, item_start_pos)
             reg_end_pos = math.min(reg_end_pos, item_end_pos)
-            AddMarker(0, true, reg_start_pos, reg_end_pos, prev_name, -1)
+            if prev_name ~= '' then
+                AddMarker(0, 1, reg_start_pos, reg_end_pos, prev_name, -1)
+            end
         end
     end
 
@@ -994,7 +1010,7 @@ function CreateChordProjectMarkers()
             local loop_ppq = source_ppq_length * (loop - 1)
             local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
             local name = BuildChordName(chord)
-            if name ~= prev_name then
+            if name ~= '' and name ~= prev_name then
                 AddMarker(0, false, start_pos, 0, name, -1)
             end
             prev_name = name
@@ -1047,7 +1063,7 @@ function CreateChordTakeMarkers()
             local loop_ppq = source_ppq_length * (loop - 1)
             local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
             local name = BuildChordName(chord)
-            if name ~= prev_name then
+            if name ~= '' and name ~= prev_name then
                 local marker_pos = start_pos - item_start_pos
                 reaper.SetTakeMarker(take, -1, name, marker_pos)
             end
@@ -1076,7 +1092,7 @@ function CreateChordTextEvents()
     local prev_name
     for _, chord in ipairs(curr_chords) do
         local name = BuildChordName(chord)
-        if name ~= prev_name then
+        if name ~= '' and name ~= prev_name then
             reaper.MIDI_InsertTextSysexEvt(take, 0, 0, chord.sppq, 6, name)
         end
         prev_name = name
@@ -1107,7 +1123,7 @@ function CreateChordNotationEvents()
     local prev_name
     for _, chord in ipairs(curr_chords) do
         local name = BuildChordName(chord)
-        if name ~= prev_name then
+        if name ~= '' and name ~= prev_name then
             local msg = 'TRAC custom "' .. name .. '" chord'
             reaper.MIDI_InsertTextSysexEvt(take, 0, 0, chord.sppq, 15, msg)
         end
@@ -1242,7 +1258,7 @@ function DrawLICE(chord, mode)
         reaper.JS_LICE_FillRect(bitmap, x2, y2, w2, w2, bg_color, 1, 0)
     end
 
-    if mode == 3 then
+    if mode == 3 and chord ~= '' then
         local x, y = math.floor(icon_x + 5 * scale), bm_h // 2
         local r = math.floor(2.5 * scale * 10) / 10
         reaper.JS_LICE_FillCircle(bitmap, x, y, r, rec_color, 1, 1, true)
@@ -1358,7 +1374,7 @@ function Main()
         if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
             local menu = {
                 {
-                    title = 'Create chord markers',
+                    title = 'Export chords as',
                     {
                         title = 'Project regions',
                         OnReturn = CreateChordProjectRegions,
@@ -1380,17 +1396,41 @@ function Main()
                         OnReturn = CreateChordNotationEvents,
                     },
                 },
-                {title = 'Set custom colors', OnReturn = SetCustomColors},
                 {
-                    title = 'Solfège mode (Do, Re, Mi)',
-                    OnReturn = ToggleSolfegeMode,
-                    is_checked = use_solfege,
+                    title = 'Options',
+                    {
+                        title = 'Chord degree (key snap)',
+                        {
+                            title = 'Show only chord',
+                            OnReturn = SetDegreeMode,
+                            is_checked = degree_mode == 1,
+                            arg = 1,
+                        },
+                        {
+                            title = 'Show only degree',
+                            OnReturn = SetDegreeMode,
+                            is_checked = degree_mode == 2,
+                            arg = 2,
+                        },
+                        {
+                            title = 'Show chord and degree',
+                            OnReturn = SetDegreeMode,
+                            is_checked = degree_mode == 3,
+                            arg = 3,
+                        },
+                    },
+                    {
+                        title = 'Solfège mode (do, re, mi)',
+                        OnReturn = ToggleSolfegeMode,
+                        is_checked = use_solfege,
+                    },
+                    {
+                        title = 'Analyze incoming MIDI (live input)',
+                        OnReturn = ToggleInputMode,
+                        is_checked = use_input,
+                    },
                 },
-                {
-                    title = 'Analyze incoming MIDI (live input)',
-                    OnReturn = ToggleInputMode,
-                    is_checked = use_input,
-                },
+                {title = 'Customize...', OnReturn = SetCustomColors},
                 {
                     title = 'Run script on startup',
                     IsChecked = IsStartupHookEnabled,
@@ -1445,7 +1485,7 @@ function Main()
         local input_chord_name = BuildChordName(input_chord)
         -- Only redraw LICE bitmap when chord name has changed
         if input_chord_name ~= prev_input_chord_name then
-            prev_input_chord_name = input_chord
+            prev_input_chord_name = input_chord_name
             DrawLICE(input_chord_name, 3)
         end
         reaper.defer(Main)
@@ -1477,7 +1517,7 @@ function Main()
 
     -- Monitor item chunk (for getting time position at mouse)
     -- Note: Avoid using GetItemStateChunk every defer cycle so that tooltips
-    -- will show on Windows
+    -- show on Windows
     local curr_time = reaper.time_precise()
     if not prev_time or curr_time > prev_time + tooltip_delay then
         prev_time = curr_time
