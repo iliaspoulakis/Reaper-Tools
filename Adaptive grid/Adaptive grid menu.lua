@@ -4,7 +4,6 @@
   @noindex
   @about User settings for adaptive grid
 ]]
-
 local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, cmd = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
@@ -120,7 +119,6 @@ function SetStartupHookEnabled(is_enabled, comment, var_name)
 
     -- Check startup script for existing hook
     if reaper.file_exists(startup_path) then
-
         local startup_file = io.open(startup_path, 'r')
         if not startup_file then return end
 
@@ -219,18 +217,37 @@ function RunAdaptScript(is_midi)
     end
 end
 
+function RegisterToolbarToggleState(section, command, multiplier)
+    local command_name = reaper.ReverseNamedCommandLookup(command)
+    local entry = ('%s %s %s'):format(section, command_name, multiplier)
+    local entries = reaper.GetExtState(extname, 'toolbar_entries')
+    if not entries:find(entry, 0, true) then
+        entries = entries .. entry .. ';'
+        reaper.SetExtState(extname, 'toolbar_entries', entries, true)
+    end
+end
+
 function UpdateToolbarToggleStates(section, multiplier)
-    local registered_cmds = reaper.GetExtState(extname, 'registered_cmds')
-    for reg_str in registered_cmds:gmatch('(.-);') do
-        local reg_sec, reg_cmd, reg_mult = reg_str:match('(%d+) (%d+) (%-?%d+)')
-        reg_sec = tonumber(reg_sec)
-        reg_cmd = tonumber(reg_cmd)
-        reg_mult = tonumber(reg_mult)
-        if section == reg_sec then
-            local state = reg_mult == multiplier and 1 or 0
-            reaper.SetToggleCommandState(reg_sec, reg_cmd, state)
-            reaper.RefreshToolbar2(reg_sec, reg_cmd)
+    local entries = reaper.GetExtState(extname, 'toolbar_entries')
+    local updated_entries = ''
+    for entry in entries:gmatch('(.-);') do
+        local pattern = '(%d+) (.-) (%-?%d+)'
+        local entry_sec, entry_cmd_name, entry_mult = entry:match(pattern)
+        entry_sec = tonumber(entry_sec)
+        entry_mult = tonumber(entry_mult)
+        local entry_cmd = reaper.NamedCommandLookup('_' .. entry_cmd_name)
+        if section == entry_sec and entry_cmd > 0 then
+            local state = entry_mult == multiplier and 1 or 0
+            if entry_mult == 1000 and multiplier ~= 0 then state = 1 end
+            reaper.SetToggleCommandState(entry_sec, entry_cmd, state)
+            reaper.RefreshToolbar2(entry_sec, entry_cmd)
+            updated_entries = updated_entries .. entry .. ';'
+        elseif section ~= entry_sec then
+            updated_entries = updated_entries .. entry .. ';'
         end
+    end
+    if updated_entries ~= entries then
+        reaper.SetExtState(extname, 'toolbar_entries', updated_entries, true)
     end
 end
 
@@ -463,7 +480,6 @@ end
 function SetFixedGrid(new_grid_div)
     ShowGrid(true)
     SetGridMultiplier(0)
-    UpdateToolbarToggleStates(0, 0)
     local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
     if IsGridInTriplets(grid_div) then new_grid_div = new_grid_div * 2 / 3 end
     reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
@@ -484,7 +500,6 @@ function SetAdaptiveGrid(multiplier)
 
     ShowGrid(true)
     SetGridMultiplier(multiplier)
-    UpdateToolbarToggleStates(0, multiplier)
 
     if multiplier ~= 0 then
         RunAdaptScript(false)
@@ -504,7 +519,6 @@ function SetMIDIAdaptiveGrid(multiplier)
 
     ShowMIDIGrid(true)
     SetMIDIGridMultiplier(multiplier)
-    UpdateToolbarToggleStates(32060, multiplier)
 
     if multiplier ~= 0 then
         RunAdaptScript(true)
@@ -520,11 +534,7 @@ local options_menu = {
     title = 'Options',
     {title = 'Arrange view', is_grayed = true},
     {separator = true},
-    {
-        title = 'Set custom size',
-        OnReturn = SetUserCustomGridSpacing,
-        arg = false,
-    },
+    {title = 'Set custom size', OnReturn = SetUserCustomGridSpacing, arg = false},
     {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = false},
     {title = 'Set limits', OnReturn = SetUserGridLimits, arg = false},
     {separator = true},
@@ -608,37 +618,13 @@ local midi_menu = {
             IsChecked = IsStartupHookEnabled,
             OnReturn = function()
                 local is_enabled = not IsStartupHookEnabled()
-                local comment =
-                    'Start script: Adaptive grid (background process)'
+                local text = 'Start script: Adaptive grid (background process)'
                 local var_name = 'adaptive_grid_cmd'
-                SetStartupHookEnabled(is_enabled, comment, var_name)
+                SetStartupHookEnabled(is_enabled, text, var_name)
             end,
         },
     },
 }
-
---[[ local over_items_menu = {}
-local over_cmd = reaper.NamedCommandLookup('_BR_OPTIONS_GRID_Z_OVER_ITEMS')
-
-if over_cmd > 0 then
-    over_items_menu = {
-        {
-            title = 'Grid over items',
-            IsChecked = function()
-                return reaper.GetToggleCommandState(over_cmd) == 1
-            end,
-
-            OnReturn = function()
-                if reaper.GetToggleCommandState(over_cmd) == 1 then
-                    local cmd_name = '_BR_OPTIONS_GRID_Z_UNDER_ITEMS'
-                    reaper.Main_OnCommand(reaper.NamedCommandLookup(cmd_name), 0)
-                else
-                    reaper.Main_OnCommand(over_cmd, 0)
-                end
-            end,
-        },
-    }
-end ]]
 
 local main_menu = {
     {title = 'Straight', IsChecked = IsGridStraight, OnReturn = SetGridStraight},
@@ -647,11 +633,7 @@ local main_menu = {
         IsChecked = IsGridInTriplets,
         OnReturn = SetGridToTriplets,
     },
-    {
-        title = 'Swing',
-        IsChecked = IsGridSwingEnabled,
-        OnReturn = ToggleGridSwing,
-    },
+    {title = 'Swing', IsChecked = IsGridSwingEnabled, OnReturn = ToggleGridSwing},
     {separator = true},
     {title = 'Fixed', is_grayed = true},
     {separator = true},
@@ -816,8 +798,6 @@ local main_menu = {
     options_menu,
 }
 
-reaper.Undo_OnStateChange('Show adaptive grid menu')
-
 if reaper.SNM_GetIntConfigVar then
     min_spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
 else
@@ -830,13 +810,14 @@ local is_hook_enabled = IsStartupHookEnabled()
 local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
 reaper.SetExtState(extname, 'has_run', 'yes', false)
 
+RegisterToolbarToggleState(sec, cmd, 1000)
+
 if not IsServiceRunning() then
     -- Exit immediately when running on startup but adaptive grid is deactivated
     if not has_run and is_hook_enabled then
         UpdateToolbarToggleStates(0, GetGridMultiplier())
         UpdateToolbarToggleStates(32060, GetMIDIGridMultiplier())
-        StartService()
-        reaper.SetToggleCommandState(sec, cmd, 0)
+        reaper.defer(StartService)
         return
     else
         -- Deactivate adaptive grid
@@ -852,7 +833,14 @@ function StartDeferred()
     local menu_str = MenuCreateRecursive(menu)
     local ret = ShowMenu(menu_str)
     MenuReturnRecursive(menu, ret)
+    UpdateToolbarToggleStates(0, GetGridMultiplier())
+    UpdateToolbarToggleStates(32060, GetMIDIGridMultiplier())
 end
 
 reaper.defer(StartDeferred)
 
+-- TODO remove in next major version
+-- Clean deprecated user extstate
+if reaper.GetExtState(extname, 'registered_cmds') ~= '' then
+    reaper.DeleteExtState(extname, 'registered_cmds', true)
+end

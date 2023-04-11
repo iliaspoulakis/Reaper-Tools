@@ -4,7 +4,6 @@
   @noindex
   @about Changes grid spacing to match current zoom level
 ]]
-
 local extname = 'FTC.AdaptiveGrid'
 local _, _, sec = reaper.get_action_context()
 local is_midi = sec == 32060 or _G.mode == 2
@@ -120,7 +119,7 @@ function GetMIDIEditorView(hwnd)
         take_chunk = GetTakeChunk(take)
         end_ppq = GetTakeChunkHZoom(take_chunk)
 
-        -- Note: Scrolling back to the left doesn't always work because 
+        -- Note: Scrolling back to the left doesn't always work because
         -- it won't scroll back further than 0 ppq
         if start_ppq > 0 then
             -- Cmd: Scroll view left
@@ -274,38 +273,10 @@ function AdaptMIDIGrid(spacing)
     end
 end
 
-function UpdateToolbarToggleStates(section, multiplier)
-    local registered_cmds = reaper.GetExtState(extname, 'registered_cmds')
-    for reg_str in registered_cmds:gmatch('(.-);') do
-        local reg_sec, reg_cmd, reg_mult = reg_str:match('(%d+) (%d+) (%-?%d+)')
-        reg_sec = tonumber(reg_sec)
-        reg_cmd = tonumber(reg_cmd)
-        reg_mult = tonumber(reg_mult)
-        if section == reg_sec then
-            local state = reg_mult == multiplier and 1 or 0
-            reaper.SetToggleCommandState(reg_sec, reg_cmd, state)
-            reaper.RefreshToolbar2(reg_sec, reg_cmd)
-        end
-    end
-end
-
 -- Get adaptive mode multipliers
 local main_mult = tonumber(reaper.GetExtState(extname, 'main_mult')) or 0
 local midi_mult = tonumber(reaper.GetExtState(extname, 'midi_mult')) or 0
 local mult = is_midi and midi_mult or main_mult
-
-if not _G.mode then
-    -- Create undo point when script is run by custom action
-    if not _G.mode then reaper.Undo_OnStateChange('Adapt grid to zoom level') end
-
-    -- Update toolbars when using first custom action after reaper restart
-    local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
-    if not has_run then
-        reaper.SetExtState(extname, 'has_run', 'yes', false)
-        UpdateToolbarToggleStates(0, main_mult)
-        UpdateToolbarToggleStates(32060, midi_mult)
-    end
-end
 
 -- Multiplier 0: Grid is fixed
 if mult == 0 then return end

@@ -4,7 +4,6 @@
   @noindex
   @about Use the mousewheel to go through adaptive grid sizes
 ]]
-
 local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, cmd, _, _, val = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
@@ -45,17 +44,26 @@ function RunAdaptScript(is_midi)
 end
 
 function UpdateToolbarToggleStates(section, multiplier)
-    local registered_cmds = reaper.GetExtState(extname, 'registered_cmds')
-    for reg_str in registered_cmds:gmatch('(.-);') do
-        local reg_sec, reg_cmd, reg_mult = reg_str:match('(%d+) (%d+) (%-?%d+)')
-        reg_sec = tonumber(reg_sec)
-        reg_cmd = tonumber(reg_cmd)
-        reg_mult = tonumber(reg_mult)
-        if section == reg_sec then
-            local state = reg_mult == multiplier and 1 or 0
-            reaper.SetToggleCommandState(reg_sec, reg_cmd, state)
-            reaper.RefreshToolbar2(reg_sec, reg_cmd)
+    local entries = reaper.GetExtState(extname, 'toolbar_entries')
+    local updated_entries = ''
+    for entry in entries:gmatch('(.-);') do
+        local pattern = '(%d+) (.-) (%-?%d+)'
+        local entry_sec, entry_cmd_name, entry_mult = entry:match(pattern)
+        entry_sec = tonumber(entry_sec)
+        entry_mult = tonumber(entry_mult)
+        local entry_cmd = reaper.NamedCommandLookup('_' .. entry_cmd_name)
+        if section == entry_sec and entry_cmd > 0 then
+            local state = entry_mult == multiplier and 1 or 0
+            if entry_mult == 1000 and multiplier ~= 0 then state = 1 end
+            reaper.SetToggleCommandState(entry_sec, entry_cmd, state)
+            reaper.RefreshToolbar2(entry_sec, entry_cmd)
+            updated_entries = updated_entries .. entry .. ';'
+        elseif section ~= entry_sec then
+            updated_entries = updated_entries .. entry .. ';'
         end
+    end
+    if updated_entries ~= entries then
+        reaper.SetExtState(extname, 'toolbar_entries', updated_entries, true)
     end
 end
 
