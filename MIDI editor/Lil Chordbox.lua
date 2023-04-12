@@ -5,8 +5,9 @@
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Add chord degree display options
-    - Support exporting to chord track
+    - Add option to set chord display to flat/sharp
+    - Add option to auto-detect flats/sharps when key snap is enabled
+    - Clicking on Lil Chordbox now resets live input detection (get rid of stuck notes)
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -15,6 +16,7 @@ local box_h_offs = 0
 
 local notes_view
 local piano_pane
+local key_snap_root_cbox
 
 local curr_chords
 local curr_sel_chord
@@ -43,6 +45,7 @@ local prev_is_key_snap
 local prev_midi_scale_root
 local prev_midi_scale
 local prev_item_chunk
+local prev_key_snap_root
 
 local scale
 local font_size
@@ -219,26 +222,89 @@ chord_names['1 5 10 11'] = '7 add13'
 local degrees = {'I', 'II', 'II', 'III', 'III', 'IV', 'V', 'V', 'VI', 'VI',
     'VII', 'VII'}
 
-local note_names_abc = {'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A',
-    'A#', 'B'}
+local note_names_abc_sharp = {'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#',
+    'A', 'A#', 'B'}
 
-local note_names_solfege = {'Do ', 'Do# ', 'Re ', 'Re# ', 'Mi ', 'Fa ', 'Fa# ',
-    'Sol ', 'Sol# ', 'La ', 'La# ', 'Si '}
+local note_names_solfege_sharp = {'Do ', 'Do# ', 'Re ', 'Re# ', 'Mi ', 'Fa ',
+    'Fa# ', 'Sol ', 'Sol# ', 'La ', 'La# ', 'Si '}
+
+local note_names_abc_flat = {'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab',
+    'A', 'Bb', 'B'}
+
+local note_names_solfege_flat = {'Do ', 'Reb ', 'Re ', 'Mib ', 'Mi ', 'Fa ',
+    'Solb ', 'Sol ', 'Lab ', 'La ', 'Sib ', 'Si '}
 
 local use_input = reaper.GetExtState(extname, 'input') ~= '0'
 local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_only')) or 3
 
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
-local note_names = use_solfege and note_names_solfege or note_names_abc
+local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
+local use_sharps_autodetect = reaper.GetExtState(extname, 'sharps_auto') ~= '0'
+local is_sharp_autodetect = false
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
-function PitchToName(pitch) return note_names[pitch % 12 + 1] end
+function PitchToName(pitch)
+    local note_names
+    local is_sharp = use_sharps
+    if prev_is_key_snap and use_sharps_autodetect then
+        is_sharp = is_sharp_autodetect
+    end
+    if use_solfege then
+        if is_sharp then
+            note_names = note_names_solfege_sharp
+        else
+            note_names = note_names_solfege_flat
+        end
+    else
+        if is_sharp then
+            note_names = note_names_abc_sharp
+        else
+            note_names = note_names_abc_flat
+        end
+    end
+    return note_names[pitch % 12 + 1]
+end
+
+function AutoDetectSharps(root, midi_scale)
+    if root:match('b') then
+        is_sharp_autodetect = false
+        return
+    end
+
+    if root:match('#') then
+        is_sharp_autodetect = true
+        return
+    end
+
+    local is_minor = tonumber(midi_scale) & 8 == 8
+    if is_minor then
+        is_sharp_autodetect = root == 'E' or root == 'B'
+    else
+        is_sharp_autodetect = root ~= 'F'
+    end
+end
 
 function ToggleSolfegeMode()
     use_solfege = not use_solfege
-    note_names = use_solfege and note_names_solfege or note_names_abc
-    reaper.SetExtState(extname, 'solfege', use_solfege and '1' or '0', true)
+    reaper.SetExtState(extname, 'solfege', use_solfege and '1' or '0', 1)
+end
+
+function SetSharpMode(is_sharp)
+    use_sharps = is_sharp
+    reaper.SetExtState(extname, 'sharps', use_sharps and '1' or '0', 1)
+
+    if prev_is_key_snap and use_sharps_autodetect then
+        local msg = 'This setting won\'t have any effect as \z
+            long as auto-detection during key snap is enabled!'
+        reaper.MB(msg, 'Warning', 0)
+    end
+end
+
+function ToggleSharpsAutoDetect()
+    use_sharps_autodetect = not use_sharps_autodetect
+    local state = use_sharps_autodetect and '1' or '0'
+    reaper.SetExtState(extname, 'sharps_auto', state, 1)
 end
 
 function ToggleInputMode()
@@ -1412,6 +1478,7 @@ function Main()
         prev_hwnd = hwnd
         notes_view = reaper.JS_Window_FindChildByID(hwnd, 1001)
         piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
+        key_snap_root_cbox = reaper.JS_Window_FindChildByID(hwnd, 1261)
         prev_piano_pane_w = nil
     end
 
@@ -1521,30 +1588,52 @@ function Main()
                 {
                     title = 'Options',
                     {
-                        title = 'Chord degree (key snap)',
+                        title = 'Display chords as',
                         {
-                            title = 'Show only chord',
-                            OnReturn = SetDegreeMode,
-                            is_checked = degree_mode == 1,
-                            arg = 1,
+                            title = 'Flat',
+                            OnReturn = SetSharpMode,
+                            is_checked = not use_sharps,
+                            arg = false,
                         },
                         {
-                            title = 'Show only degree',
+                            title = 'Sharp',
+                            OnReturn = SetSharpMode,
+                            is_checked = use_sharps,
+                            arg = true,
+                        },
+                        {separator = true},
+                        {
+                            title = 'Solfège (do, re, mi)',
+                            OnReturn = ToggleSolfegeMode,
+                            is_checked = use_solfege,
+                        },
+                    },
+                    {
+                        title = 'Key snap',
+                        {
+                            title = 'Display chord and degree',
+                            OnReturn = SetDegreeMode,
+                            is_checked = degree_mode == 3,
+                            arg = 3,
+                        },
+                        {
+                            title = 'Display degree only',
                             OnReturn = SetDegreeMode,
                             is_checked = degree_mode == 2,
                             arg = 2,
                         },
                         {
-                            title = 'Show chord and degree',
+                            title = 'Display chord only',
                             OnReturn = SetDegreeMode,
-                            is_checked = degree_mode == 3,
-                            arg = 3,
+                            is_checked = degree_mode == 1,
+                            arg = 1,
                         },
-                    },
-                    {
-                        title = 'Solfège mode (do, re, mi)',
-                        OnReturn = ToggleSolfegeMode,
-                        is_checked = use_solfege,
+                        {separator = true},
+                        {
+                            title = 'Auto-detect sharps/flats',
+                            OnReturn = ToggleSharpsAutoDetect,
+                            is_checked = use_sharps_autodetect,
+                        },
                     },
                     {
                         title = 'Analyze incoming MIDI (live input)',
@@ -1568,6 +1657,8 @@ function Main()
             local ret = ShowMenu(menu_str)
             MenuReturnRecursive(menu, ret)
             is_forced_redraw = true
+            -- Flush input chords on click
+            input_note_map = {}
         end
     end
 
@@ -1584,6 +1675,7 @@ function Main()
             prev_midi_scale_root = midi_scale_root
             is_redraw = true
         end
+        local has_scale_changed = false
         if midi_scale ~= prev_midi_scale then
             prev_midi_scale = midi_scale
             curr_scale_intervals = {}
@@ -1593,6 +1685,15 @@ function Main()
                 curr_scale_intervals[i + 1] = has_note and 1
             end
             is_redraw = true
+            has_scale_changed = true
+        end
+
+        if use_sharps_autodetect then
+            local key_snap_root = reaper.JS_Window_GetTitle(key_snap_root_cbox)
+            if key_snap_root ~= prev_key_snap_root or has_scale_changed then
+                prev_key_snap_root = key_snap_root
+                AutoDetectSharps(key_snap_root, midi_scale)
+            end
         end
     end
 
@@ -1622,6 +1723,7 @@ function Main()
             return
         else
             input_timer = nil
+            prev_input_chord_name = nil
             is_forced_redraw = true
         end
     end
