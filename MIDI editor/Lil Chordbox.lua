@@ -1,13 +1,18 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.0
+  @version 2.0.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Add option to set chord display to flat/sharp
-    - Add option to auto-detect flats/sharps when key snap is enabled
-    - Clicking on Lil Chordbox now resets live input detection (get rid of stuck notes)
+    - Add preference to set chord display to flat/sharp (default is now flat)
+    - Add preference to auto-detect flats/sharps when key snap is enabled (on by default)
+    - Add option to set chord track name
+    - Add option to reuse existing chord track
+    - Ctrl+click on Lil Chordbox exports chords with the last used export option
+    - Any click on Lil Chordbox now resets live input detection (get rid of stuck notes)
+    - Fix live input display when playing the same chord consecutively (1.8.0 regression)
+    - Improve project region export behavior
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -241,6 +246,10 @@ local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
 local use_sharps_autodetect = reaper.GetExtState(extname, 'sharps_auto') ~= '0'
 local is_sharp_autodetect = false
+
+local chord_track_name = reaper.GetExtState(extname, 'chord_track_name')
+if chord_track_name == '' then chord_track_name = 'Chords' end
+local reuse_chord_track = reaper.GetExtState(extname, 'reuse_chord_track') == '1'
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -896,10 +905,194 @@ function GetMIDIEditorView(hwnd, item_chunk)
     return start_time, end_time
 end
 
+function SetChordTrackName()
+    local title = 'Chord track'
+    local caption = 'Track name:,extrawidth=100'
+    local input_text = chord_track_name
+
+    local ret, user_text = reaper.GetUserInputs(title, 1, caption, input_text)
+    if not ret then return end
+
+    chord_track_name = user_text == '' and 'Chords' or user_text
+    reaper.SetExtState(extname, 'chord_track_name', chord_track_name, 1)
+end
+
+function ToggleReuseChordTrack()
+    reuse_chord_track = not reuse_chord_track
+    local state = reuse_chord_track and '1' or '0'
+    reaper.SetExtState(extname, 'reuse_chord_track', state, 1)
+end
+
+function CreateChordTrack()
+    local hwnd = reaper.MIDIEditor_GetActive()
+    local take = reaper.MIDIEditor_GetTake(hwnd)
+    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    reaper.SetExtState(extname, 'last_export', 'chord_track', 1)
+
+    local item = reaper.GetMediaItemTake_Item(take)
+    local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+    local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+    local item_end_pos = item_start_pos + item_length
+
+    local AddItem = reaper.AddMediaItemToTrack
+    local SetItemInfo = reaper.SetMediaItemInfo_Value
+    local GetItemInfo = reaper.GetMediaItemInfo_Value
+    local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
+    local GetTrackInfo = reaper.GetMediaTrackInfo_Value
+    local GetSetTrackInfo = reaper.GetSetMediaTrackInfo_String
+
+    local GetProjTimeFromPPQPos = reaper.MIDI_GetProjTimeFromPPQPos
+    local GetPPQPosFromProjTime = reaper.MIDI_GetPPQPosFromProjTime
+
+    reaper.Undo_BeginBlock()
+
+    local midi_track = reaper.GetMediaItem_Track(item)
+    local midi_track_num = GetTrackInfo(midi_track, 'IP_TRACKNUMBER')
+
+    local chord_track
+
+    -- Find existing chord track
+    if reuse_chord_track then
+        for i = midi_track_num - 2, 0, -1 do
+            local track = reaper.GetTrack(0, i)
+            local _, track_name = GetSetTrackInfo(track, 'P_NAME', '', 0)
+            if track_name == chord_track_name then
+                chord_track = track
+                break
+            end
+        end
+    end
+
+    -- Delete/trim conflicting items on chord track
+    if chord_track then
+        for i = reaper.CountTrackMediaItems(chord_track) - 1, 0, -1 do
+            local chord_item = reaper.GetTrackMediaItem(chord_track, i)
+            local length = GetItemInfo(chord_item, 'D_LENGTH')
+            local start_pos = GetItemInfo(chord_item, 'D_POSITION')
+            local end_pos = start_pos + length
+            if start_pos < item_end_pos and end_pos > item_start_pos then
+                if start_pos < item_start_pos - 0.01 then
+                    local diff = item_start_pos - start_pos
+                    SetItemInfo(chord_item, 'D_LENGTH', length - diff)
+                elseif end_pos > item_end_pos + 0.01 then
+                    local diff = item_end_pos - start_pos
+                    SetItemInfo(chord_item, 'D_LENGTH', length - diff)
+                    SetItemInfo(chord_item, 'D_POSITION', start_pos + diff)
+                else
+                    reaper.DeleteTrackMediaItem(chord_track, chord_item)
+                end
+            end
+        end
+    end
+
+    if not chord_track then
+        -- Create chord track
+        reaper.InsertTrackAtIndex(midi_track_num - 1, true)
+        chord_track = reaper.GetTrack(0, midi_track_num - 1)
+        GetSetTrackInfo(chord_track, 'P_NAME', chord_track_name, 1)
+    end
+
+    local loops = 1
+    local source_ppq_length = 0
+    -- Calculate how often item is looped (and loop length)
+    if GetItemInfo(item, 'B_LOOPSRC') == 1 then
+        local source = reaper.GetMediaItemTake_Source(take)
+        local source_length = reaper.GetMediaSourceLength(source)
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        local end_qn = start_qn + source_length
+        source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
+
+        local item_start_ppq = GetPPQPosFromProjTime(take, item_start_pos)
+        local item_end_ppq = GetPPQPosFromProjTime(take, item_end_pos)
+        local item_ppq_length = item_end_ppq - item_start_ppq
+        -- Note: Looped items repeat after full ppq length
+        loops = math.ceil(item_ppq_length / source_ppq_length)
+    end
+
+    local prev_name
+    local prev_start_pos
+    local prev_end_pos
+
+    for loop = 1, loops do
+        for _, chord in ipairs(curr_chords) do
+            local loop_ppq = source_ppq_length * (loop - 1)
+            local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
+            local end_pos = GetProjTimeFromPPQPos(take, chord.eppq + loop_ppq)
+
+            if prev_start_pos then
+                local reg_start_pos = prev_start_pos
+                local reg_end_pos = start_pos
+                if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
+                    reg_start_pos = math.max(reg_start_pos, item_start_pos)
+                    if reg_end_pos > item_end_pos then
+                        reg_end_pos = math.min(prev_end_pos, item_end_pos)
+                    end
+                    if prev_name ~= '' then
+                        local chord_item = AddItem(chord_track)
+                        local length = reg_end_pos - reg_start_pos
+                        SetItemInfo(chord_item, 'D_POSITION', reg_start_pos)
+                        SetItemInfo(chord_item, 'D_LENGTH', length)
+                        GetSetItemInfo(chord_item, 'P_NOTES', prev_name, 1)
+                    end
+                end
+            end
+
+            prev_name = BuildChordName(chord)
+            prev_start_pos = start_pos
+            prev_end_pos = end_pos
+        end
+    end
+
+    if prev_start_pos then
+        local reg_start_pos = prev_start_pos
+        local reg_end_pos = prev_end_pos
+        if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
+            reg_start_pos = math.max(reg_start_pos, item_start_pos)
+            reg_end_pos = math.min(reg_end_pos, item_end_pos)
+            if prev_name ~= '' then
+                local chord_item = AddItem(chord_track)
+                local length = reg_end_pos - reg_start_pos
+                SetItemInfo(chord_item, 'D_POSITION', reg_start_pos)
+                SetItemInfo(chord_item, 'D_LENGTH', length)
+                GetSetItemInfo(chord_item, 'P_NOTES', prev_name, 1)
+            end
+        end
+    end
+
+    -- Combine regions with same chord name
+    local prev_name
+    local prev_chord_item
+    for i = reaper.CountTrackMediaItems(chord_track) - 1, 0, -1 do
+        local chord_item = reaper.GetTrackMediaItem(chord_track, i)
+        local start_pos = GetItemInfo(chord_item, 'D_POSITION')
+        if start_pos >= item_start_pos and start_pos < item_end_pos then
+            local _, name = GetSetItemInfo(chord_item, 'P_NOTES', '', 0)
+            if name == prev_name then
+                local prev_length = GetItemInfo(prev_chord_item, 'D_LENGTH')
+                local prev_start_pos = GetItemInfo(prev_chord_item, 'D_POSITION')
+                local prev_end_pos = prev_start_pos + prev_length
+
+                reaper.DeleteTrackMediaItem(chord_track, prev_chord_item)
+
+                local curr_start_pos = GetItemInfo(chord_item, 'D_POSITION')
+                SetItemInfo(chord_item, 'D_LENGTH', prev_end_pos - curr_start_pos)
+            end
+            prev_name = name
+            prev_chord_item = chord_item
+        end
+    end
+    reaper.UpdateArrange()
+    reaper.Undo_EndBlock('Create chord track', -1)
+end
+
+
 function CreateChordProjectRegions()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    reaper.SetExtState(extname, 'last_export', 'project_region', 1)
 
     local item = reaper.GetMediaItemTake_Item(take)
     local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
@@ -1015,6 +1208,7 @@ function CreateChordProjectRegions()
                 if name == prev_name then
                     reaper.DeleteProjectMarker(0, prev_idx, true)
                     SetMarker(0, idx, true, start_pos, prev_end_pos, name)
+                    end_pos = prev_end_pos
                 end
                 prev_name = name
                 prev_idx = idx
@@ -1022,131 +1216,15 @@ function CreateChordProjectRegions()
             end
         end
     end
-
     reaper.Undo_EndBlock('Create chord project regions', -1)
-end
-
-function CreateChordTrack()
-    local hwnd = reaper.MIDIEditor_GetActive()
-    local take = reaper.MIDIEditor_GetTake(hwnd)
-    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
-
-    local item = reaper.GetMediaItemTake_Item(take)
-    local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
-    local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
-    local item_end_pos = item_start_pos + item_length
-
-    local AddItem = reaper.AddMediaItemToTrack
-    local SetItemInfo = reaper.SetMediaItemInfo_Value
-    local GetItemInfo = reaper.GetMediaItemInfo_Value
-    local GetSetItemInfo = reaper.GetSetMediaItemInfo_String
-
-    local GetProjTimeFromPPQPos = reaper.MIDI_GetProjTimeFromPPQPos
-    local GetPPQPosFromProjTime = reaper.MIDI_GetPPQPosFromProjTime
-
-    reaper.Undo_BeginBlock()
-
-    -- Create chord track
-    local track = reaper.GetMediaItem_Track(item)
-    local track_num = reaper.GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
-    reaper.InsertTrackAtIndex(track_num - 1, true)
-    local chord_track = reaper.GetTrack(0, track_num - 1)
-    reaper.GetSetMediaTrackInfo_String(chord_track, 'P_NAME', 'Chords', 1)
-
-    local loops = 1
-    local source_ppq_length = 0
-    -- Calculate how often item is looped (and loop length)
-    if GetItemInfo(item, 'B_LOOPSRC') == 1 then
-        local source = reaper.GetMediaItemTake_Source(take)
-        local source_length = reaper.GetMediaSourceLength(source)
-        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
-        local end_qn = start_qn + source_length
-        source_ppq_length = reaper.MIDI_GetPPQPosFromProjQN(take, end_qn)
-
-        local item_start_ppq = GetPPQPosFromProjTime(take, item_start_pos)
-        local item_end_ppq = GetPPQPosFromProjTime(take, item_end_pos)
-        local item_ppq_length = item_end_ppq - item_start_ppq
-        -- Note: Looped items repeat after full ppq length
-        loops = math.ceil(item_ppq_length / source_ppq_length)
-    end
-
-    local prev_name
-    local prev_start_pos
-    local prev_end_pos
-
-    for loop = 1, loops do
-        for _, chord in ipairs(curr_chords) do
-            local loop_ppq = source_ppq_length * (loop - 1)
-            local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
-            local end_pos = GetProjTimeFromPPQPos(take, chord.eppq + loop_ppq)
-
-            if prev_start_pos then
-                local reg_start_pos = prev_start_pos
-                local reg_end_pos = start_pos
-                if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
-                    reg_start_pos = math.max(reg_start_pos, item_start_pos)
-                    if reg_end_pos > item_end_pos then
-                        reg_end_pos = math.min(prev_end_pos, item_end_pos)
-                    end
-                    if prev_name ~= '' then
-                        local chord_item = AddItem(chord_track)
-                        local length = reg_end_pos - reg_start_pos
-                        SetItemInfo(chord_item, 'D_POSITION', reg_start_pos)
-                        SetItemInfo(chord_item, 'D_LENGTH', length)
-                        GetSetItemInfo(chord_item, 'P_NOTES', prev_name, 1)
-                    end
-                end
-            end
-
-            prev_name = BuildChordName(chord)
-            prev_start_pos = start_pos
-            prev_end_pos = end_pos
-        end
-    end
-
-    if prev_start_pos then
-        local reg_start_pos = prev_start_pos
-        local reg_end_pos = prev_end_pos
-        if reg_start_pos < item_end_pos and reg_end_pos > item_start_pos then
-            reg_start_pos = math.max(reg_start_pos, item_start_pos)
-            reg_end_pos = math.min(reg_end_pos, item_end_pos)
-            if prev_name ~= '' then
-                local chord_item = AddItem(chord_track)
-                local length = reg_end_pos - reg_start_pos
-                SetItemInfo(chord_item, 'D_POSITION', reg_start_pos)
-                SetItemInfo(chord_item, 'D_LENGTH', length)
-                GetSetItemInfo(chord_item, 'P_NOTES', prev_name, 1)
-            end
-        end
-    end
-
-    -- Combine regions with same chord name
-    local prev_name
-    local prev_chord_item
-    for i = reaper.CountTrackMediaItems(chord_track) - 1, 0, -1 do
-        local chord_item = reaper.GetTrackMediaItem(chord_track, i)
-        local _, name = GetSetItemInfo(chord_item, 'P_NOTES', '', 0)
-        if name == prev_name then
-            local prev_length = GetItemInfo(prev_chord_item, 'D_LENGTH')
-            local prev_start_pos = GetItemInfo(prev_chord_item, 'D_POSITION')
-            local prev_end_pos = prev_start_pos + prev_length
-
-            reaper.DeleteTrackMediaItem(chord_track, prev_chord_item)
-
-            local curr_start_pos = GetItemInfo(chord_item, 'D_POSITION')
-            SetItemInfo(chord_item, 'D_LENGTH', prev_end_pos - curr_start_pos)
-        end
-        prev_name = name
-        prev_chord_item = chord_item
-    end
-    reaper.UpdateArrange()
-    reaper.Undo_EndBlock('Create chord track', -1)
 end
 
 function CreateChordProjectMarkers()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    reaper.SetExtState(extname, 'last_export', 'project_marker', 1)
 
     local item = reaper.GetMediaItemTake_Item(take)
     local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
@@ -1209,6 +1287,8 @@ function CreateChordTakeMarkers()
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
 
+    reaper.SetExtState(extname, 'last_export', 'take_marker', 1)
+
     local item = reaper.GetMediaItemTake_Item(take)
     local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
     local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
@@ -1262,6 +1342,8 @@ function CreateChordTextEvents()
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
 
+    reaper.SetExtState(extname, 'last_export', 'text_event', 1)
+
     reaper.Undo_BeginBlock()
     local _, _, _, evt_cnt = reaper.MIDI_CountEvts(take)
 
@@ -1292,6 +1374,8 @@ function CreateChordNotationEvents()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
     if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return end
+
+    reaper.SetExtState(extname, 'last_export', 'notation_event', 1)
 
     reaper.Undo_BeginBlock()
     local _, _, _, evt_cnt = reaper.MIDI_CountEvts(take)
@@ -1551,11 +1635,11 @@ function Main()
     end
 
     -- Open options menu when user clicks on the box
-    local mouse_state = reaper.JS_Mouse_GetState(3)
+    local mouse_state = reaper.JS_Mouse_GetState(7)
     if mouse_state ~= prev_mouse_state then
         prev_mouse_state = mouse_state
-        local is_left_click = mouse_state == 1
-        local is_right_click = mouse_state == 2
+        local is_left_click = mouse_state & 1 == 1
+        local is_right_click = mouse_state & 2 == 2
         if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
             local menu = {
                 {
@@ -1636,6 +1720,18 @@ function Main()
                         },
                     },
                     {
+                        title = 'Chord track',
+                        {
+                            title = 'Set track name...',
+                            OnReturn = SetChordTrackName,
+                        },
+                        {
+                            title = 'Reuse existing chord track',
+                            OnReturn = ToggleReuseChordTrack,
+                            is_checked = reuse_chord_track,
+                        },
+                    },
+                    {
                         title = 'Analyze incoming MIDI (live input)',
                         OnReturn = ToggleInputMode,
                         is_checked = use_input,
@@ -1653,9 +1749,26 @@ function Main()
                     end,
                 },
             }
-            local menu_str = MenuCreateRecursive(menu)
-            local ret = ShowMenu(menu_str)
-            MenuReturnRecursive(menu, ret)
+
+            local is_ctrl_pressed = mouse_state & 4 == 4
+            if is_ctrl_pressed and is_left_click then
+                local last_export = reaper.GetExtState(extname, 'last_export')
+                local export_functions = {
+                    chord_track = CreateChordTrack,
+                    project_region = CreateChordProjectRegions,
+                    project_marker = CreateChordProjectMarkers,
+                    take_marker = CreateChordTakeMarkers,
+                    text_event = CreateChordTextEvents,
+                    notation_event = CreateChordNotationEvents,
+                }
+                if export_functions[last_export] then
+                    export_functions[last_export]()
+                end
+            else
+                local menu_str = MenuCreateRecursive(menu)
+                local ret = ShowMenu(menu_str)
+                MenuReturnRecursive(menu, ret)
+            end
             is_forced_redraw = true
             -- Flush input chords on click
             input_note_map = {}
