@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="6bf63d7c4410bd38771fef7aacbbd1803b197ab9">
+<index version="1" name="FTC Tools" commit="28168a67c0193756d48d0265d4e7f76246bfc414">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1001,6 +1001,17 @@
         <changelog><![CDATA[- Add chord degree display options
 - Support exporting to chord track]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/af3ecc8de728cfea99dd46b8d0e4a92840f21e48/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-04-12T16:09:53Z">
+        <changelog><![CDATA[- Add preference to set chord display to flat/sharp (default is now flat)
+- Add preference to auto-detect flats/sharps when key snap is enabled (on by default)
+- Add option to set chord track name
+- Add option to reuse existing chord track
+- Ctrl+click on Lil Chordbox exports chords with the last used export option
+- Any click on Lil Chordbox now resets live input detection (get rid of stuck notes)
+- Fix live input display when playing the same chord consecutively (1.8.0 regression)
+- Improve project region export behavior]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/28168a67c0193756d48d0265d4e7f76246bfc414/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
