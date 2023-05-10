@@ -1,21 +1,21 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Fix volume linking to work again after REAPER v6.65 changes
-    - Add user option in script header to temporarily disable autoplay
+    - Fix crash when using +dev builds
 ]]
 
 -- Uncomment the next line to turn off autoplay temporarily when link is active
 -- local toggle_autoplay = reaper.GetToggleCommandStateEx(32063, 1011) == 1
 
 -- Avoid creating undo points
-reaper.defer(function() end)
+reaper.defer(function()
+end)
 
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
@@ -23,7 +23,7 @@ if not reaper.JS_Window_Find then
     return
 end
 
-local version = tonumber(reaper.GetAppVersion():match('(.+)/'))
+local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
 local vol_hwnd_id = version < 6.65 and 1047 or 997
 
 -- Get media explorer window
@@ -79,7 +79,6 @@ function GetHoveredWindowID()
 end
 
 function MediaExplorer_GetSelectedAudioFiles()
-
     local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
     local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
     local forced_full_path = false
@@ -371,4 +370,3 @@ if container then
 end
 
 reaper.MB('Please focus a sampler fx window', 'Error', 0)
-
