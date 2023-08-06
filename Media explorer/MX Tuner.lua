@@ -1,14 +1,17 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.4
+  @version 1.8.0
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Improved file name pitch detection
-    - Set FFT algorithm as default
+    - Alt-click on a key now adds 'key' metadata (not automatic on MacOS)
+    - Alt-click on the metadata icon now removes 'key' metadata
+    - Improved FFT pitch detection algorithm (better harmonics detection)
+    - MX tuner now finds and analyzes the loudest section of a file
+    - Added configurable analysis window in menu > algorithm
+    - FTC algorithm is now deprecated
 ]]
-
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
     reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
@@ -51,6 +54,7 @@ local is_window_hover = false
 local rate_mode
 local pitch_mode
 local algo_mode
+local algo_window
 local parse_meta_mode
 local parse_name_mode
 
@@ -150,7 +154,6 @@ function IsMediaFile(file)
 end
 
 function MediaExplorer_GetSelectedMediaFiles()
-
     local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
     local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
     local forced_full_path = false
@@ -221,10 +224,59 @@ function MediaExplorer_GetSelectedFileInfo(sel_file, id)
             file_name = file_name .. '.' .. ext
         end
         if file_name == sel_file_name then
-            local info = reaper.JS_ListView_GetItem(mx_list_view, index, id)
+            local info = reaper.JS_ListView_GetItemText(mx_list_view, index, id)
             return info ~= '' and info
         end
     end
+end
+
+function MediaExplorer_SetMetaDataKey(key)
+    if version < 6.79 then
+        reaper.MB('This feature requires REAPER v6.79 and above.', 'Error', 0)
+        return
+    end
+    -- Edit metadata tag: Key
+    reaper.JS_Window_OnCommand(mx, 42064)
+
+    function HandleDialog()
+        local title = reaper.JS_Localize('Edit metadata tag', 'common')
+        local dialog_hwnd = reaper.JS_Window_Find(title, true)
+        local edit_hwnd = reaper.JS_Window_FindChildByID(dialog_hwnd, 1007)
+
+        -- Insert key name into text field
+        reaper.JS_Window_SetTitle(edit_hwnd, key)
+
+        -- Click OK button
+        -- Note: This only works on Windows
+        local ok_button_hwnd = reaper.JS_Window_FindChildByID(dialog_hwnd, 1)
+        reaper.JS_WindowMessage_Send(ok_button_hwnd, 'WM_LBUTTONDOWN', 0, 0, 0, 0)
+        reaper.JS_WindowMessage_Send(ok_button_hwnd, 'WM_LBUTTONUP', 0, 0, 0, 0)
+
+        -- Press key: Enter
+        -- Note: This only works on Linux
+        reaper.JS_WindowMessage_Send(edit_hwnd, 'WM_KEYDOWN', 0x0D, 0, 0, 0)
+        reaper.JS_WindowMessage_Send(edit_hwnd, 'WM_KEYUP', 0x0D, 0, 0, 0)
+
+        locked_key = nil
+        if rate_mode == 1 then
+            MediaExplorer_SetRate(1)
+        else
+            MediaExplorer_SetPitch(0)
+        end
+
+        local cnt = 0
+        function DelayRescan()
+            if cnt == 1 then
+                trigger_pitch_rescan = true
+                return
+            end
+            cnt = cnt + 1
+            reaper.defer(DelayRescan)
+        end
+        reaper.defer(DelayRescan)
+    end
+
+    reaper.defer(HandleDialog)
 end
 
 function MediaExplorer_GetPitch()
@@ -234,7 +286,6 @@ function MediaExplorer_GetPitch()
 end
 
 function MediaExplorer_SetPitch(pitch)
-
     local curr_pitch = MediaExplorer_GetPitch()
     local diff = math.abs(pitch - curr_pitch)
     local is_upwards = pitch > curr_pitch
@@ -287,8 +338,35 @@ function TurnOffPreservePitchOption()
     end
 end
 
-function GetPitchFTC(file)
+function GetApproximatePeakTime(src, src_len)
+    local rate = 1000
+    local spl_cnt = math.ceil(rate * src_len)
+    local buf = reaper.new_array(spl_cnt * 2)
 
+    local ret = reaper.PCM_Source_GetPeaks(src, rate, 0, 1, spl_cnt, 0, buf)
+
+    if not ret then return 0 end
+    spl_cnt = (ret & 0xfffff)
+    if spl_cnt == 0 then return 0 end
+
+    buf = buf.table()
+
+    local max_i = 0
+    local max_val = 0
+
+    for i = 1, spl_cnt do
+        local val = buf[i]
+        local val_abs = val < 0 and -val or val
+        if val_abs > max_val then
+            max_i = i
+            max_val = val_abs
+        end
+    end
+
+    return max_i / spl_cnt * src_len
+end
+
+function GetPitchFTC(file)
     -- Get media source peaks
     local src = reaper.PCM_Source_CreateFromFileEx(file, true)
     if not reaper.ValidatePtr(src, 'PCM_source*') then return end
@@ -299,21 +377,31 @@ function GetPitchFTC(file)
         return
     end
 
-    -- Limit length of analyzed sample to 1 sec
-    src_len = math.min(1, src_len)
+    local time_window = math.min(src_len, algo_window)
+    local soffs = GetApproximatePeakTime(src, src_len)
+    soffs = soffs - time_window / 5
+    if soffs + time_window > src_len then
+        soffs = src_len - soffs
+    end
+    soffs = math.max(soffs, 0)
+
+    -- Limit length of analyzed sample
+    src_len = math.min(src_len, time_window)
 
     local rate = reaper.GetMediaSourceSampleRate(src)
     local spl_cnt = math.ceil(src_len * rate)
+    spl_cnt = math.min(spl_cnt, 2 ^ 19)
+
     local buf = reaper.new_array(spl_cnt * 2)
-    buf.clear()
 
-    local peaks = reaper.PCM_Source_GetPeaks(src, rate, 0, 1, spl_cnt, 0, buf)
-
+    local ret = reaper.PCM_Source_GetPeaks(src, rate, 0, 1, spl_cnt, 0, buf)
     reaper.PCM_Source_Destroy(src)
-    if not peaks then return end
 
-    spl_cnt = peaks & 0xfffff
+    if not ret then return end
+    spl_cnt = ret & 0xfffff
     if spl_cnt == 0 then return end
+
+    buf = buf.table()
 
     -- Note: window size of 1 * rate = 1 sec
     local window_size = rate
@@ -369,7 +457,6 @@ function GetPitchFTC(file)
     -- A and C, A and D, etc.)
 
     for m = overlaps - 2, 0, -2 do
-
         local bins = {}
         local max_len, max_weight = 0, 0
 
@@ -422,7 +509,6 @@ function GetPitchFTC(file)
 
             -- Check if this candidate is a multiple of previous candidates
             if factor > 0.5 and diff < 0.1 then
-
                 -- Add a portion of previous weight to this candidate
                 local prev_weight = prev_c.new_weight or prev_c.weight
                 curr_c.new_weight = curr_c.new_weight or curr_c.weight
@@ -447,10 +533,11 @@ function GetPitchFTC(file)
     return best_c and (rate / (best_c.new_len or best_c.len))
 end
 
+
 function GetPitchFFT(file)
     -- Get media source peaks
     local src = reaper.PCM_Source_CreateFromFileEx(file, true)
-    if not reaper.ValidatePtr(src, 'PCM_source*') then return end
+    if not src then return end
 
     local src_len = reaper.GetMediaSourceLength(src)
     if src_len == 0 then
@@ -458,29 +545,45 @@ function GetPitchFFT(file)
         return
     end
 
-    -- Limit length of analyzed sample to 1 sec
-    src_len = math.min(1, src_len)
+    -- We find the highest peak and set our time window there
+    local time_window = math.min(src_len, algo_window)
+    local soffs = GetApproximatePeakTime(src, src_len)
+    soffs = soffs - time_window / 5
+    if soffs + time_window > src_len then
+        soffs = src_len - soffs
+    end
+    soffs = math.max(soffs, 0)
+
+    -- Limit length of analyzed sample
+    src_len = math.min(src_len, time_window)
 
     local rate = reaper.GetMediaSourceSampleRate(src)
     local spl_cnt = math.ceil(src_len * rate)
+    spl_cnt = math.min(spl_cnt, 2 ^ 19)
 
     -- FFT window size has to be a power of 2
     local window_size = 2 ^ 15
     local buf = reaper.new_array(math.max(window_size, spl_cnt) * 2)
 
-    local peaks = reaper.PCM_Source_GetPeaks(src, rate, 0, 1, spl_cnt, 0, buf)
-
+    local ret = reaper.PCM_Source_GetPeaks(src, rate, soffs, 1, spl_cnt, 0, buf)
     reaper.PCM_Source_Destroy(src)
-    if not peaks then return end
 
-    spl_cnt = peaks & 0xfffff
+    if not ret then return end
+    spl_cnt = ret & 0xfffff
     if spl_cnt == 0 then return end
 
     -- Zero padding
     buf.clear(0, spl_cnt - 1)
-    buf.fft(window_size, true)
 
-    -- Find highest frequency peak
+    buf.fft(window_size, true)
+    buf = buf.table()
+
+    for i = 1, window_size do
+        local re = buf[i]
+        local im = buf[window_size * 2 - i]
+        buf[i] = re * re + im * im
+    end
+
     local max_val = 0
     local max_i
     for i = 1, window_size do
@@ -494,17 +597,19 @@ function GetPitchFFT(file)
 
     if not max_i then return end
 
-    if max_i > 1 and max_i < window_size / 4 then
-        -- Look for fundamental harmonics
-        local lim = 0.4
-        local third_i = math.floor(max_i / 3 + 0.5)
-        if buf[third_i] > max_val * lim then max_i = third_i end
+    -- Look for fundamental harmonics
+    local limit = window_size // 500
+    for h = 7, 2, -1 do
+        local i = max_i // h
+        if max_i - i > limit and buf[i] ^ 0.5 > max_val ^ 0.5 * (0.05 * h) then
+            max_i = i
+        end
+    end
 
-        local half_i = math.floor(max_i / 2 + 0.5)
-        if buf[half_i] > max_val * lim then max_i = half_i end
-        -- Use parabolic interpolation to improve precision
-        local prev = buf[max_i - 1]
-        local next = buf[max_i + 1]
+    -- Use parabolic interpolation to improve precision
+    local prev = buf[max_i - 1]
+    local next = buf[max_i + 1]
+    if prev and next then
         local diff = (next - prev) / (2 * (2 * max_val - prev - next))
         max_i = max_i + diff
     end
@@ -727,7 +832,6 @@ function LoadTheme(id)
 end
 
 function DrawPiano()
-
     local keys = {}
 
     local f_w = gfx.w // 7
@@ -786,10 +890,15 @@ function DrawPiano()
 
     local button_w = math.max(18, math.min(f_w // 4, gfx.h // 4))
     if curr_parsing_mode > 0 and m_x <= button_w and m_y <= button_w then
-        if not is_pressed and gfx.mouse_cap & 1 == 1 then
-            is_parsing_bypassed = not is_parsing_bypassed
-            trigger_pitch_rescan = true
-            is_pressed = true
+        if not is_pressed then
+            if gfx.mouse_cap & 17 == 17 then
+                MediaExplorer_SetMetaDataKey('')
+                is_pressed = true
+            elseif gfx.mouse_cap & 1 == 1 then
+                is_pressed = true
+                is_parsing_bypassed = not is_parsing_bypassed
+                trigger_pitch_rescan = true
+            end
         end
     end
 
@@ -805,9 +914,11 @@ function DrawPiano()
         if key.title == locked_key then key.bg_color = key.lock_color end
 
         if not hovered_key and is_hover then
-            if gfx.mouse_cap & 1 == 1 then
-
-                if not is_pressed then
+            if not is_pressed then
+                if gfx.mouse_cap & 17 == 17 then
+                    MediaExplorer_SetMetaDataKey(key.title)
+                    is_pressed = true
+                elseif gfx.mouse_cap & 1 == 1 then
                     locked_key = key.title ~= locked_key and key.title or nil
                     if not locked_key then
                         OnUnlock()
@@ -816,8 +927,8 @@ function DrawPiano()
                     end
                     trigger_pitch_rescan = true
                     key.bg_color = key.lock_color
+                    is_pressed = true
                 end
-                is_pressed = true
             end
 
             hovered_key = key
@@ -849,9 +960,9 @@ function DrawPiano()
             local x_center = key.x + (key.w + 1) // 2
             local y_center = key.h - size - margin_bot + 1
             gfx.rect(x_center - half_size, 3 + y_center - half_size, size,
-                     size - 2, 1)
+                size - 2, 1)
             gfx.roundrect(x_center - half_size + 1, y_center - size + 3,
-                          size - 3, size, size // 3.5, 1)
+                size - 3, size, size // 3.5, 1)
         else
             -- Draw text
             gfx.setfont(1, '', 14, string.byte('b'))
@@ -933,7 +1044,6 @@ function Main()
     local new_file = files[1]
     local has_file_changed = prev_file ~= new_file
     if new_file and (has_file_changed or trigger_pitch_rescan) then
-
         if has_file_changed then is_parsing_bypassed = false end
 
         local file_pitch
@@ -949,7 +1059,6 @@ function Main()
         end
         -- Use chosen pitch detection algorithm to find pitch
         if not file_pitch or is_parsing_bypassed then
-
             if not is_parsing_bypassed then curr_parsing_mode = 0 end
 
             local ext = new_file:match('%.([^.]+)$')
@@ -1072,11 +1181,10 @@ function Main()
 
     -- Open settings menu on right click
     if gfx.mouse_cap & 2 == 2 then
-
         local menu =
-            '>Window|%sDock window|%sHide frame|%sAlways on top|<%sAvoid focus\z
+        '>Window|%sDock window|%sHide frame|%sAlways on top|<%sAvoid focus\z
             |>Pitch snap|%sContinuous|%sQuarter tones|%sSemitones||<%sTune with \z
-            rate|>Algorithm|%sFFT|<%sFTC|>Parsing|%sUse metadata tag \'key\'|\z
+            rate|>Algorithm|%sFFT|%sFTC (deprecated)||<Set analysis time window|>Parsing|%sUse metadata tag \'key\'|\z
             <%sSearch filename for key|>Theme|%sLight|%sDark|%sReaper 1|<%sReaper 2'
 
         local is_docked = dock & 1 == 1
@@ -1098,11 +1206,11 @@ function Main()
         local menu_theme4 = theme_id == 4 and '!' or ''
 
         menu = menu:format(menu_dock_state, menu_frameless, menu_ontop,
-                           menu_focus, menu_pitch_continuous,
-                           menu_pitch_quarter, menu_pitch_semitones, menu_rate,
-                           menu_algo_fft, menu_algo_ftc, menu_parse_meta,
-                           menu_parse_name, menu_theme1, menu_theme2,
-                           menu_theme3, menu_theme4)
+            menu_focus, menu_pitch_continuous,
+            menu_pitch_quarter, menu_pitch_semitones, menu_rate,
+            menu_algo_fft, menu_algo_ftc, menu_parse_meta,
+            menu_parse_name, menu_theme1, menu_theme2,
+            menu_theme3, menu_theme4)
 
         gfx.x, gfx.y = m_x, m_y
         local ret = gfx.showmenu(menu)
@@ -1147,14 +1255,27 @@ function Main()
 
         if ret == 9 then algo_mode = 2 end
         if ret == 10 then algo_mode = 1 end
-        if ret == 11 then parse_meta_mode = 1 - parse_meta_mode end
-        if ret == 12 then parse_name_mode = 1 - parse_name_mode end
+
+        if ret == 11 then
+            local title = 'Analysis time window '
+            local caption = 'Time window in seconds (def: 1)'
+            local input = tostring(algo_window)
+
+            local _, user_text = reaper.GetUserInputs(title, 1, caption, input)
+            if tonumber(user_text) then
+                algo_window = tonumber(user_text)
+                reaper.SetExtState('FTC.MXTuner', 'algo_window', algo_window, 1)
+            end
+        end
+
+        if ret == 12 then parse_meta_mode = 1 - parse_meta_mode end
+        if ret == 13 then parse_name_mode = 1 - parse_name_mode end
 
         -- Retrigger pitch detection when detection type changes
-        if ret >= 9 and ret <= 12 then trigger_pitch_rescan = true end
+        if ret >= 9 and ret <= 13 then trigger_pitch_rescan = true end
 
-        if ret >= 13 and ret <= 17 then
-            theme_id = ret - 12
+        if ret >= 14 and ret <= 18 then
+            theme_id = ret - 13
             LoadTheme(theme_id)
             reaper.SetExtState('FTC.MXTuner', 'theme_id', theme_id, true)
         end
@@ -1240,6 +1361,7 @@ end
 rate_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'rate_mode')) or 0
 pitch_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'pitch_mode')) or 1
 algo_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_mode')) or 2
+algo_window = tonumber(reaper.GetExtState('FTC.MXTuner', 'algo_window')) or 1
 parse_meta_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'meta_mode')) or 1
 parse_name_mode = tonumber(reaper.GetExtState('FTC.MXTuner', 'name_mode')) or 1
 
@@ -1250,3 +1372,17 @@ RefreshMXToolbar()
 
 Main()
 reaper.atexit(Exit)
+
+-- Show a one time notice to users if they are using deprecated FTC algorithm
+if reaper.GetExtState('FTC.MXTuner', 'show_deprecated') == '' then
+    reaper.SetExtState('FTC.MXTuner', 'show_deprecated', '1', true)
+    if algo_mode == 1 then
+        local msg = 'You are using the FTC algorithm which is now \z
+        deprecated.\n\nSwitch to the new and improved FFT algorithm?'
+        local ret = reaper.MB(msg, 'Notice', 3)
+        if ret == 6 then
+            algo_mode = 2
+            reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, 1)
+        end
+    end
+end
