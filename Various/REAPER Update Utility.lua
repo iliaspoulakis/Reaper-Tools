@@ -273,6 +273,7 @@ function CheckStartupHook()
     if reaper.file_exists(startup_script_path) then
 
         local file = io.open(startup_script_path, 'r')
+        if not file then return false end
         local content = file:read('*a')
         file:close()
 
@@ -302,6 +303,7 @@ function SetStartupHook(is_enabled)
     if reaper.file_exists(startup_script_path) then
 
         local file = io.open(startup_script_path, 'r')
+        if not file then return end
         content = file:read('*a')
         file:close()
 
@@ -319,6 +321,10 @@ function SetStartupHook(is_enabled)
             content = content:sub(1, s - 1) .. hook .. content:sub(e + 1)
 
             file = io.open(startup_script_path, 'w')
+            if not file then
+                reaper.MB('Could not write to file', 'Error' , 0)
+                return
+            end
             file:write(content)
             file:close()
         end
@@ -332,6 +338,7 @@ function SetStartupHook(is_enabled)
             reaper.Main_OnCommand(reaper.NamedCommandLookup(update_utility_cmd), 0)\n\n'
 
         local file = io.open(startup_script_path, 'w')
+        if not file then return end
         file:write(hook:format(script_id) .. (content or ''))
         file:close()
     end
@@ -398,6 +405,7 @@ function ShowSettingsMenu()
             settings.debug_startup.enabled = false
 
             local startup_log_file = io.open(startup_log_path, 'w')
+            if not startup_log_file then return end
             startup_log_file:write(debug_str, '\n')
             startup_log_file:close()
 
@@ -415,6 +423,7 @@ function ShowSettingsMenu()
             os.remove(user_log_path)
             if enabled then
                 local user_log_file = io.open(user_log_path, 'a')
+                if not user_log_file then return end
                 user_log_file:write(debug_str, '\n')
                 user_log_file:close()
                 local msg = ' \nLogging to file is now enabled!\n\n\z
