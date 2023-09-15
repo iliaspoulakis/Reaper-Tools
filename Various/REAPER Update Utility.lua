@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.5
+  @version 1.8.6
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Eject disk images on MacOS to remove disk utility entries
+    - Notifications: Check for dev versions now detects pre versions
 ]]
 
 -- App version & platform architecture
@@ -806,7 +806,7 @@ function Main()
                 if not new_version then
                     print('No update found! Exiting...')
                     return
-                elseif new_version:match('dev') then
+                elseif new_version:match('dev') or new_version:match('pre') then
                     if not settings.notify_dev.enabled then
                         print('No dev notifications! Exiting...')
                         return
