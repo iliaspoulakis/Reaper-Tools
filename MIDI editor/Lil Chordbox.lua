@@ -1,18 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.0
+  @version 2.0.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Add preference to set chord display to flat/sharp (default is now flat)
-    - Add preference to auto-detect flats/sharps when key snap is enabled (on by default)
-    - Add option to set chord track name
-    - Add option to reuse existing chord track
-    - Ctrl+click on Lil Chordbox exports chords with the last used export option
-    - Any click on Lil Chordbox now resets live input detection (get rid of stuck notes)
-    - Fix live input display when playing the same chord consecutively (1.8.0 regression)
-    - Improve project region export behavior
+    - Support REAPER v7 (size changed)
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -90,6 +83,21 @@ local is_linux = os:match('Other')
 
 local piano_pane_scale1_w = is_windows and 128 or is_macos and 145 or 161
 local edit_box_scale1_w = is_windows and 52 or is_macos and 60 or 68
+
+local box_m = 5
+local box_p = 4
+local box_x = 7
+local box_y = 28
+local box_h = 18
+
+if version >= 7 then
+    edit_box_scale1_w = is_windows and 46 or is_macos and 52 or 57
+    box_m = is_windows and 11 or is_macos and 13 or 15
+    box_p = 8
+    box_x = is_windows and 12 or is_macos and 14 or 16
+    box_y = 34
+    box_h = 22
+end
 
 local tooltip_delay = 0.6
 
@@ -1573,11 +1581,12 @@ function Main()
         -- Calculate scale from piano pane width
         scale = piano_pane_w / piano_pane_scale1_w
 
-        -- Use 2 times the size of the boxes above + inbetween padding of 5px
-        bm_w = math.ceil(edit_box_scale1_w * scale) * 2 + math.floor(5 * scale)
-        bm_h = math.floor(18 * scale)
-        bm_x = math.floor(7 * scale)
-        bm_y = math.floor(28 * scale)
+        -- Use 2 times the size of the boxes above + inbetween margin
+        bm_w = math.ceil(edit_box_scale1_w * scale) * 2
+        bm_w = bm_w + math.floor(box_m * scale)
+        bm_h = math.floor(box_h * scale)
+        bm_x = math.floor(box_x * scale)
+        bm_y = math.floor(box_y * scale)
 
         bm_x = bm_x + box_x_offs
         bm_y = bm_y + box_y_offs
@@ -1586,7 +1595,7 @@ function Main()
 
         -- Find optimal font_size by incrementing until it doesn't fit box
         font_size = 1
-        local font_max_height = bm_h - math.floor(4 * scale)
+        local font_max_height = bm_h - math.floor(box_p * scale)
         if is_macos then font_max_height = font_max_height + 2 end
         for i = 1, 100 do
             gfx.setfont(1, 'Arial', i)
