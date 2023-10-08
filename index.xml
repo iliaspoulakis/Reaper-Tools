@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="79b63d45ff5cbffe2087649f0c461346f2c449fe">
+<index version="1" name="FTC Tools" commit="75b594f3fa38b196bf88b8e3bf5bf5e5a2cf3e85">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1021,6 +1021,10 @@
 - Fix live input display when playing the same chord consecutively (1.8.0 regression)
 - Improve project region export behavior]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/28168a67c0193756d48d0265d4e7f76246bfc414/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-10-08T18:34:51Z">
+        <changelog><![CDATA[- Support REAPER v7 (size changed)]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/75b594f3fa38b196bf88b8e3bf5bf5e5a2cf3e85/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
