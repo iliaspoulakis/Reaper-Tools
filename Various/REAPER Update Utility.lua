@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.7
+  @version 1.8.8
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Improve menu order for old versions
+    - Fix +dev version order in old version history
 ]]
 
 -- App version & platform architecture
@@ -230,6 +230,17 @@ function ShowHistoryMenu()
         if prev_group and group ~= prev_group or i == 1 then
             -- Create submenus 
             if #group_list > 1 or not is_main_clicked then
+                 -- Move dev versions to the top
+                local offs = 1
+                for n = 1, #group_list do
+                    if group_list[n].version:match('dev') then
+                        local val = group_list[n]
+                        table.remove(group_list, n)
+                        table.insert(group_list, offs, val)
+                        offs = offs + 1
+                    end
+                end
+                -- Mark first and last entry (for menu creation)
                 group_list[1].is_first = true
                 group_list[#group_list].is_last = true
             end
