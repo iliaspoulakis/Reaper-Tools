@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.6
+  @version 1.8.7
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Notifications: Check for dev versions now detects pre versions
+    - Improve menu order for old versions
 ]]
 
 -- App version & platform architecture
@@ -206,33 +206,35 @@ function ParseHistory(file, dlink)
     end
 end
 
+local function SortByAttributeName(array, attribute)
+    local function Format(d) return ('%03d%s'):format(#d, d) end
+    local function Compare(a, b)
+        a = a[attribute]
+        b = b[attribute]
+        return tostring(a):gsub('%d+', Format) < tostring(b):gsub('%d+', Format)
+    end
+    table.sort(array, Compare)
+end
+
 function ShowHistoryMenu()
     local list = is_main_clicked and main_list or dev_list
     local prev_group
     local menu_list = {}
     local group_list = {}
-    -- Reorder list for showing in menu (reverse main order, but not sublists)
+
+    SortByAttributeName(list, 'version')
+
+    -- Reorder list for showing in menu (reverse order)
     for i = #list, 1, -1 do
         local group = list[i].version:match('^[%d.]+')
         if prev_group and group ~= prev_group or i == 1 then
-            if #group_list > 1 then
-                -- Move rc versions to the top
-                local offs = 0
-                for n = #group_list, 1, -1 do
-                    if group_list[n].version:match('rc') then
-                        local val = group_list[n]
-                        table.remove(group_list, n)
-                        table.insert(group_list, #group_list + 1 - offs, val)
-                        offs = offs + 1
-                    end
-                end
-                group_list[1].is_last = true
-                group_list[#group_list].is_first = true
+            -- Create submenus 
+            if #group_list > 1 or not is_main_clicked then
+                group_list[1].is_first = true
+                group_list[#group_list].is_last = true
             end
-            for n = #group_list, 1, -1 do
-                if list[i].version ~= curr_version then
-                    menu_list[#menu_list + 1] = group_list[n]
-                end
+            for n = 1, #group_list do
+                menu_list[#menu_list + 1] = group_list[n]
             end
             group_list = {}
         end
