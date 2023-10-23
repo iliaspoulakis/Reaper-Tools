@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.1
+  @version 2.0.2
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Support REAPER v7 (size changed)
+    - Fix crash when glueing MIDI items
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -1636,6 +1636,12 @@ function Main()
         return
     end
 
+    local item = reaper.GetMediaItemTake_Item(take)
+    if not reaper.ValidatePtr(item, 'MediaItem*') then
+        reaper.defer(Main)
+        return
+    end
+
     -- Flush input events when take changes
     if take ~= prev_take then
         prev_take = take
@@ -1871,7 +1877,6 @@ function Main()
         local tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd)
         -- Avoid getting chunk as long as tooltip is shown
         if tooltip == '' then
-            local item = reaper.GetMediaItemTake_Item(take)
             local _, chunk = reaper.GetItemStateChunk(item, '', false)
             if chunk ~= prev_item_chunk then
                 prev_item_chunk = chunk
