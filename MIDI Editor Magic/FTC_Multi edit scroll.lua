@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.6
+  @version 1.3.0
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Use native function instead of SWS BR_GetMouseCursorContext
+    - Improve behavior when selecting grouped items
+    - Avoid Reascript task control
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -43,6 +44,9 @@ if not reaper.SNM_GetIntConfigVar then
     reaper.MB('Please install SWS extension', 'Error', 0)
     return
 end
+
+local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
+if version >= 7.03 then reaper.set_action_options(3) end
 
 function print(msg)
     if debug then
@@ -235,10 +239,8 @@ function RestoreItemSelection()
     end
 end
 
-function NoUndo()
-end
-
-reaper.defer(NoUndo)
+-- Avoid creating undo points
+reaper.defer(function() end)
 
 local time = reaper.time_precise()
 local prev_time = tonumber(reaper.GetExtState(extname, 'timestamp')) or 0
@@ -360,6 +362,16 @@ if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
                     local item = reaper.GetSelectedMediaItem(0, i)
                     reaper.SetMediaItemSelected(item, item == mouse_item)
                 end
+
+                -- Options: Toggle item grouping and track media/razor edit grouping
+                if reaper.GetToggleCommandState(1156) == 1 then
+                    -- Options: Selecting one grouped item selects group
+                    if reaper.GetToggleCommandState(41156) == 1 then
+                        -- Item grouping: Select all items in groups
+                        reaper.Main_OnCommand(40034, 0)
+                    end
+                end
+
                 CreateUserUndoPoints(sel_item_cnt)
                 reaper.defer(reaper.UpdateArrange)
             end
@@ -423,6 +435,16 @@ if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
         end
         local take = reaper.GetActiveTake(mouse_item)
         local is_valid = reaper.ValidatePtr(take, 'MediaItem_Take*')
+
+        -- Options: Toggle item grouping and track media/razor edit grouping
+        if reaper.GetToggleCommandState(1156) == 1 then
+            -- Options: Selecting one grouped item selects group
+            if reaper.GetToggleCommandState(41156) == 1 then
+                -- Item grouping: Select all items in groups
+                reaper.Main_OnCommand(40034, 0)
+            end
+        end
+
         if not is_valid or not reaper.TakeIsMIDI(take) then
             -- Keep only mouse item selected
             local sel_item_cnt = reaper.CountSelectedMediaItems(0)
@@ -431,6 +453,13 @@ if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
                 reaper.SetMediaItemSelected(item, item == mouse_item)
                 reaper.UpdateItemInProject(item)
             end
+
+            -- Options: Selecting one grouped item selects group
+            if reaper.GetToggleCommandState(41156) == 1 then
+                -- Item grouping: Select all items in groups
+                reaper.Main_OnCommand(40034, 0)
+            end
+
             CreateUserUndoPoints(sel_item_cnt)
             return
         end
