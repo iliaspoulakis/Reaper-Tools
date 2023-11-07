@@ -1,21 +1,31 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.3.0
   @about Bundle with feasible configurations of MeMagic
   @metapackage
+  @changelog
+    - Support using selected notes for vertical zoom/scroll functions
   @provides
     [main=main,midi_editor] Generated/FTC_MeMagic (1-2) Vertically zoom to notes in visible area.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-2s) Vertically zoom to selected notes in visible area.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-3) Vertically zoom to all notes in item.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-3s) Vertically zoom to all selected notes in item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-4) Vertically scroll to pitch.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-5) Vertically scroll to pitch, restrict to notes in visible area.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-6) Vertically scroll to pitch, restrict to notes in item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-7) Vertically scroll to center of notes in visible area.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-7s) Vertically scroll to center of selected notes in visible area.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-8) Vertically scroll to center of notes in item.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-8s) Vertically scroll to center of selected notes in item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-9) Vertically scroll to lowest note in visible area.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-9s) Vertically scroll to lowest selected note in visible area.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-10) Vertically scroll to lowest note in item.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-10s) Vertically scroll to lowest selected note in item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-11) Vertically scroll to highest note in visible area.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-11s) Vertically scroll to highest selected note in visible area.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-12) Vertically scroll to highest note in item.lua
+    [main=main,midi_editor] Generated/FTC_MeMagic (1-12s) Vertically scroll to highest selected note in item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (2-1) Horizontally zoom to item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (2-3) Horizontally zoom to item + Vertically zoom to all notes in item.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (2-4) Horizontally zoom to item + Vertically scroll to pitch.lua

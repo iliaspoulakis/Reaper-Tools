@@ -40,7 +40,7 @@
 
 -- Context: Toolbar button
 local TBB_horizontal_zoom_mode = 1
-local TBB_vertical_zoom_mode = 6
+local TBB_vertical_zoom_mode = 9
 
 -- Context: MIDI editor note area
 local MEN_horizontal_zoom_mode = {7, 1, 7, 7}
@@ -103,7 +103,7 @@ local min_vertical_notes = 8
 local max_vertical_note_pixels = 32
 
 -- Use selected notes only
-local use_note_sel = false
+local use_note_sel = true
 
 ------------------------------ FUNCTIONS ------------------------------------
 

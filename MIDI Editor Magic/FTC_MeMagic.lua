@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.3.0
   @about Contextual zooming & scrolling for the MIDI editor in reaper
+  @changelog
+    - Support using selected notes for vertical zoom/scroll functions
 ]]
 ------------------------------ ZOOM MODES -----------------------------
 
@@ -99,6 +101,9 @@ local min_vertical_notes = 8
 -- Maximum vertical size for notes in pixels (smaller values increase performance)
 local max_vertical_note_pixels = 32
 
+-- Use selected notes only
+local use_note_sel = false
+
 ------------------------------ FUNCTIONS ------------------------------------
 
 local debug = false
@@ -144,7 +149,7 @@ function GetClickMode(cmd)
         'MM_CTX_ITEM_DBLCLK',
         'MM_CTX_ITEMLOWER_CLK',
         'MM_CTX_ITEMLOWER_DBLCLK',
-        'MM_CTX_AREASEL_CLK'
+        'MM_CTX_AREASEL_CLK',
     }
     for _, modifier in ipairs(modifiers) do
         for i = 0, 15 do
@@ -564,22 +569,38 @@ function GetPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     local note_lo = 128
     local note_hi = -1
 
-    local density = 0
-    local density_cnt = 0
+    local note_avg = 0
+    local note_cnt = 0
+
+    local sel_note_lo = 128
+    local sel_note_hi = -1
+
+    local sel_note_avg = 0
+    local sel_note_cnt = 0
 
     local i = 0
     repeat
-        local ret, _, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
+        local ret, sel, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
         if ret and IsNoteVisible(sppq, eppq) then
             note_lo = math.min(note_lo, pitch)
             note_hi = math.max(note_hi, pitch)
-            density = density + pitch
-            density_cnt = density_cnt + 1
+            note_avg = note_avg + pitch
+            note_cnt = note_cnt + 1
+            if sel then
+                sel_note_lo = math.min(sel_note_lo, pitch)
+                sel_note_hi = math.max(sel_note_hi, pitch)
+                sel_note_avg = sel_note_avg + pitch
+                sel_note_cnt = sel_note_cnt + 1
+            end
         end
         i = i + 1
     until not ret
 
-    return note_lo, note_hi, density_cnt > 0 and density / density_cnt
+    note_avg = note_cnt > 0 and note_avg / note_cnt
+    sel_note_avg = sel_note_cnt > 0 and sel_note_avg / sel_note_cnt
+    if sel_note_cnt == 0 then sel_note_lo, sel_note_hi = nil, nil end
+
+    return note_lo, note_hi, note_avg, sel_note_lo, sel_note_hi, sel_note_avg
 end
 
 function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
@@ -608,7 +629,7 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
     local i = 0
     repeat
         local row, size = GetItemVZoom(item)
-        local pitch_range = math.min( -2, curr_row - row + 1) * -1
+        local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
         if curr_row > target_row then
             curr_row = math.max(target_row, curr_row - pitch_range)
@@ -701,7 +722,7 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     local i = 0
     repeat
         local row, size = GetItemVZoom(item)
-        local pitch_range = math.min( -2, curr_row - row + 1) * -1
+        local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
         if row == 127 and i == 0 and not backup_target_row then
             -- When row 127 is visible it's not possible to get the target range.
@@ -930,6 +951,10 @@ if window == 'arrange' and (context > 0 or click_mode > 0) then
         -- Handle empty take lanes
         if not reaper.ValidatePtr(take, 'MediaItem_Take*') then
             print('Take is an empty take lane')
+            if reaper.GetMediaItemNumTakes(sel_item) == 0 then
+                -- Item: Show notes for items...
+                reaper.Main_OnCommand(40850, 0)
+            end
             reaper.Undo_EndBlock(undo_name, -1)
             return
         end
@@ -937,24 +962,21 @@ if window == 'arrange' and (context > 0 or click_mode > 0) then
         if not reaper.TakeIsMIDI(take) then
             if click_mode == 2 then
                 local src = reaper.GetMediaItemTake_Source(take)
-                local file_name = reaper.GetMediaSourceFileName(src, '')
-                local video_extensions = {'mp4', 'gif'}
-                -- Open video window for video items
-                for _, extension in ipairs(video_extensions) do
-                    if file_name:lower():match('[^.]+$') == extension then
-                        local video_window = reaper.GetToggleCommandState(50125)
-                        if video_window == 0 then
-                            reaper.Main_OnCommand(50125, 0)
-                            reaper.Undo_EndBlock(undo_name, -1)
-                            return
-                        end
+                local src_type = reaper.GetMediaSourceType(src, '')
+                -- Open video window if not already open (else item properties)
+                if src_type == 'VIDEO' then
+                    if reaper.GetToggleCommandState(50125) == 0 then
+                        -- Video: Show/hide video window
+                        reaper.Main_OnCommand(50125, 0)
+                        undo_name = 'Show/hide video window'
+                        reaper.Undo_EndBlock(undo_name, -1)
+                        return
                     end
                 end
-                local src_type = reaper.GetMediaSourceType(src)
                 if src_type == 'RPP_PROJECT' then
                     -- Cmd: Open associated project in new tab
                     reaper.Main_OnCommand(41816, 0)
-                    undo_name = 'Item: Open associated project in new tab'
+                    undo_name = 'Open associated project in new tab'
                 else
                     -- Cmd: Show media item/take properties
                     reaper.Main_OnCommand(40009, 0)
@@ -1269,7 +1291,7 @@ if vzoom_mode > 0 and not is_notation then
         end_pos = item_end_pos
     end
 
-    local note_lo, note_hi, note_density =
+    local note_lo, note_hi, note_avg, sel_note_lo, sel_note_hi, sel_note_avg =
         GetPitchRange(editor_take, start_pos, end_pos, item_start_pos,
             item_end_pos)
 
@@ -1277,8 +1299,14 @@ if vzoom_mode > 0 and not is_notation then
         print('Notes are hidden. Zooming to content')
         -- Cmd: Zoom to content
         reaper.MIDIEditor_OnCommand(hwnd, 40466)
-    else
+    elseif not use_note_sel or sel_note_lo then
         if vzoom_mode >= 2 and vzoom_mode <= 3 then
+            if use_note_sel then
+                note_lo = sel_note_lo or note_lo
+                note_hi = sel_note_hi or note_hi
+                note_avg = sel_note_avg or note_avg
+            end
+
             if note_hi == -1 then
                 print('No note in area/take: Setting base note')
                 note_lo, note_hi = base_note, base_note
@@ -1293,8 +1321,8 @@ if vzoom_mode > 0 and not is_notation then
             end
 
             if prev_note_lo ~= note_lo or prev_note_hi ~= note_hi then
-                print('Vertically zooming to notes ' ..
-                note_lo .. ' - ' .. note_hi)
+                local msg = 'Vertically zooming to notes %s - %s'
+                print(msg:format(note_lo, note_hi))
                 if note_hi - note_lo < 28 then
                     ZoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
                 else
@@ -1308,16 +1336,19 @@ if vzoom_mode > 0 and not is_notation then
             end
 
             if vzoom_mode >= 7 and vzoom_mode <= 8 then
-                note_density = note_density or (note_lo + note_hi) / 2
-                note_row = math.floor(note_density)
+                if use_note_sel then note_avg = sel_note_avg or note_avg end
+                note_avg = note_avg or (note_lo + note_hi) / 2
+                note_row = math.floor(note_avg)
             end
 
             if vzoom_mode >= 9 and vzoom_mode <= 10 then
                 note_row = 0
+                if use_note_sel then note_row = sel_note_lo or note_row end
             end
 
             if vzoom_mode >= 11 and vzoom_mode <= 12 then
                 note_row = 127
+                if use_note_sel then note_row = sel_note_hi or note_row end
             end
 
             if note_row and note_row >= 0 then
@@ -1355,7 +1386,7 @@ if not debug then
     SetSelection(sel_start_pos, sel_end_pos)
 end
 
-reaper.PreventUIRefresh( -1)
+reaper.PreventUIRefresh(-1)
 
 exec_time = reaper.time_precise() - start_time
 print('\nExecution time: ' .. math.floor(exec_time * 1000 + 0.5) .. ' ms')

@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.2.0
   @noindex
   @about Generates non-contextual configurations of MeMagic
 ]]
 local _, file_name = reaper.get_action_context()
-local seperator = reaper.GetOS():match('win') and '\\' or '/'
-local file_path = file_name:match('(.*' .. seperator .. ')')
+local sep = reaper.GetOS():match('win') and '\\' or '/'
+local file_path = file_name:match('(.*' .. sep .. ')')
 local file = io.open(file_path .. 'FTC_MeMagic.lua', 'r')
 
 -- Load MeMagic script content
@@ -25,8 +25,13 @@ end
 
 -- Create path for generated files
 local gen_folder_name = 'Generated'
-local dir_path = file_path .. gen_folder_name .. seperator
+local dir_path = file_path .. gen_folder_name .. sep
 reaper.RecursiveCreateDirectory(dir_path, 0)
+
+-- Create path for standalone packages
+local standalone_folder_name = 'Packages'
+local standalone_path = dir_path .. standalone_folder_name .. sep
+-- reaper.RecursiveCreateDirectory(standalone_path, 0)
 
 -- Remove old files
 local i = 0
@@ -57,7 +62,7 @@ local hmodes = {
     'smart zoom to 20 notes at mouse or edit cursor, restrict to item',
     'smart zoom to measures at mouse or edit cursor',
     'smart zoom to measures at mouse or edit cursor, restrict to item',
-    'scroll to mouse or edit cursor'
+    'scroll to mouse or edit cursor',
 }
 
 local vmodes = {
@@ -72,7 +77,7 @@ local vmodes = {
     'scroll to lowest note in visible area',
     'scroll to lowest note in item',
     'scroll to highest note in visible area',
-    'scroll to highest note in item'
+    'scroll to highest note in item',
 }
 
 local exceptions = {
@@ -124,6 +129,50 @@ local config = ''
 local provides = '    [main=main,midi_editor] '
 local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
 
+function WriteFile(new_file_path, h, v, is_standalone, use_note_sel)
+    local new_file = io.open(new_file_path, 'w')
+    if new_file then
+        for _, line in ipairs(content) do
+            if is_standalone and line:match('@noindex') then
+                line = '  @provides [main=main,midi_editor] .'
+            end
+            if use_note_sel and line:match('local use_note_sel =') then
+                line = 'local use_note_sel = true'
+            end
+            if line:match('local TBB_horizontal_zoom_mode = ') then
+                line = 'local TBB_horizontal_zoom_mode = ' .. h
+            end
+            if line:match('local TBB_vertical_zoom_mode = ') then
+                line = 'local TBB_vertical_zoom_mode = ' .. v
+            end
+            if line:match('local use_toolbar_context_only = ') then
+                line = 'local use_toolbar_context_only = true'
+            end
+            if line:match('local set_edit_cursor = ') then
+                line = 'local set_edit_cursor = false'
+            end
+            if line:match('local debug = ') then
+                line = 'local debug = false'
+            end
+            new_file:write(line, '\n')
+        end
+        new_file:close()
+    end
+end
+
+function AddScript(new_file_name, h, v, use_note_sel)
+    local new_file_path = dir_path .. new_file_name
+    WriteFile(new_file_path, h, v, false, use_note_sel)
+    local standalone_file_name = new_file_name:gsub('FTC_MeMagic%s%(.-%)%s',
+        'MeMagic_')
+    --  WriteFile(standalone_path .. standalone_file_name, h, v, true, use_note_sel)
+
+    reaper.AddRemoveReaScript(true, 0, new_file_path, false)
+    reaper.AddRemoveReaScript(true, 32060, new_file_path, true)
+    local add = provides .. gen_folder_name .. '/' .. new_file_name
+    config = config .. add .. '\n'
+end
+
 -- Generate MeMagic configurations
 for h = 1, #hmodes do
     for v = 1, #vmodes do
@@ -134,34 +183,13 @@ for h = 1, #hmodes do
             vmode = vmode ~= '' and 'Vertically ' .. vmode or vmode
             local space = hmode ~= '' and vmode ~= '' and ' + ' or ''
             local new_file_name = name_pattern:format(h, v, hmode, space, vmode)
-            local new_file_path = dir_path .. new_file_name
-            local new_file = io.open(new_file_path, 'w')
-            if new_file then
-                for _, line in ipairs(content) do
-                    if line:match('local TBB_horizontal_zoom_mode = ') then
-                        line = 'local TBB_horizontal_zoom_mode = ' .. h
-                    end
-                    if line:match('local TBB_vertical_zoom_mode = ') then
-                        line = 'local TBB_vertical_zoom_mode = ' .. v
-                    end
-                    if line:match('local use_toolbar_context_only = ') then
-                        line = 'local use_toolbar_context_only = true'
-                    end
-                    if line:match('local set_edit_cursor = ') then
-                        line = 'local set_edit_cursor = false'
-                    end
-                    if line:match('local debug = ') then
-                        line = 'local debug = false'
-                    end
-                    new_file:write(line, '\n')
-                end
-                new_file:close()
+            AddScript(new_file_name, h, v)
+
+            if h == 1 and (v <= 3 or v >= 7) then
+                new_file_name = new_file_name:gsub('%)', 's)', 1)
+                new_file_name = new_file_name:gsub('note', 'selected note', 1)
+                AddScript(new_file_name, h, v, true)
             end
-            reaper.AddRemoveReaScript(true, 0, new_file_path, false)
-            local is_commit = h == #hmodes and v == #vmodes
-            reaper.AddRemoveReaScript(true, 32060, new_file_path, is_commit)
-            local add = provides .. gen_folder_name .. '/' .. new_file_name
-            config = config .. add .. '\n'
         end
     end
 end
@@ -169,13 +197,25 @@ end
 local file = io.open(file_path .. 'FTC_MeMagic bundle.lua', 'w')
 
 if file then
+    local has_changelog = false
+    local changelog = ''
+    for _, line in ipairs(content) do
+        if line:match('@changelog') then
+            has_changelog = true
+        end
+        if has_changelog then
+            if line:match('%]%]') then break end
+            changelog = changelog .. line .. '\n'
+        end
+    end
     -- Create package with configurations
     for _, line in ipairs(content) do
         if line:match('@about') then
             local about =
             '  @about Bundle with feasible configurations of MeMagic\n'
             local meta_pkg = '  @metapackage\n'
-            line = about .. meta_pkg .. '  @provides\n' .. config .. ']]'
+            line = about .. meta_pkg .. changelog
+            line = line .. '  @provides\n' .. config .. ']]'
             content[#content + 1] = line
             file:write(line, '\n')
             break
