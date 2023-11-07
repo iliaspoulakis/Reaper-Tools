@@ -1,21 +1,22 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.1
+  @version 1.3.0
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Fix crash when using +dev builds
+    - Temporarily disable auto-play by default
+    - Create delayed undo points
+    - Set temporary mark when previewing file by playing MIDI note
 ]]
 
--- Uncomment the next line to turn off autoplay temporarily when link is active
--- local toggle_autoplay = reaper.GetToggleCommandStateEx(32063, 1011) == 1
+-- Comment out the next line to avoid turning off autoplay temporarily
+local toggle_autoplay = reaper.GetToggleCommandStateEx(32063, 1011) == 1
 
 -- Avoid creating undo points
-reaper.defer(function()
-end)
+reaper.defer(function() end)
 
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
@@ -24,6 +25,8 @@ if not reaper.JS_Window_Find then
 end
 
 local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
+if version >= 7.03 then reaper.set_action_options(1) end
+
 local vol_hwnd_id = version < 6.65 and 1047 or 997
 
 -- Get media explorer window
@@ -40,10 +43,16 @@ local GetNamedConfigParm
 local GetFloatingWindow
 local GetChainVisible
 local GetParamName
+local GetParamNormalized
+local GetParam
 
 local SetNamedConfigParm
 local SetParamNormalized
 local SetParam
+
+local undo_time
+local undo_delay
+local prev_idx
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -92,8 +101,8 @@ function MediaExplorer_GetSelectedAudioFiles()
     local sep = package.config:sub(1, 1)
     local sel_files = {}
 
-    for index in string.gmatch(sel_indexes, '[^,]+') do
-        index = tonumber(index)
+    for sel_index in string.gmatch(sel_indexes, '[^,]+') do
+        local index = tonumber(sel_index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
         -- File name might not include extension, due to MX option
         local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
@@ -140,8 +149,8 @@ function MediaExplorer_GetSelectedFileInfo(sel_file, id)
     local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
     local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
     local sel_file_name = sel_file:match('([^\\/]+)$')
-    for index in string.gmatch(sel_indexes, '[^,]+') do
-        index = tonumber(index)
+    for sel_index in string.gmatch(sel_indexes, '[^,]+') do
+        local index = tonumber(sel_index)
         local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
         -- File name might not include extension, due to MX option
         local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
@@ -193,6 +202,40 @@ function MediaExplorer_GetTimeSelection(force_readout)
 
     -- Note: When no media file is loaded, start and end are both 0
     return start_secs ~= end_secs, start_secs, end_secs
+end
+
+function ScheduleUndoBlock(delay)
+    undo_time = reaper.time_precise()
+    undo_delay = math.min(undo_delay or math.maxinteger, delay)
+end
+
+function AddUndoBlock()
+    if undo_time and reaper.time_precise() > undo_time + undo_delay then
+        reaper.Undo_BeginBlock()
+        reaper.Undo_EndBlock('Link sample player', -1)
+        undo_time = nil
+        undo_delay = nil
+    end
+end
+
+function GetMIDIEvents()
+    local idx, buf, ts, dev_id = reaper.MIDI_GetRecentInputEvent(0)
+    prev_idx = prev_idx or 0
+    if idx > prev_idx then
+        local events = {}
+        local new_idx = idx
+        local i = 0
+        repeat
+            local msg = {}
+            local len = #buf
+            for n = 1, len do msg[n] = buf:byte(n) end
+            events[i + 1] = {msg = msg, msg_len = len, ts = ts, dev_id = dev_id}
+            i = i + 1
+            idx, buf, _, dev_id = reaper.MIDI_GetRecentInputEvent(i)
+        until idx == prev_idx
+        prev_idx = new_idx
+        return events
+    end
 end
 
 function GetLastFocusedFXContainer()
@@ -272,6 +315,7 @@ function Main()
                 SetNamedConfigParm(container, container_idx, '+FILE0', files[f])
             end
             SetNamedConfigParm(container, container_idx, 'DONE', '')
+            ScheduleUndoBlock(1.2)
         end
     end
 
@@ -284,12 +328,22 @@ function Main()
             local peak = MediaExplorer_GetSelectedFileInfo(files[1], 21)
             if peak then vol = vol - peak end
         end
-        SetParamNormalized(container, container_idx, 0, DB2Slider(vol))
+        local new_val = DB2Slider(vol)
+        local curr_val = GetParamNormalized(container, container_idx, 0)
+
+        if math.abs(curr_val - new_val) > 0.000001 then
+            SetParamNormalized(container, container_idx, 0, new_val)
+            ScheduleUndoBlock(0.6)
+        end
     end
 
     -- Link pitch
     local pitch = MediaExplorer_GetPitch()
-    if pitch then SetParam(container, container_idx, 15, (pitch + 80) / 160) end
+    if pitch then
+        -- Note: When only using SetParam if value changed (checking with
+        -- GetParam), the script creates undo points (why?)
+        SetParam(container, container_idx, 15, (pitch + 80) / 160)
+    end
 
     -- Link time selection
     local is_wave_preview_hovered = GetHoveredWindowID() == 1046
@@ -301,20 +355,94 @@ function Main()
     local user_removes_sel = not ret and is_wave_preview_hovered
 
     if not files[1] or is_init or has_file_changed or user_removes_sel then
-        SetParam(container, container_idx, 13, 0)
-        SetParam(container, container_idx, 14, 1)
+        if GetParam(container, container_idx, 13) ~= 0 then
+            SetParam(container, container_idx, 13, 0)
+            ScheduleUndoBlock(0.6)
+        end
+        if GetParam(container, container_idx, 14) ~= 1 then
+            SetParam(container, container_idx, 14, 1)
+            ScheduleUndoBlock(0.6)
+        end
     else
         if ret then
             local length = GetAudioFileLength(files[1])
-            SetParam(container, container_idx, 13, start_pos / length)
-            SetParam(container, container_idx, 14, end_pos / length)
+            do
+                local new_val = start_pos / length
+                local curr_val = GetParam(container, container_idx, 13)
+
+                if math.abs(curr_val - new_val) > 0.000001 then
+                    SetParam(container, container_idx, 13, new_val)
+                    ScheduleUndoBlock(0.6)
+                end
+            end
+            do
+                local new_val = end_pos / length
+                local curr_val = GetParam(container, container_idx, 14)
+
+                if math.abs(curr_val - new_val) > 0.000001 then
+                    SetParam(container, container_idx, 14, new_val)
+                    ScheduleUndoBlock(0.6)
+                end
+            end
         end
     end
 
     prev_file = files[1]
     is_first_run = false
+    AddUndoBlock()
 
     reaper.defer(Main)
+
+    -- Check if user played MIDI keyboard and mark file (when autoplay disabled)
+    if not is_container_track then return end
+
+    local is_autoplay = reaper.GetToggleCommandStateEx(32063, 1011) == 1
+    if is_autoplay then return end
+
+    local is_mark = reaper.GetToggleCommandStateEx(32063, 42167) == 1
+    if not is_mark then return end
+
+    local rec_in = reaper.GetMediaTrackInfo_Value(container, 'I_RECINPUT')
+    local rec_arm = reaper.GetMediaTrackInfo_Value(container, 'I_RECARM')
+
+    local is_recording_midi = rec_arm == 1 and rec_in & 4096 == 4096
+    if not is_recording_midi then return end
+
+    local events = GetMIDIEvents()
+    if not events then return end
+
+    -- Get file column entry with '+' mark
+    if MediaExplorer_GetSelectedFileInfo(files[1], 15) then return end
+
+    local dev_id = (rec_in >> 5) & 127
+    local track_chan = rec_in & 31
+
+    for _, event in ipairs(events) do
+        if dev_id == 63 or dev_id == event.dev_id and event.msg_len == 3 then
+            local msg1, msg2, msg3 = event.msg[1], event.msg[2], event.msg[3]
+            -- Check if event is note on
+            if msg1 & 0xF0 == 0x90 and msg3 > 0 then
+                -- Check note channel
+                local note_chan = (msg1 & 0x0F) + 1
+                if track_chan == 0 or track_chan == note_chan then
+                    -- Check sampler channel
+                    local sampler_chan = GetParam(container, container_idx, 7)
+                    sampler_chan = math.floor(sampler_chan * 16 + 0.5)
+                    if sampler_chan == 0 or sampler_chan == note_chan then
+                        -- Check sampler note range
+                        local start_note = GetParam(container, container_idx, 3)
+                        start_note = math.floor(start_note * 127 + 0.5)
+                        local end_note = GetParam(container, container_idx, 4)
+                        end_note = math.floor(end_note * 127 + 0.5)
+                        if msg2 >= start_note and msg2 <= end_note then
+                            reaper.JS_Window_OnCommand(mx, 42165)
+                            return
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 function RefreshMXToolbar()
@@ -348,7 +476,9 @@ if container then
         GetParamName = reaper.TakeFX_GetParamName
         GetNamedConfigParm = reaper.TakeFX_GetNamedConfigParm
         SetNamedConfigParm = reaper.TakeFX_SetNamedConfigParm
+        GetParamNormalized = reaper.TakeFX_GetParamNormalized
         SetParamNormalized = reaper.TakeFX_SetParamNormalized
+        GetParam = reaper.TakeFX_GetParam
         SetParam = reaper.TakeFX_SetParam
     else
         GetFloatingWindow = reaper.TrackFX_GetFloatingWindow
@@ -356,7 +486,9 @@ if container then
         GetParamName = reaper.TrackFX_GetParamName
         GetNamedConfigParm = reaper.TrackFX_GetNamedConfigParm
         SetNamedConfigParm = reaper.TrackFX_SetNamedConfigParm
+        GetParamNormalized = reaper.TrackFX_GetParamNormalized
         SetParamNormalized = reaper.TrackFX_SetParamNormalized
+        GetParam = reaper.TrackFX_GetParam
         SetParam = reaper.TrackFX_SetParam
     end
 
