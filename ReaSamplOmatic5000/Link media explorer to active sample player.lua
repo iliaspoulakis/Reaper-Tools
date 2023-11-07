@@ -1,15 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @provides [main=main,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Temporarily disable auto-play by default
-    - Create delayed undo points
-    - Set temporary mark when previewing file by playing MIDI note
+    - Break link when using undo
 ]]
 
 -- Comment out the next line to avoid turning off autoplay temporarily
@@ -281,6 +279,11 @@ function Main()
     local floating_wnd = GetFloatingWindow(container, container_idx)
     local chain_idx = GetChainVisible(container)
     if not (floating_wnd or chain_idx == container_idx) then return end
+
+    if not is_first_run and not undo_time then
+        local redo = reaper.Undo_CanRedo2(0)
+        if redo == 'Link sample player' then return end
+    end
 
     -- Link files
     local files = MediaExplorer_GetSelectedAudioFiles()
