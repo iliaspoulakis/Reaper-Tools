@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="5172a81edf51c83dae08bf29fd842ce5363670b7">
+<index version="1" name="FTC Tools" commit="833d438799d9d577132dfc0833ae1d441d92b055">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2418,6 +2418,12 @@
       <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-05-10T21:10:05Z">
         <changelog><![CDATA[- Fix crash when using +dev builds]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/a10a925401423bf64db1672689c9d27c2cf9da24/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.3.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-07T12:52:11Z">
+        <changelog><![CDATA[- Temporarily disable auto-play by default
+- Create delayed undo points
+- Set temporary mark when previewing file by playing MIDI note]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/833d438799d9d577132dfc0833ae1d441d92b055/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
