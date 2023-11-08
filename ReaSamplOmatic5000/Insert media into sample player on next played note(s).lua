@@ -3,9 +3,9 @@
   @license MIT
   @version 1.0.9
   @provides [main=main,midi_editor,mediaexplorer] .
-  @about Links the media explorer file selection, time selection, pitch and
-    volume to the focused sample player. The link is automatically broken when
-    closing either the FX window or the media explorer.
+  @about Inserts selected media explorer items into a new sample player on the
+    next played note. Insertion target is either the selected track, or the track
+    open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
     - Treat note-ons with velocity 0 as note-offs
     - Set pitch offset correctly when adding range of notes
@@ -234,8 +234,10 @@ function CreateJSFX()
 
     -- Create new file
     local file = io.open(path, 'w')
-    file:write(jsfx)
-    file:close()
+    if file then
+        file:write(jsfx)
+        file:close()
+    end
     return path
 end
 
