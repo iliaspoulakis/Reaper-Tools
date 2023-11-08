@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="6f7dba33a016ca2378c05d2393428e4357d37fa3">
+<index version="1" name="FTC Tools" commit="928205541878b309674dd47ad938b82f30f6b1ab">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2399,7 +2399,7 @@
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Inserts selected media explorer items into a new sample player on the next played note. Insertion target is either the selected track, or the track open in the MIDI editor (when clicking directly on the piano roll).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Links the media explorer file selection, time selection, pitch and volume to the focused sample player. The link is automatically broken when closing either the FX window or the media explorer.\par}
 }
 ]]></description>
       </metadata>
@@ -2464,6 +2464,10 @@
       <version name="1.3.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-07T13:17:49Z">
         <changelog><![CDATA[- Break link when using undo]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/9b5f41eaacb082c99866026f4722863fff091e6f/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+      </version>
+      <version name="1.3.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T19:40:41Z">
+        <changelog><![CDATA[- Set temporary mark when a new file is selected]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/928205541878b309674dd47ad938b82f30f6b1ab/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
