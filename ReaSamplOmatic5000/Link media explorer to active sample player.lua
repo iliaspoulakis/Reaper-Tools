@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @provides [main=main,mediaexplorer] .
-  @about Inserts selected media explorer items into a new sample player on the
-    next played note. Insertion target is either the selected track, or the track
-    open in the MIDI editor (when clicking directly on the piano roll).
+  @about Links the media explorer file selection, time selection, pitch and
+    volume to the focused sample player. The link is automatically broken when
+    closing either the FX window or the media explorer.
   @changelog
-    - Break link when using undo
+    - Set temporary mark when a new file is selected
 ]]
 
 -- Comment out the next line to avoid turning off autoplay temporarily
@@ -50,7 +50,6 @@ local SetParam
 
 local undo_time
 local undo_delay
-local prev_idx
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -216,26 +215,6 @@ function AddUndoBlock()
     end
 end
 
-function GetMIDIEvents()
-    local idx, buf, ts, dev_id = reaper.MIDI_GetRecentInputEvent(0)
-    prev_idx = prev_idx or 0
-    if idx > prev_idx then
-        local events = {}
-        local new_idx = idx
-        local i = 0
-        repeat
-            local msg = {}
-            local len = #buf
-            for n = 1, len do msg[n] = buf:byte(n) end
-            events[i + 1] = {msg = msg, msg_len = len, ts = ts, dev_id = dev_id}
-            i = i + 1
-            idx, buf, _, dev_id = reaper.MIDI_GetRecentInputEvent(i)
-        until idx == prev_idx
-        prev_idx = new_idx
-        return events
-    end
-end
-
 function GetLastFocusedFXContainer()
     local ret, tnum, inum, fnum = reaper.GetFocusedFX2()
 
@@ -319,6 +298,12 @@ function Main()
             end
             SetNamedConfigParm(container, container_idx, 'DONE', '')
             ScheduleUndoBlock(1.2)
+
+            local is_mark = reaper.GetToggleCommandStateEx(32063, 42167) == 1
+            if is_mark and not MediaExplorer_GetSelectedFileInfo(files[1], 15) then
+                -- Set temporary mark
+                reaper.JS_Window_OnCommand(mx, 42165)
+            end
         end
     end
 
@@ -395,57 +380,6 @@ function Main()
     AddUndoBlock()
 
     reaper.defer(Main)
-
-    -- Check if user played MIDI keyboard and mark file (when autoplay disabled)
-    if not is_container_track then return end
-
-    local is_autoplay = reaper.GetToggleCommandStateEx(32063, 1011) == 1
-    if is_autoplay then return end
-
-    local is_mark = reaper.GetToggleCommandStateEx(32063, 42167) == 1
-    if not is_mark then return end
-
-    local rec_in = reaper.GetMediaTrackInfo_Value(container, 'I_RECINPUT')
-    local rec_arm = reaper.GetMediaTrackInfo_Value(container, 'I_RECARM')
-
-    local is_recording_midi = rec_arm == 1 and rec_in & 4096 == 4096
-    if not is_recording_midi then return end
-
-    local events = GetMIDIEvents()
-    if not events then return end
-
-    -- Get file column entry with '+' mark
-    if MediaExplorer_GetSelectedFileInfo(files[1], 15) then return end
-
-    local dev_id = (rec_in >> 5) & 127
-    local track_chan = rec_in & 31
-
-    for _, event in ipairs(events) do
-        if dev_id == 63 or dev_id == event.dev_id and event.msg_len == 3 then
-            local msg1, msg2, msg3 = event.msg[1], event.msg[2], event.msg[3]
-            -- Check if event is note on
-            if msg1 & 0xF0 == 0x90 and msg3 > 0 then
-                -- Check note channel
-                local note_chan = (msg1 & 0x0F) + 1
-                if track_chan == 0 or track_chan == note_chan then
-                    -- Check sampler channel
-                    local sampler_chan = GetParam(container, container_idx, 7)
-                    sampler_chan = math.floor(sampler_chan * 16 + 0.5)
-                    if sampler_chan == 0 or sampler_chan == note_chan then
-                        -- Check sampler note range
-                        local start_note = GetParam(container, container_idx, 3)
-                        start_note = math.floor(start_note * 127 + 0.5)
-                        local end_note = GetParam(container, container_idx, 4)
-                        end_note = math.floor(end_note * 127 + 0.5)
-                        if msg2 >= start_note and msg2 <= end_note then
-                            reaper.JS_Window_OnCommand(mx, 42165)
-                            return
-                        end
-                    end
-                end
-            end
-        end
-    end
 end
 
 function RefreshMXToolbar()
