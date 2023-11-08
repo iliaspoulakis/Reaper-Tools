@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Reads colors from libSwell.colortheme and applies them to active theme
+  @changelog
+    - Fix issue with Windows newline characters
  ]]
 
 local root_theme_path = reaper.GetExePath() .. '/libSwell.colortheme'
@@ -30,7 +32,7 @@ local swell_colors = {}
 local file = io.open(theme_path, 'r')
 if not file then return end
 for line in file:lines() do
-    local key, val = line:match('^([^ ]+) ([^ ]+)')
+    local key, val = line:match('^([^ ]+) (#?%w+)')
     if key then
         swell_colors[key] = GetSwellColor(val)
     end
@@ -55,11 +57,13 @@ SetThemeColor('io_3dsh', swell_colors.button_text)
 
 SetThemeColor('genlist_bg', swell_colors.listview_bg)
 SetThemeColor('genlist_selbg', swell_colors.listview_bg_sel)
-SetThemeColor('genlist_seliabg', swell_colors.listview_bg_sel_inactive or swell_colors.listview_bg_sel)
+SetThemeColor('genlist_seliabg', swell_colors.listview_bg_sel_inactive
+    or swell_colors.listview_bg_sel)
 
 SetThemeColor('genlist_fg', swell_colors.listview_text)
 SetThemeColor('genlist_selfg', swell_colors.listview_text_sel)
-SetThemeColor('genlist_seliafg', swell_colors.listview_text_sel_inactive or swell_colors.listview_text_sel)
+SetThemeColor('genlist_seliafg', swell_colors.listview_text_sel_inactive
+    or swell_colors.listview_text_sel)
 
 SetThemeColor('genlist_grid', swell_colors.listview_grid)
 
