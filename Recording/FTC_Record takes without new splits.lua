@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @about Record takes without creating new splits. Recorded takes are split at existing item edges
   @changelog
-    - Add v7 lane support
+    - Improve lane behavior
 ]]
 -- User configuration
 
@@ -198,8 +198,6 @@ function MergeItems(track_state, new_item)
     local start_pos = GetItemInfo(new_item, 'D_POSITION')
     local end_pos = start_pos + length
 
-    local lane = GetItemInfo(new_item, 'I_FIXEDLANE') or 0
-
     local m = 0.0001
 
     -- When recording to layers new items do not end on full beat.
@@ -217,16 +215,22 @@ function MergeItems(track_state, new_item)
         SetItemTakeColors(new_item)
     end
 
-    local max_num_takes = 0
+    local lane = GetItemInfo(new_item, 'I_FIXEDLANE') or 0
+    local lane_items = {}
     for i = 1, #track_state.items do
         local item = track_state.items[i]
+        local item_lane = GetItemInfo(item, 'I_FIXEDLANE') or 0
+        if item_lane == lane then lane_items[#lane_items + 1] = item end
+    end
+
+    local max_num_takes = 0
+    for i = 1, #lane_items do
+        local item = lane_items[i]
         local item_length = GetItemInfo(item, 'D_LENGTH')
         local item_start_pos = GetItemInfo(item, 'D_POSITION')
         local item_end_pos = item_start_pos + item_length
-        local item_lane = GetItemInfo(item, 'I_FIXEDLANE') or 0
         -- Check if items overlap
-        if item_start_pos < end_pos - m and item_end_pos > start_pos + m
-            and item_lane == lane then
+        if item_start_pos < end_pos - m and item_end_pos > start_pos + m then
             local num_takes = reaper.GetMediaItemNumTakes(item)
             max_num_takes = math.max(max_num_takes, num_takes)
         end
@@ -235,15 +239,14 @@ function MergeItems(track_state, new_item)
         end
     end
 
-    for _, item in ipairs(track_state.items) do
+    for i = 1, #lane_items do
+        local item = lane_items[i]
         if new_item then
             local item_length = GetItemInfo(item, 'D_LENGTH')
             local item_start_pos = GetItemInfo(item, 'D_POSITION')
             local item_end_pos = item_start_pos + item_length
-            local item_lane = GetItemInfo(item, 'I_FIXEDLANE') or 0
             -- Check if items overlap
-            if item_start_pos < end_pos - m and item_end_pos > start_pos + m
-                and item_lane == lane then
+            if item_start_pos < end_pos - m and item_end_pos > start_pos + m then
                 -- Add empty take lanes if necessary
                 local num_takes = reaper.GetMediaItemNumTakes(item)
                 local take_diff = max_num_takes - num_takes
@@ -307,11 +310,11 @@ function MergeItems(track_state, new_item)
         updated_items[#updated_items + 1] = item
     end
     -- Update items for next iteration
-    if overlap_cnt == 0 or #track_state.items == 0 then
+    if overlap_cnt == 0 or #lane_items == 0 then
         updated_items[#updated_items + 1] = new_item
         SetItemTakeColors(new_item, true)
     end
-    track_state.items = updated_items
+    lane_items = updated_items
 end
 
 function Main()
