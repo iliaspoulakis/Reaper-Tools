@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="7807d5ead9632721c964a74330738bfad9b3f1d5">
+<index version="1" name="FTC Tools" commit="7100da7dba28814281e6baf4f60317b80c045744">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2491,6 +2491,10 @@
         <changelog><![CDATA[- Add v7 lane support]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7807d5ead9632721c964a74330738bfad9b3f1d5/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
       </version>
+      <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T12:33:00Z">
+        <changelog><![CDATA[- Improve lane behavior]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7100da7dba28814281e6baf4f60317b80c045744/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
+      </version>
     </reapack>
     <reapack name="FTC_Record takes without new splits.lua" type="script">
       <metadata>
@@ -2518,6 +2522,10 @@
       <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T12:12:10Z">
         <changelog><![CDATA[- Add v7 lane support]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7807d5ead9632721c964a74330738bfad9b3f1d5/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
+      </version>
+      <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T12:33:00Z">
+        <changelog><![CDATA[- Improve lane behavior]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7100da7dba28814281e6baf4f60317b80c045744/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
       </version>
     </reapack>
   </category>
