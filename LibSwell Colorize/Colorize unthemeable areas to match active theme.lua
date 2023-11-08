@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @about Generates a libSwell.colortheme file that matches your active theme
+  @changelog
+    - Support overriding button color (separate script)
  ]]
 
 local root_theme_path = reaper.GetExePath() .. '/libSwell.colortheme'
@@ -306,8 +308,7 @@ map.checkbox = {
 
 local weight = IsDarkColor(color_main_text) and 0.33 or 0.66
 local color_button = custom_colors[1] or
-BlendColors(color_main_bg, color_menu_sel_bg, weight)
-reaper.ShowConsoleMsg(tostring(custom_colors[1]) .. '\n')
+    BlendColors(color_main_bg, color_menu_sel_bg, weight)
 
 map.buttons = {keys = {'button_bg'}, color = color_button}
 
