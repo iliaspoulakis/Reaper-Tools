@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="fc93887cd9c3e44cc855406a6b88ce7913c1d7fe">
+<index version="1" name="FTC Tools" commit="7807d5ead9632721c964a74330738bfad9b3f1d5">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2466,7 +2466,7 @@
   <category name="Recording">
     <reapack name="FTC_Record takes without new splits (extend items).lua" type="script">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -2487,10 +2487,14 @@
         <changelog><![CDATA[- Support editing during recording]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/79cbc3bb66b9b0b2a24692fed5fb78511a609151/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
       </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T12:12:10Z">
+        <changelog><![CDATA[- Add v7 lane support]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7807d5ead9632721c964a74330738bfad9b3f1d5/Recording/FTC_Record%20takes%20without%20new%20splits%20(extend%20items).lua</source>
+      </version>
     </reapack>
     <reapack name="FTC_Record takes without new splits.lua" type="script">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -2510,6 +2514,10 @@
       <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-02-16T12:27:30Z">
         <changelog><![CDATA[- Support editing during recording]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/79cbc3bb66b9b0b2a24692fed5fb78511a609151/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
+      </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T12:12:10Z">
+        <changelog><![CDATA[- Add v7 lane support]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/7807d5ead9632721c964a74330738bfad9b3f1d5/Recording/FTC_Record%20takes%20without%20new%20splits.lua</source>
       </version>
     </reapack>
   </category>
