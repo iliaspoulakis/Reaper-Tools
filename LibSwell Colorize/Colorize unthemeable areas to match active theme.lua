@@ -2,7 +2,7 @@
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
   @version 1.0.0
-  @about Generates a libSwell.colortheme file that matches your active theme ()
+  @about Generates a libSwell.colortheme file that matches your active theme
  ]]
 
 local root_theme_path = reaper.GetExePath() .. '/libSwell.colortheme'
@@ -11,11 +11,19 @@ local user_theme_path = reaper.GetResourcePath() .. '/libSwell-user.colortheme'
 local extname = 'FTC.LibSwell_Colorizer'
 local theme_content = {}
 
+-- Load custom colors
+local custom_colors_str = reaper.GetExtState(extname, 'custom_colors')
+local custom_colors = {}
+for color in (custom_colors_str .. ','):gmatch('[^,]*') do
+    custom_colors[#custom_colors + 1] = color ~= '' and color
+end
+
 -----------------------------------  FUNCTIONS  -------------------------------
 
 function GetFileHash(file_path)
     local hash = 0
     local file = io.open(file_path, 'r')
+    if not file then return end
     for line in file:lines() do
         for i = 1, line:len() do hash = hash + line:byte(i) end
     end
@@ -26,12 +34,14 @@ end
 function LoadLibSwellTheme(file_path)
     theme_content = {}
     local file = io.open(file_path, 'r')
+    if not file then return end
     for line in file:lines() do theme_content[#theme_content + 1] = line end
     io.close(file)
 end
 
 function WriteLibSwellTheme(file_path)
     local file = io.open(file_path, 'w')
+    if not file then return end
     for _, line in ipairs(theme_content) do file:write(line, '\n') end
     io.close(file)
 end
@@ -78,7 +88,6 @@ function RestartReaper()
         reaper.Main_OnCommand(40004, 0)
         -- File: Spawn new instance of REAPER
         reaper.Main_OnCommand(40063, 0)
-
     end
 end
 
@@ -178,16 +187,16 @@ map.main_bg = {keys = {'_3dface', 'edit_bg_disabled'}, color = color_main_bg}
 
 map.main_text = {
     keys = {
-        'checkbox_text', 'edit_text', 'label_text', 'tab_text', 'group_text'
+        'checkbox_text', 'edit_text', 'label_text', 'tab_text', 'group_text',
     },
-    color = color_main_text
+    color = color_main_text,
 }
 
 map.main_text_disabled = {
     keys = {
-        'checkbox_text_disabled', 'edit_text_disabled', 'label_text_disabled'
+        'checkbox_text_disabled', 'edit_text_disabled', 'label_text_disabled',
     },
-    color = BlendColors(color_main_text, color_main_bg, 0.55)
+    color = BlendColors(color_main_text, color_main_bg, 0.55),
 }
 map.main_sh = {keys = {'group_shadow'}, color = color_main_bg, shade = 4}
 map.main_hl = {keys = {'group_hilight'}, color = color_main_bg, shade = -12}
@@ -198,24 +207,24 @@ map.menu_bg = {
     keys = {
         'menu_bg', 'treeview_bg', 'listview_bg', 'info_bk', 'trackbar_track',
         'trackbar_mark', 'scrollbar_bg', '_3dshadow', '_3dhilight',
-        '_3ddkshadow', 'tab_shadow', 'tab_hilight'
+        '_3ddkshadow', 'tab_shadow', 'tab_hilight',
     },
-    color = color_menu_bg
+    color = color_menu_bg,
 }
 
 map.menu_text = {
     keys = {
         'menu_text', 'treeview_text', 'listview_text', 'listview_hdr_text',
-        'info_text', 'focusrect', 'edit_cursor', 'combo_text'
+        'info_text', 'focusrect', 'edit_cursor', 'combo_text',
     },
-    color = color_menu_text
+    color = color_menu_text,
 }
 
 map.menu_text_disabled = {
     keys = {
-        'menu_text_disabled', 'menubar_text_disabled', 'combo_text_disabled'
+        'menu_text_disabled', 'menubar_text_disabled', 'combo_text_disabled',
     },
-    color = BlendColors(color_menu_text, color_menu_bg, 0.55)
+    color = BlendColors(color_menu_text, color_menu_bg, 0.55),
 }
 
 map.menu_hl = {keys = {'menu_hilight'}, color = color_menu_bg, shade = 4}
@@ -227,17 +236,17 @@ map.menu_sel_bg = {
     keys = {
         'menubar_bg_sel', 'menu_bg_sel', 'combo_arrow_press', 'checkbox_inter',
         'edit_bg_sel', 'trackbar_knob', 'progress', 'listview_bg_sel',
-        'treeview_bg_sel', 'focus_hilight'
+        'treeview_bg_sel', 'focus_hilight',
     },
-    color = color_menu_sel_bg
+    color = color_menu_sel_bg,
 }
 
 map.menu_sel_text = {
     keys = {
         'menubar_text_sel', 'menu_text_sel', 'edit_text_sel',
-        'listview_text_sel', 'treeview_text_sel'
+        'listview_text_sel', 'treeview_text_sel',
     },
-    color = color_menu_sel_text
+    color = color_menu_sel_text,
 }
 
 -------------------------------  MENU EXTRAS  --------------------------------
@@ -245,22 +254,22 @@ map.menu_sel_text = {
 map.menu_header = {
     keys = {'listview_hdr_bg', 'menu_scroll', 'scrollbar'},
     color = color_menu_bg,
-    shade = 13
+    shade = 13,
 }
 
 map.menu_header_sh = {
     keys = {'listview_hdr_shadow', 'listview_hdr_hilight', 'listview_grid'},
     color = color_menu_bg,
-    shade = -20
+    shade = -20,
 }
 
 map.menu_arrow = {
     keys = {
         'checkbox_fg', 'combo_arrow', 'treeview_arrow', 'menu_scroll_arrow',
-        'listview_hdr_arrow', 'menu_submenu_arrow'
+        'listview_hdr_arrow', 'menu_submenu_arrow',
     },
     color = color_menu_text,
-    offs = -14
+    offs = -14,
 }
 
 map.menu_scroll = {keys = {'scrollbar_fg'}, color = color_menu_bg, offs = 42}
@@ -272,31 +281,33 @@ local is_dark_theme = IsDarkColor(color_main_bg)
 map.edit = {
     keys = {'edit_bg'},
     color = color_main_bg,
-    shade = is_dark_theme and -4 or 6
+    shade = is_dark_theme and -4 or 6,
 }
 
 map.edit_border = {
     keys = {'edit_shadow', 'edit_hilight', 'button_shadow', 'button_hilight'},
     color = color_main_bg,
-    shade = -37
+    shade = -37,
 }
 
 map.combo = {
     keys = {'combo_bg', 'combo_bg2', 'combo_shadow', 'combo_hilight'},
     color = color_menu_bg,
-    shade = -9
+    shade = -9,
 }
 
 map.checkbox = {
     keys = {'checkbox_bg'},
     color = BlendColors(color_main_bg, color_menu_bg),
-    shade = is_dark_theme and -12 or 12
+    shade = is_dark_theme and -12 or 12,
 }
 
 -------------------------------  BUTTON  -----------------------------------
 
 local weight = IsDarkColor(color_main_text) and 0.33 or 0.66
-local color_button = BlendColors(color_main_bg, color_menu_sel_bg, weight)
+local color_button = custom_colors[1] or
+BlendColors(color_main_bg, color_menu_sel_bg, weight)
+reaper.ShowConsoleMsg(tostring(custom_colors[1]) .. '\n')
 
 map.buttons = {keys = {'button_bg'}, color = color_button}
 
@@ -304,14 +315,14 @@ map.button_text = {keys = {'button_text'}, color = color_main_text}
 
 map.button_text_disabled = {
     keys = {'button_text_disabled'},
-    color = BlendColors(color_main_text, color_button, 0.55)
+    color = BlendColors(color_main_text, color_button, 0.55),
 }
 
 map.button_border = {
     keys = {'button_shadow', 'button_hilight'},
     color = color_main_bg,
     offs = -11,
-    shade = -37
+    shade = -37,
 }
 -------------------------------  MAIN CODE  -----------------------------------
 
