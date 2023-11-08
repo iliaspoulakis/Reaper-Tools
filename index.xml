@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="019f97c636c34b984a3dc23ad39cf997099c07fe">
+<index version="1" name="FTC Tools" commit="fc93887cd9c3e44cc855406a6b88ce7913c1d7fe">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -756,6 +756,10 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2021-05-30T11:32:50Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/e057b6fba968b1644fa3661218784777267248d4/LibSwell%20Colorize/Colorize%20unthemeable%20areas%20to%20match%20active%20theme.lua</source>
+      </version>
+      <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-11-08T09:12:26Z">
+        <changelog><![CDATA[- Support overriding button color (separate script)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/fc93887cd9c3e44cc855406a6b88ce7913c1d7fe/LibSwell%20Colorize/Colorize%20unthemeable%20areas%20to%20match%20active%20theme.lua</source>
       </version>
     </reapack>
     <reapack name="Set unthemeable area colors (override).lua" type="script">
