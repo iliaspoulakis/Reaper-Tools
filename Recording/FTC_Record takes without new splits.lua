@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.2.0
   @about Record takes without creating new splits. Recorded takes are split at existing item edges
   @changelog
-    - Support editing during recording
+    - Add v7 lane support
 ]]
 -- User configuration
 
@@ -25,13 +25,12 @@ local colors = {
     '#87a860',
     '#71a860',
     '#60a874',
-    '#60a897'
+    '#60a897',
 }
 
 -------------------------------------------------------------------------------
 
 local _, _, sec, cmd = reaper.get_action_context()
-local extname = 'FTC.Record_without_splits'
 local tracks_state
 local prev_play_state
 local prev_undo_state
@@ -43,20 +42,25 @@ local undo_idx
 local extname = 'FTC.Record_without_splits'
 local undo_name = 'Recorded media without splits'
 
+local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
+if version >= 7.03 then reaper.set_action_options(1) end
+
 -- Get auto-coloring preference from ini file
 local use_take_colors = false
 local file = io.open(reaper.get_ini_file(), 'r')
-for line in file:lines() do
-    local match = line:match('tinttcp=(.-)$')
-    if match then
-        use_take_colors = tonumber(match) & 512 == 512
-        break
+if file then
+    for line in file:lines() do
+        local match = line:match('tinttcp=(.-)$')
+        if match then
+            use_take_colors = tonumber(match) & 512 == 512
+            break
+        end
     end
+    file:close()
 end
-file:close()
 use_take_colors = use_take_colors or force_take_colors
 
-function shuffleColors()
+function ShuffleColors()
     math.randomseed(reaper.time_precise())
     for i = #colors, 2, -1 do
         local j = math.random(i)
@@ -64,25 +68,25 @@ function shuffleColors()
     end
 end
 
-function hex2native(color)
+function Hex2Native(color)
     local r = tonumber(color:sub(2, 3), 16)
     local g = tonumber(color:sub(4, 5), 16)
     local b = tonumber(color:sub(6, 7), 16)
     return reaper.ColorToNative(r, g, b) | 0x1000000
 end
 
-function setItemTakeColors(item, default)
+function SetItemTakeColors(item, default)
     for tk = 0, reaper.GetMediaItemNumTakes(item) - 1 do
         local take = reaper.GetMediaItemTake(item, tk)
         if reaper.ValidatePtr(take, 'MediaItem_Take*') then
-            local color = default and 0 or hex2native(colors[color_idx])
+            local color = default and 0 or Hex2Native(colors[color_idx])
             reaper.SetMediaItemTakeInfo_Value(take, 'I_CUSTOMCOLOR', color)
             color_idx = (color_idx % #colors) + 1
         end
     end
 end
 
-function getArmedTracks()
+function GetArmedTracks()
     local tracks = {}
     for i = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, i)
@@ -93,7 +97,7 @@ function getArmedTracks()
     return tracks
 end
 
-function getTrackItems(track)
+function GetTrackItems(track)
     local items = {}
     for i = 0, reaper.CountTrackMediaItems(track) - 1 do
         items[#items + 1] = reaper.GetTrackMediaItem(track, i)
@@ -101,7 +105,7 @@ function getTrackItems(track)
     return items
 end
 
-function getNewItems(track_state)
+function GetNewItems(track_state)
     local items = {}
     local item_cnt = reaper.CountTrackMediaItems(track_state.track)
     if item_cnt ~= #track_state.items then
@@ -118,10 +122,10 @@ function getNewItems(track_state)
     return items
 end
 
-function mergeTakes(main_item, item, item_soffs)
-    local getTakeInfoValue = reaper.GetMediaItemTakeInfo_Value
-    local setTakeInfoValue = reaper.SetMediaItemTakeInfo_Value
-    local getSetTakeInfoValue = reaper.GetSetMediaItemTakeInfo_String
+function MergeTakes(main_item, item, item_soffs)
+    local GetTakeInfo = reaper.GetMediaItemTakeInfo_Value
+    local SetTakeInfo = reaper.SetMediaItemTakeInfo_Value
+    local GetSetTakeInfo = reaper.GetSetMediaItemTakeInfo_String
 
     if reaper.ValidatePtr(item, 'MediaItem*') then
         -- Set sources of item to new takes on main item
@@ -130,18 +134,18 @@ function mergeTakes(main_item, item, item_soffs)
             if reaper.ValidatePtr(take, 'MediaItem_Take*') then
                 -- Get take info
                 local take_source = reaper.GetMediaItemTake_Source(take)
-                local take_soffs = getTakeInfoValue(take, 'D_STARTOFFS')
-                local take_color = getTakeInfoValue(take, 'I_CUSTOMCOLOR')
-                local _, take_name = getSetTakeInfoValue(take, 'P_NAME', '', false)
+                local take_soffs = GetTakeInfo(take, 'D_STARTOFFS')
+                local take_color = GetTakeInfo(take, 'I_CUSTOMCOLOR')
+                local _, take_name = GetSetTakeInfo(take, 'P_NAME', '', false)
 
                 -- Add take to main item
                 local new_take = reaper.AddTakeToMediaItem(main_item)
                 local new_take_source = reaper.GetMediaItemTake_Source(new_take)
 
                 local soffs = take_soffs - item_soffs
-                setTakeInfoValue(new_take, 'D_STARTOFFS', soffs)
-                setTakeInfoValue(new_take, 'I_CUSTOMCOLOR', take_color)
-                getSetTakeInfoValue(new_take, 'P_NAME', take_name, true)
+                SetTakeInfo(new_take, 'D_STARTOFFS', soffs)
+                SetTakeInfo(new_take, 'I_CUSTOMCOLOR', take_color)
+                GetSetTakeInfo(new_take, 'P_NAME', take_name, true)
 
                 reaper.SetMediaItemTake_Source(new_take, take_source)
                 reaper.PCM_Source_Destroy(new_take_source)
@@ -154,7 +158,7 @@ function mergeTakes(main_item, item, item_soffs)
     end
 end
 
-function addEmptyTakeLanes(main_item, num, is_add_at_start)
+function AddEmptyTakeLanes(main_item, num, is_add_at_start)
     reaper.PreventUIRefresh(1)
     local sel_items = {}
     -- Save current item selection
@@ -182,17 +186,19 @@ function addEmptyTakeLanes(main_item, num, is_add_at_start)
     reaper.PreventUIRefresh(-1)
 end
 
-function mergeItems(track_state, new_item)
-    local getItemInfoValue = reaper.GetMediaItemInfo_Value
-    local setItemInfoValue = reaper.SetMediaItemInfo_Value
-    local deleteTrackItem = reaper.DeleteTrackMediaItem
+function MergeItems(track_state, new_item)
+    local GetItemInfo = reaper.GetMediaItemInfo_Value
+    local SetItemInfo = reaper.SetMediaItemInfo_Value
+    local DeleteTrackItem = reaper.DeleteTrackMediaItem
 
     local overlap_cnt = 0
     local updated_items = {}
 
-    local length = getItemInfoValue(new_item, 'D_LENGTH')
-    local start_pos = getItemInfoValue(new_item, 'D_POSITION')
+    local length = GetItemInfo(new_item, 'D_LENGTH')
+    local start_pos = GetItemInfo(new_item, 'D_POSITION')
     local end_pos = start_pos + length
+
+    local lane = GetItemInfo(new_item, 'I_FIXEDLANE') or 0
 
     local m = 0.0001
 
@@ -203,22 +209,24 @@ function mergeItems(track_state, new_item)
     if math.abs(beat_diff) < m then
         -- Snap item end to beat
         local diff_time = reaper.TimeMap2_beatsToTime(0, beat_diff)
-        setItemInfoValue(new_item, 'D_LENGTH', length - diff_time)
+        SetItemInfo(new_item, 'D_LENGTH', length - diff_time)
         end_pos = end_pos - diff_time
     end
 
     if use_take_colors then
-        setItemTakeColors(new_item)
+        SetItemTakeColors(new_item)
     end
 
     local max_num_takes = 0
     for i = 1, #track_state.items do
         local item = track_state.items[i]
-        local item_length = getItemInfoValue(item, 'D_LENGTH')
-        local item_start_pos = getItemInfoValue(item, 'D_POSITION')
+        local item_length = GetItemInfo(item, 'D_LENGTH')
+        local item_start_pos = GetItemInfo(item, 'D_POSITION')
         local item_end_pos = item_start_pos + item_length
+        local item_lane = GetItemInfo(item, 'I_FIXEDLANE') or 0
         -- Check if items overlap
-        if item_start_pos < end_pos - m and item_end_pos > start_pos + m then
+        if item_start_pos < end_pos - m and item_end_pos > start_pos + m
+            and item_lane == lane then
             local num_takes = reaper.GetMediaItemNumTakes(item)
             max_num_takes = math.max(max_num_takes, num_takes)
         end
@@ -229,16 +237,18 @@ function mergeItems(track_state, new_item)
 
     for _, item in ipairs(track_state.items) do
         if new_item then
-            local item_length = getItemInfoValue(item, 'D_LENGTH')
-            local item_start_pos = getItemInfoValue(item, 'D_POSITION')
+            local item_length = GetItemInfo(item, 'D_LENGTH')
+            local item_start_pos = GetItemInfo(item, 'D_POSITION')
             local item_end_pos = item_start_pos + item_length
+            local item_lane = GetItemInfo(item, 'I_FIXEDLANE') or 0
             -- Check if items overlap
-            if item_start_pos < end_pos - m and item_end_pos > start_pos + m then
+            if item_start_pos < end_pos - m and item_end_pos > start_pos + m
+                and item_lane == lane then
                 -- Add empty take lanes if necessary
                 local num_takes = reaper.GetMediaItemNumTakes(item)
                 local take_diff = max_num_takes - num_takes
                 if take_diff > 0 then
-                    addEmptyTakeLanes(item, take_diff)
+                    AddEmptyTakeLanes(item, take_diff)
                 end
                 local overlapping_item = new_item
                 -- Split starts (keep tail)
@@ -247,14 +257,14 @@ function mergeItems(track_state, new_item)
                     if tail then
                         if item_start_pos - start_pos < 0.005 then
                             -- Delete tiny leftover
-                            deleteTrackItem(track_state.track, new_item)
+                            DeleteTrackItem(track_state.track, new_item)
                         else
                             -- Update items for next iteration
                             updated_items[#updated_items + 1] = new_item
-                            local num_takes = reaper.GetMediaItemNumTakes(new_item)
-                            local take_diff = max_num_takes - num_takes + 1
+                            num_takes = reaper.GetMediaItemNumTakes(new_item)
+                            take_diff = max_num_takes - num_takes + 1
                             if take_diff > 0 then
-                                addEmptyTakeLanes(new_item, take_diff, true)
+                                AddEmptyTakeLanes(new_item, take_diff, true)
                             end
                         end
                         new_item = tail
@@ -267,20 +277,20 @@ function mergeItems(track_state, new_item)
                     new_item = reaper.SplitMediaItem(new_item, item_end_pos)
                     if new_item and end_pos - item_end_pos < 0.005 then
                         -- Delete tiny leftover
-                        deleteTrackItem(track_state.track, new_item)
+                        DeleteTrackItem(track_state.track, new_item)
                         new_item = nil
                     else
-                        local num_takes = reaper.GetMediaItemNumTakes(new_item)
-                        local take_diff = max_num_takes - num_takes + 1
+                        num_takes = reaper.GetMediaItemNumTakes(new_item)
+                        take_diff = max_num_takes - num_takes + 1
                         if take_diff > 0 then
-                            addEmptyTakeLanes(new_item, take_diff, true)
+                            AddEmptyTakeLanes(new_item, take_diff, true)
                         end
                     end
                 end
                 -- Merge overlapping item
                 local item_soffs = start_pos - item_start_pos
-                mergeTakes(item, overlapping_item, item_soffs)
-                setItemInfoValue(item, 'B_LOOPSRC', 0)
+                MergeTakes(item, overlapping_item, item_soffs)
+                SetItemInfo(item, 'B_LOOPSRC', 0)
                 reaper.SetMediaItemSelected(item, true)
 
                 overlap_cnt = overlap_cnt + 1
@@ -289,7 +299,7 @@ function mergeItems(track_state, new_item)
             -- Update items for next iteration (correct position)
             if overlap_cnt == 0 and item_start_pos > end_pos then
                 updated_items[#updated_items + 1] = new_item
-                setItemTakeColors(new_item, true)
+                SetItemTakeColors(new_item, true)
                 overlap_cnt = overlap_cnt + 1
                 new_item = nil
             end
@@ -299,30 +309,31 @@ function mergeItems(track_state, new_item)
     -- Update items for next iteration
     if overlap_cnt == 0 or #track_state.items == 0 then
         updated_items[#updated_items + 1] = new_item
-        setItemTakeColors(new_item, true)
+        SetItemTakeColors(new_item, true)
     end
     track_state.items = updated_items
 end
 
-function poll()
+function Main()
     local play_state = reaper.GetPlayState()
     local undo_state = reaper.GetProjectStateChangeCount(0)
 
     if prev_play_state ~= play_state then
         if play_state == 5 then
             -- Save currently selected recording option
-            local rec_option_cmds = {41330, 41186, 41329}
-            for _, cmd in ipairs(rec_option_cmds) do
-                if reaper.GetToggleCommandState(cmd) == 1 then
-                    rec_option_cmd = cmd
+            local layer_rec_cmd = version >= 7.00 and 42677 or 41329
+            local rec_option_cmds = {41330, 41186, layer_rec_cmd}
+            for _, rec_cmd in ipairs(rec_option_cmds) do
+                if reaper.GetToggleCommandState(rec_cmd) == 1 then
+                    rec_option_cmd = rec_cmd
                 end
             end
             -- Cmd: New recording creates new media items in separate lanes
-            reaper.Main_OnCommand(41329, 0)
+            reaper.Main_OnCommand(layer_rec_cmd, 0)
             tracks_state = {}
-            local tracks = getArmedTracks()
+            local tracks = GetArmedTracks()
             for i, track in ipairs(tracks) do
-                tracks_state[i] = {track = track, items = getTrackItems(track)}
+                tracks_state[i] = {track = track, items = GetTrackItems(track)}
             end
         end
         prev_play_state = play_state
@@ -332,20 +343,23 @@ function poll()
         if play_state == 5 then
             -- Handle editing and other changes during recording
             tracks_state = {}
-            local tracks = getArmedTracks()
+            local tracks = GetArmedTracks()
             for _, track in ipairs(tracks) do
                 local is_updated = false
                 for i, state in ipairs(tracks_state) do
                     if state.track == track then
                         -- Update existing states
-                        tracks_state[i] = {track = track, items = getTrackItems(track)}
+                        tracks_state[i] = {
+                            track = track,
+                            items = GetTrackItems(track),
+                        }
                         is_updated = true
                         break
                     end
                 end
                 if not is_updated then
                     -- Add new state
-                    local state = {track = track, items = getTrackItems(track)}
+                    local state = {track = track, items = GetTrackItems(track)}
                     tracks_state[#tracks_state + 1] = state
                 end
             end
@@ -375,9 +389,9 @@ function poll()
                 -- Find new recorded items and merge them
                 reaper.Undo_BeginBlock()
                 for _, track_state in ipairs(tracks_state) do
-                    local new_items = getNewItems(track_state)
+                    local new_items = GetNewItems(track_state)
                     for _, item in ipairs(new_items) do
-                        mergeItems(track_state, item)
+                        MergeItems(track_state, item)
                     end
                 end
                 reaper.UpdateArrange()
@@ -401,7 +415,7 @@ function poll()
 
     -- Keep polling until terminated by other script
     if reaper.GetExtState(extname, 'state_new_splits') == 'on' then
-        reaper.defer(poll)
+        reaper.defer(Main)
     end
 end
 
@@ -417,14 +431,14 @@ end
 reaper.SetExtState(extname, 'state_new_splits', 'on', false)
 
 if randomize_color_order then
-    shuffleColors()
+    ShuffleColors()
 end
 
-function exit()
+function Exit()
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
     reaper.SetExtState(extname, 'state_new_splits', 'off', false)
 end
 
-reaper.atexit(exit)
-reaper.defer(poll)
+reaper.atexit(Exit)
+reaper.defer(Main)
