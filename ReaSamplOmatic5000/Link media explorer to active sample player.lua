@@ -1,13 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.2
+  @version 1.4.0
   @provides [main=main,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Set temporary mark when a new file is selected
+    - Add support for FX containers
 ]]
 
 -- Comment out the next line to avoid turning off autoplay temporarily
@@ -241,6 +241,27 @@ function GetLastFocusedFXContainer()
     end
 end
 
+function GetLastTouchedOrFocusedFXContainer()
+    local ret, tr_idx, i_idx, tk_idx, fx = reaper.GetTouchedOrFocusedFX(1)
+
+    if not ret then return end
+
+    if i_idx >= 0 then
+        local track = reaper.GetTrack(0, tr_idx)
+        local item = reaper.GetTrackMediaItem(track, i_idx)
+        local take = reaper.GetMediaItemTake(item, tk_idx)
+        return take, fx
+    else
+        local track
+        if tr_idx == -1 then
+            track = reaper.GetMasterTrack(0)
+        else
+            track = reaper.GetTrack(0, tr_idx)
+        end
+        return track, fx
+    end
+end
+
 function Main()
     --- Ensure hwnd for MX is valid (changes when docked etc.)
     if not reaper.ValidatePtr(mx, 'HWND') then
@@ -403,7 +424,11 @@ RefreshMXToolbar()
 if toggle_autoplay then reaper.JS_Window_OnCommand(mx, 40036) end
 
 --  Get the track ot take that "contains" the last touched fx
-container, container_idx = GetLastFocusedFXContainer()
+if version >= 7 then
+    container, container_idx = GetLastTouchedOrFocusedFXContainer()
+else
+    container, container_idx = GetLastFocusedFXContainer()
+end
 
 if container then
     -- Determine which functions will be used to get/set sampler values
