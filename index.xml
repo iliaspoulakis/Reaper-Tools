@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="6fdb34002c387055d6bab2e50b4fd1a2045afaa4">
+<index version="1" name="FTC Tools" commit="f051e3dc5326b4f08f2aab6257166a1daec5a6b6">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2067,6 +2067,13 @@
         <changelog><![CDATA[- Improve behavior when selecting grouped items
 - Avoid Reascript task control]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5172a81edf51c83dae08bf29fd842ce5363670b7/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
+      <version name="1.4.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-12-15T19:51:08Z">
+        <changelog><![CDATA[- Avoid reopening editor when all selected items are already open and editable
+- Do not change user MIDI editor settings when opening single MIDI items
+- Add support for active MIDI item follows "Track" selection in arrange view
+- Change user MIDI editor settings in certain situations (show warning)]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/f051e3dc5326b4f08f2aab6257166a1daec5a6b6/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
