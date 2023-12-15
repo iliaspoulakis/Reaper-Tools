@@ -1,12 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.4.0
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Improve behavior when selecting grouped items
-    - Avoid Reascript task control
+    - Avoid reopening editor when all selected items are already open and editable
+    - Do not change user MIDI editor settings when opening single MIDI items
+    - Add support for active MIDI item follows "Track" selection in arrange view
+    - Change user MIDI editor settings in certain situations (show warning)
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -500,11 +502,14 @@ local note_hi = -1
 local density = 0
 local density_cnt = 0
 
+local midi_takes = {}
+
 -- Analyze all selected items
 for _, item in ipairs(sel_items) do
     local take = reaper.GetActiveTake(item)
     if reaper.ValidatePtr(take, 'MediaItem_Take*') and reaper.TakeIsMIDI(take) then
         midi_item_cnt = midi_item_cnt + 1
+        midi_takes[take] = true
         -- Get mininum item start position and maximum item end position
         local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
         local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
@@ -554,56 +559,116 @@ if midi_item_cnt == 0 then
     return
 end
 
--- Change MIDI editor settings for multi-edit
-local config = reaper.SNM_GetIntConfigVar('midieditor', 0)
+local prev_hwnd = reaper.MIDIEditor_GetActive()
 
-local click_type = config & 20
-local other_tracks_editable = config & 256
-local editability = config & 512
-local visibility = config & 1024
-local edit_secondary = config & 4096
+local config
+local visibility
 
-local new_config = config
--- Set click type to 'Open all selected MIDI items'
-new_config = new_config - click_type
--- Disable 'Avoid automatically setting items from other tracks editable'
-new_config = new_config - other_tracks_editable + 256
--- Disable 'Selection is linked to editability'
-new_config = new_config - editability + 512
--- Enable 'Selection is linked to visibility'
-new_config = new_config - visibility
--- Enable 'Make secondary items editable by default'
-new_config = new_config - edit_secondary + 4096
-reaper.SNM_SetIntConfigVar('midieditor', new_config)
+if prev_hwnd or midi_item_cnt > 1 then
+    -- Change MIDI editor settings for multi-edit
+    config = reaper.SNM_GetIntConfigVar('midieditor', 0)
 
--- Cmd: Open in built-in MIDI editor
-reaper.Main_OnCommand(40153, 0)
+    local click_type = config & 20
+    local other_tracks_editable = config & 256
+    local editability = config & 512
+    visibility = config & 1024
+    local edit_secondary = config & 4096
+
+    local new_config = config
+    -- Set click type to 'Open all selected MIDI items'
+    new_config = new_config - click_type
+    -- Disable 'Avoid automatically setting items from other tracks editable'
+    new_config = new_config - other_tracks_editable + 256
+    -- Disable 'Selection is linked to editability'
+    new_config = new_config - editability + 512
+    -- Enable 'Selection is linked to visibility'
+    new_config = new_config - visibility
+    -- Enable 'Make secondary items editable by default'
+    new_config = new_config - edit_secondary + 4096
+    reaper.SNM_SetIntConfigVar('midieditor', new_config)
+
+    if not prev_hwnd and editability == 0 and other_tracks_editable == 0 then
+        local unique_track_cnt = 0
+        local unique_tracks = {}
+        for take in pairs(midi_takes) do
+            local track = reaper.GetMediaItemTake_Track(take)
+            if not unique_tracks[track] then
+                unique_tracks[track] = true
+                unique_track_cnt = unique_track_cnt + 1
+                if unique_track_cnt > 1 then break end
+            end
+        end
+
+        if unique_track_cnt > 1 then
+            local msg = 'Your current MIDI editor settings configuration is \z
+            incompatible with multi-track editing.\n\nThe following setting has \z
+            been turned off:\n"Avoid automatically setting MIDI items from \z
+            other tracks editable"'
+            reaper.MB(msg, 'Warning', 0)
+            config = config + 256
+        end
+    end
+
+    -- Select all tracks of items if editor follows track selection and selection
+    -- is linked to editability
+    local editor_follows_track_sel = config & 8192 == 8192
+    if editor_follows_track_sel and editability == 0 then
+        for take in pairs(midi_takes) do
+            local track = reaper.GetMediaItemTake_Track(take)
+            reaper.SetMediaTrackInfo_Value(track, 'I_SELECTED', 1)
+        end
+    end
+end
+
+-- If all editable takes are already editable, avoid re-opening the editor
+local requires_new_editor = true
+if prev_hwnd then
+    local i = 0
+    repeat
+        local take = reaper.MIDIEditor_EnumTakes(prev_hwnd, i, true)
+        if take and not midi_takes[take] then break end
+        i = i + 1
+    until not take
+
+    if midi_item_cnt == i - 1 then requires_new_editor = false end
+end
+
+if requires_new_editor then
+    -- Cmd: Open in built-in MIDI editor
+    reaper.Main_OnCommand(40153, 0)
+end
 
 local hwnd = reaper.MIDIEditor_GetActive()
 local editor_take = reaper.MIDIEditor_GetTake(hwnd)
 
 if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
+    -- Reset config to original state
+    reaper.SNM_SetIntConfigVar('midieditor', config)
     reaper.PreventUIRefresh(-1)
     return
 end
 
--- Note: Setting 'Selection is linked to visibility' can change item selection to
--- all items that are open (visible) in editor
-if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt then
-    -- Contents: Activate next MIDI media item on this track, clearing the editor first
-    reaper.MIDIEditor_OnCommand(hwnd, 40798)
-    -- We use this for clearing, if active item changes this needs to be reverted
-    if reaper.MIDIEditor_GetTake(hwnd) ~= editor_take then
-        -- Contents: Activate previous MIDI media item on this track, clearing the ...
-        reaper.MIDIEditor_OnCommand(hwnd, 40797)
+if prev_hwnd or midi_item_cnt > 1 then
+    -- Note: Setting 'Selection is linked to visibility' can change item
+    -- selection to  all items that are open (visible) in editor
+    if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt then
+        -- Contents: Activate next MIDI media item on this track, clearing the
+        -- editor first
+        reaper.MIDIEditor_OnCommand(hwnd, 40798)
+        -- We use this for clearing, if active item changes this needs to be
+        -- reverted
+        if reaper.MIDIEditor_GetTake(hwnd) ~= editor_take then
+            -- Contents: Activate previous MIDI media item on this track, clear...
+            reaper.MIDIEditor_OnCommand(hwnd, 40797)
+        end
     end
-end
 
--- Reset config to original state
-reaper.SNM_SetIntConfigVar('midieditor', config)
+    -- Reset config to original state
+    reaper.SNM_SetIntConfigVar('midieditor', config)
 
-if visibility == 0 or _G.keep_items_selected then
-    mouse_item = nil
+    if visibility == 0 or _G.keep_items_selected then
+        mouse_item = nil
+    end
 end
 
 -- Restore previous item selection
@@ -636,7 +701,7 @@ else
     ScrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1, note_hi + 1)
 end
 
-if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and midi_item_cnt >= 2 then
+if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and midi_item_cnt > 1 then
     -- Get previous time selection
     local sel = GetSelection()
     SetSelection(zoom_start_pos, zoom_end_pos)
