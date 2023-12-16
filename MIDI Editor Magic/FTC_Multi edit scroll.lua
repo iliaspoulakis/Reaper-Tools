@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.1
+  @version 1.4.2
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Do not require all takes to be editable when opening editor or when running in open editor
+    - Ensure that double click in arrange view can switch active take
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -561,7 +561,7 @@ local prev_hwnd = reaper.MIDIEditor_GetActive()
 local config
 local visibility
 
-if prev_hwnd or midi_item_cnt > 1 then
+if midi_item_cnt > 1 then
     -- Change MIDI editor settings for multi-edit
     config = reaper.SNM_GetIntConfigVar('midieditor', 0)
 
@@ -612,6 +612,15 @@ if prev_hwnd then
     until not take
 
     if midi_item_cnt == i - 1 then requires_new_editor = false end
+
+    -- Ensure that active take can be switched (with same items selected)
+    if not requires_new_editor and mouse_item then
+        local mouse_take = reaper.GetActiveTake(mouse_item)
+        local is_valid = reaper.ValidatePtr(mouse_take, 'MediaItem_Take*')
+        if is_valid and mouse_take ~= reaper.MIDIEditor_GetTake(prev_hwnd) then
+            requires_new_editor = true
+        end
+    end
 end
 
 if requires_new_editor then
@@ -629,7 +638,7 @@ if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
     return
 end
 
-if prev_hwnd or midi_item_cnt > 1 then
+if midi_item_cnt > 1 then
     -- Note: Setting 'Selection is linked to visibility' can change item
     -- selection to  all items that are open (visible) in editor
     if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt then
