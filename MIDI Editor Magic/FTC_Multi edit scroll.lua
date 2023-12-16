@@ -1,12 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.2
+  @version 1.4.3
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Ensure that double click in arrange view can switch active take
+    - Minor undo point creation improvement
 ]]
+
 ------------------------------- GENERAL SETTINGS --------------------------------
 
 -- When to zoom to items horizontally (inside MIDI editor)
@@ -489,6 +490,7 @@ for i = 0, sel_item_cnt - 1 do
 end
 
 local midi_item_cnt = 0
+local midi_takes = {}
 
 local zoom_start_pos = math.huge
 local zoom_end_pos = 0
@@ -498,8 +500,6 @@ local note_hi = -1
 
 local density = 0
 local density_cnt = 0
-
-local midi_takes = {}
 
 -- Analyze all selected items
 for _, item in ipairs(sel_items) do
@@ -662,8 +662,12 @@ if midi_item_cnt > 1 then
 end
 
 -- Restore previous item selection
-if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt or mouse_item then
-    reaper.SelectAllMediaItems(0, false)
+local new_sel_item_cnt = reaper.CountSelectedMediaItems(0)
+if new_sel_item_cnt ~= sel_item_cnt or mouse_item then
+    for i = new_sel_item_cnt - 1, 0, -1 do
+        local item = reaper.GetSelectedMediaItem(0, i)
+        reaper.SetMediaItemSelected(item, false)
+    end
     for _, item in ipairs(sel_items) do
         reaper.SetMediaItemSelected(item, not mouse_item or item == mouse_item)
         reaper.UpdateItemInProject(item)
@@ -706,6 +710,7 @@ if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and midi_item_cnt > 1 then
         SetSelection(sel_start_pos, sel_end_pos)
     end
 else
+    -- View: Go to edit cursor
     reaper.MIDIEditor_OnCommand(hwnd, 40151)
 end
 
