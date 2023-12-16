@@ -1,14 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.4.1
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Avoid reopening editor when all selected items are already open and editable
-    - Do not change user MIDI editor settings when opening single MIDI items
-    - Add support for active MIDI item follows "Track" selection in arrange view
-    - Change user MIDI editor settings in certain situations (show warning)
+    - Do not require all takes to be editable when opening editor or when running in open editor
 ]]
 ------------------------------- GENERAL SETTINGS --------------------------------
 
@@ -585,29 +582,13 @@ if prev_hwnd or midi_item_cnt > 1 then
     new_config = new_config - visibility
     -- Enable 'Make secondary items editable by default'
     new_config = new_config - edit_secondary + 4096
-    reaper.SNM_SetIntConfigVar('midieditor', new_config)
 
-    if not prev_hwnd and editability == 0 and other_tracks_editable == 0 then
-        local unique_track_cnt = 0
-        local unique_tracks = {}
-        for take in pairs(midi_takes) do
-            local track = reaper.GetMediaItemTake_Track(take)
-            if not unique_tracks[track] then
-                unique_tracks[track] = true
-                unique_track_cnt = unique_track_cnt + 1
-                if unique_track_cnt > 1 then break end
-            end
-        end
-
-        if unique_track_cnt > 1 then
-            local msg = 'Your current MIDI editor settings configuration is \z
-            incompatible with multi-track editing.\n\nThe following setting has \z
-            been turned off:\n"Avoid automatically setting MIDI items from \z
-            other tracks editable"'
-            reaper.MB(msg, 'Warning', 0)
-            config = config + 256
-        end
+    if editability == 0 and other_tracks_editable == 0 then
+        -- Respect preference to avoid multi-track editing when editability is
+        -- linked.
+        new_config = new_config - 4096
     end
+    reaper.SNM_SetIntConfigVar('midieditor', new_config)
 
     -- Select all tracks of items if editor follows track selection and selection
     -- is linked to editability
@@ -625,7 +606,7 @@ local requires_new_editor = true
 if prev_hwnd then
     local i = 0
     repeat
-        local take = reaper.MIDIEditor_EnumTakes(prev_hwnd, i, true)
+        local take = reaper.MIDIEditor_EnumTakes(prev_hwnd, i, false)
         if take and not midi_takes[take] then break end
         i = i + 1
     until not take
@@ -643,7 +624,7 @@ local editor_take = reaper.MIDIEditor_GetTake(hwnd)
 
 if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
     -- Reset config to original state
-    reaper.SNM_SetIntConfigVar('midieditor', config)
+    if config then reaper.SNM_SetIntConfigVar('midieditor', config) end
     reaper.PreventUIRefresh(-1)
     return
 end
