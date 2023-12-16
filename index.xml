@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="989c11efb24a78022d10820784ce0d359714e793">
+<index version="1" name="FTC Tools" commit="75c8ce630d349eb67e464b9c0608ab9872bd35c2">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2078,6 +2078,10 @@
       <version name="1.4.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-12-16T01:29:12Z">
         <changelog><![CDATA[- Do not require all takes to be editable when opening editor or when running in open editor]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/989c11efb24a78022d10820784ce0d359714e793/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
+      <version name="1.4.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-12-16T02:43:54Z">
+        <changelog><![CDATA[- Ensure that double click in arrange view can switch active take]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/75c8ce630d349eb67e464b9c0608ab9872bd35c2/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
