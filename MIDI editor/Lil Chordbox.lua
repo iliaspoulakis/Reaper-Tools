@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.2
+  @version 2.0.3
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Fix crash when glueing MIDI items
+    - Windows: Improve behavior of MIDI channel combobox
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -64,6 +64,7 @@ if version < 6.4 then
     reaper.MB('Please install REAPER v6.40 or later', 'Error', 0)
     return
 end
+if version >= 7.03 then reaper.set_action_options(1) end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -1094,7 +1095,6 @@ function CreateChordTrack()
     reaper.Undo_EndBlock('Create chord track', -1)
 end
 
-
 function CreateChordProjectRegions()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
@@ -1864,19 +1864,44 @@ function Main()
         is_redraw = true
     end
 
-    local mode = -1
-    local cursor_pos
-
-    -- Monitor item chunk (for getting time position at mouse)
     -- Note: Avoid using GetItemStateChunk every defer cycle so that tooltips
-    -- show on Windows
+    -- show on Windows (and reduce overall CPU usage on other OSs)
     local curr_time = reaper.time_precise()
     if not prev_time or curr_time > prev_time + tooltip_delay then
         prev_time = curr_time
+
+        local is_channel_combobox_hovered = false
+        -- Note: Avoid calling GetItemStateChunk when channel combobox is hovered
+        if is_windows then
+            local GetLong = reaper.JS_Window_GetLong
+            local x, y = reaper.GetMousePosition()
+
+            local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
+
+            local is_valid = reaper.ValidatePtr(hover_hwnd, 'HWND*')
+            local hover_id = is_valid and GetLong(hover_hwnd, 'ID')
+
+            -- Note: 1000 is the id of the combobox menu when opened
+            if hover_id == 1000 then
+                local focus_hwnd = reaper.JS_Window_GetFocus()
+                is_valid = reaper.ValidatePtr(focus_hwnd, 'HWND*')
+
+                local focus_id = is_valid and GetLong(focus_hwnd, 'ID')
+                -- Check if the channel combobox (ID 1006) is focused
+                if focus_id == 1006 then
+                    if reaper.JS_Window_IsChild(hwnd, focus_hwnd) then
+                        is_channel_combobox_hovered = true
+                    end
+                end
+            end
+        end
+
+        -- Avoid calling GetItemStateChunk as long as tooltip is shown
         local tooltip_hwnd = reaper.GetTooltipWindow()
-        local tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd)
-        -- Avoid getting chunk as long as tooltip is shown
-        if tooltip == '' then
+        local has_tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd) ~= ''
+
+        -- Monitor item chunk (for getting time position at mouse)
+        if not has_tooltip and not is_channel_combobox_hovered then
             local _, chunk = reaper.GetItemStateChunk(item, '', false)
             if chunk ~= prev_item_chunk then
                 prev_item_chunk = chunk
@@ -1884,6 +1909,9 @@ function Main()
             end
         end
     end
+
+    local mode = -1
+    local cursor_pos
 
     -- Calculate time position at mouse using start/end time of the MIDI editor
     if curr_start_time then
