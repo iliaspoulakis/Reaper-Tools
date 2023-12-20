@@ -109,10 +109,43 @@ function Main()
     if midi_mult ~= 0 then
         local editor_hwnd = reaper.MIDIEditor_GetActive()
         local time = reaper.time_precise()
-        -- Windows needs a delay to show tooltips (caused by GetItemStateChunk)
+
+        -- Note: Calling GetItemStateChunk repeatedly causes issues on Windows
+        -- 1. Makes channel combobox unusable
+        -- 2. Prevents tooltips from being shown
         if is_windows then
             local x, y = reaper.GetMousePosition()
-            if x ~= prev_mouse_x or y ~= prev_mouse_y then
+
+            local is_channel_combobox_hovered = false
+            local hover_hwnd
+            local hover_id
+
+            -- Check if channel combobox is hovered
+            if has_js_api then
+                local GetLong = reaper.JS_Window_GetLong
+                hover_hwnd = reaper.JS_Window_FromPoint(x, y)
+
+                local is_valid = reaper.ValidatePtr(hover_hwnd, 'HWND*')
+                hover_id = is_valid and GetLong(hover_hwnd, 'ID')
+
+                -- Note: 1000 is the id of the combobox menu when opened
+                if hover_id == 1000 then
+                    local focus_hwnd = reaper.JS_Window_GetFocus()
+                    is_valid = reaper.ValidatePtr(focus_hwnd, 'HWND*')
+
+                    local focus_id = is_valid and GetLong(focus_hwnd, 'ID')
+                    -- Check if the channel combobox (ID 1006) is focused
+                    if focus_id == 1006 then
+                        if reaper.JS_Window_IsChild(editor_hwnd, focus_hwnd) then
+                            is_channel_combobox_hovered = true
+                        end
+                    end
+                end
+            end
+            if is_channel_combobox_hovered then
+                -- Delay indefinitely as long as combobox is hovered
+                prev_time = time - 0.05
+            elseif x ~= prev_mouse_x or y ~= prev_mouse_y then
                 -- Ignore tooltip delay when mouse moves
                 prev_mouse_x = x
                 prev_mouse_y = y
@@ -126,9 +159,7 @@ function Main()
                     prev_time = time - 0.05
                 else
                     -- Avoid tooltip delay when mouse is on top of midiview
-                    local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
-                    local id = reaper.JS_Window_GetLong(hover_hwnd, 'ID', 0)
-                    if id == 1001 then
+                    if hover_id == 1001 then
                         if reaper.JS_Window_IsChild(editor_hwnd, hover_hwnd) then
                             prev_time = nil
                         end
@@ -172,4 +203,3 @@ function Exit() SetServiceRunning(false) end
 SetServiceRunning(true)
 reaper.atexit(Exit)
 Main()
-
