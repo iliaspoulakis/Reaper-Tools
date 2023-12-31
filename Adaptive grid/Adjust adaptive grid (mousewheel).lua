@@ -5,8 +5,10 @@
   @about Use the mousewheel to go through adaptive grid sizes
 ]]
 local extname = 'FTC.AdaptiveGrid'
-local _, file, sec, cmd, _, _, val = reaper.get_action_context()
+local _, file, sec, _, _, _, val = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
+
+if _G.scroll_dir then val = _G.scroll_dir end
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -84,8 +86,10 @@ if mult == -1 then mult = 3 end
 
 if mult > 0 then
     -- Change adaptive grid size
+    if mult == 6 then mult = 5 end
     mult = mult + (val < 0 and 1 or -1)
     mult = math.min(5, math.max(1, mult))
+    if mult == 5 then mult = 6 end
     SetMultiplier(mult)
     RunAdaptScript(sec == 32060)
     UpdateToolbarToggleStates(sec, mult)
