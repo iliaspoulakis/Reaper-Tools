@@ -333,75 +333,85 @@ function ShowMIDIGrid(is_visible)
     end
 end
 
-function IsGridStraight(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
-    return math.log(grid_div, 2) % 1 == 0
-end
-
-function IsGridInTriplets(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
-    return 2 / (grid_div % 1) % 3 < 0.0001
-end
-
-function GetClosestStraightDivision(grid_div)
+function GetClosestStraightGrid(grid_div)
     grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
     return 2 ^ math.floor(math.log(grid_div, 2) + 0.5)
 end
 
-function SetGridStraight()
+function IsStraightGrid(grid_div)
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    return math.log(grid_div, 2) % 1 == 0
+end
+
+function SetStraightGrid()
     local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, false)
-    if not IsGridStraight(grid_div) then
-        if IsGridInTriplets(grid_div) then
+    if not IsStraightGrid(grid_div) then
+        if IsTripletGrid(grid_div) then
             grid_div = grid_div * 3 / 2
-        else
-            grid_div = GetClosestStraightDivision(grid_div)
-        end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
-    end
-end
-
-function SetGridToTriplets()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
-    if not IsGridInTriplets(grid_div) then
-        if IsGridStraight(grid_div) then
+        elseif IsDottedGrid(grid_div) then
             grid_div = grid_div * 2 / 3
         else
-            grid_div = GetClosestStraightDivision(grid_div) * 3 / 2
+            grid_div = GetClosestStraightGrid(grid_div)
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing, swing_amt)
+        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
     end
 end
 
-function ToggleTripletGrid()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
-
-    if IsGridInTriplets(grid_div) then
-        grid_div = grid_div * 3 / 2
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+function IsTripletGrid(grid_div)
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    if grid_div > 1 then
+        return 2 * grid_div % (2 / 3) == 0
     else
-        if IsGridStraight(grid_div) then
+        return 2 / grid_div % 3 == 0
+    end
+end
+
+function SetTripletGrid()
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    if not IsTripletGrid(grid_div) then
+        if IsStraightGrid(grid_div) then
             grid_div = grid_div * 2 / 3
+        elseif IsDottedGrid(grid_div) then
+            grid_div = grid_div * (2 / 3) ^ 2
         else
-            grid_div = GetClosestStraightDivision(grid_div) * 3 / 2
+            grid_div = GetClosestStraightGrid(grid_div) * 2 / 3
         end
         reaper.GetSetProjectGrid(0, true, grid_div, 0, swing, swing_amt)
     end
 end
 
-function IsGridSwingEnabled()
+function IsDottedGrid(grid_div)
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    if grid_div > 1 then
+        return 2 * grid_div % 3 == 0
+    else
+        return 2 / grid_div % (2 / 3) == 0
+    end
+end
+
+function SetDottedGrid()
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    if not IsDottedGrid(grid_div) then
+        if IsStraightGrid(grid_div) then
+            grid_div = grid_div * 3 / 2
+        elseif IsTripletGrid(grid_div) then
+            grid_div = grid_div * (3 / 2) ^ 2
+        else
+            grid_div = GetClosestStraightGrid(grid_div) * 3 / 2
+        end
+        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing, swing_amt)
+    end
+end
+
+function IsSwingEnabled()
     local _, _, swing = reaper.GetSetProjectGrid(0, false)
     return swing == 1
 end
 
-function IsGridSwingDisabled()
-    local _, _, swing = reaper.GetSetProjectGrid(0, false)
-    return swing ~= 1
-end
-
-function ToggleGridSwing()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
-    if swing == 0 and swing_amt == 0 then swing_amt = 1 end
-    reaper.GetSetProjectGrid(0, true, grid_div, 1 - swing, swing_amt)
+function SetSwingEnabled(is_enabled)
+    local swing = is_enabled and 1 or 0
+    local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, false)
+    reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
 end
 
 function SetUserGridDivisor(is_midi)
@@ -437,12 +447,14 @@ function SetUserGridLimits(is_midi)
     local vals = {}
     for limit in (limits .. ','):gmatch('(.-),') do
         local fraction
-        local nom, denom, triplet = limit:match('(%d+)/(%d+)([Tt]?)')
+        local nom, denom, suffix = limit:match('(%d+)/(%d+)([TtDd]?)')
         if nom then
-            local triplet_factor = triplet == '' and 1 or 2 / 3
-            fraction = nom / denom * triplet_factor
+            local factor = 1
+            if suffix == 'T' or suffix == 't' then factor = 2 / 3 end
+            if suffix == 'D' or suffix == 'd' then factor = 3 / 2 end
+            fraction = nom / denom * factor
         else
-            fraction = tonumber(limit)
+            fraction = tonumber(limit) or 0
         end
         if (not fraction or fraction < 0) and limit ~= '' then
             local msg = 'Value \'%s\' not permitted!'
@@ -450,7 +462,7 @@ function SetUserGridLimits(is_midi)
             return false
         end
         str_vals[#str_vals + 1] = limit
-        vals[#vals + 1] = fraction or 0
+        vals[#vals + 1] = fraction
     end
 
     if #vals ~= 2 then
@@ -557,14 +569,16 @@ function SetFixedGrid(new_grid_div)
     ShowGrid(true)
     SetGridMultiplier(0)
     local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
-    if IsGridInTriplets(grid_div) then new_grid_div = new_grid_div * 2 / 3 end
+    if IsTripletGrid(grid_div) then new_grid_div = new_grid_div * 2 / 3 end
+    if IsDottedGrid(grid_div) then new_grid_div = new_grid_div * 3 / 2 end
     reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
 end
 
 function CheckFixedGrid(grid_div)
     if not IsGridVisible() or GetGridMultiplier() ~= 0 then return false end
     local _, curr_grid_div = reaper.GetSetProjectGrid(0, false)
-    if IsGridInTriplets(curr_grid_div) then grid_div = grid_div * 2 / 3 end
+    if IsTripletGrid(curr_grid_div) then grid_div = grid_div * 2 / 3 end
+    if IsDottedGrid(curr_grid_div) then grid_div = grid_div * 3 / 2 end
     return grid_div == curr_grid_div
 end
 
@@ -668,6 +682,7 @@ local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
 swing_amt = math.floor(swing_amt * 100)
 
 function SetSwingAmount(amount)
+    SetStraightGrid()
     reaper.GetSetProjectGrid(0, true, nil, 1, amount / 100)
 end
 
@@ -690,8 +705,6 @@ end
 function CheckSwingAmount(amount) return swing == 1 and swing_amt == amount end
 
 local swing_menu = {
-    {title = 'Off', IsChecked = IsGridSwingDisabled, OnReturn = ToggleGridSwing},
-    {separator = true},
     {title = '53%', IsChecked = CheckSwingAmount, OnReturn = SetSwingAmount, arg = 53},
     {title = '55%', IsChecked = CheckSwingAmount, OnReturn = SetSwingAmount, arg = 55},
     {title = '57%', IsChecked = CheckSwingAmount, OnReturn = SetSwingAmount, arg = 57},
@@ -746,11 +759,32 @@ end
 
 local main_menu = {
     {
-        title = 'Triplet',
-        IsChecked = IsGridInTriplets,
-        OnReturn = ToggleTripletGrid,
+        title = 'Straight',
+        IsChecked = function()
+            return not IsSwingEnabled() and IsStraightGrid()
+        end,
+        OnReturn = function()
+            SetSwingEnabled(false)
+            SetStraightGrid()
+        end,
     },
-    {title = 'Swing', IsChecked = IsGridSwingEnabled, table.unpack(swing_menu)},
+    {
+        title = 'Triplet',
+        IsChecked = IsTripletGrid,
+        OnReturn = function()
+            SetSwingEnabled(false)
+            SetTripletGrid()
+        end,
+    },
+    {
+        title = 'Dotted',
+        IsChecked = IsDottedGrid,
+        OnReturn = function()
+            SetSwingEnabled(false)
+            SetDottedGrid()
+        end,
+    },
+    {title = 'Swing', IsChecked = IsSwingEnabled, table.unpack(swing_menu)},
     {separator = true},
     {title = 'Fixed', is_grayed = true},
     {separator = true},
@@ -854,14 +888,6 @@ local main_menu = {
         arg = -1,
     },
     {separator = true},
-    --[[ {
-        title = 'Grid visible',
-        IsChecked = IsGridVisible,
-        OnReturn = ToggleGrid,
-        arg = false,
-    },
-    over_items_menu,
-    {separator = true}, ]]
     {
         title = 'MIDI editor',
         {

@@ -241,7 +241,7 @@ function AdaptMIDIGrid(spacing)
 
             local straight_div = grid_div / 4
             local triplet_div = straight_div * 3 / 2
-            local dotted_div = straight_div * 4 / 3 / 2
+            local dotted_div = straight_div * 2 / 3
 
             -- Go through all divisions and check if they match previous grid
             for _, cmd in ipairs(cmds) do
