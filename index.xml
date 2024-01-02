@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="73f7e223027c1254fe7d6cec276feca63165fe25">
+<index version="1" name="FTC Tools" commit="3b16affaa85c257db9b03a67184fb79ec1e4a718">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -306,6 +306,20 @@
         <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
         <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
         <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+    </reapack>
+    <reapack name="Gridbox.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Adds a little box to transport that displays project grid information\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-02T15:13:20Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3b16affaa85c257db9b03a67184fb79ec1e4a718/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
