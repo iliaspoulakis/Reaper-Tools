@@ -822,6 +822,24 @@ function EndIntercepts()
     prev_cursor = -1
 end
 
+function LoadMenuScript()
+    local menu_env = {}
+    for key, val in pairs(_G) do menu_env[key] = val end
+    menu_env._G = {menu = true}
+    local menu_chunk, err = loadfile(menu_script, 'bt', menu_env)
+    if menu_chunk then
+        menu_chunk()
+        if type(menu_env._G.menu) ~= 'table' then
+            local err_msg = 'Please update Adaptive Grid to latest version'
+            reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
+            return
+        end
+        return menu_env
+    end
+    local err_msg = 'Could not load script: %s:\n%s'
+    reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
+end
+
 function PeekIntercepts(m_x, m_y)
     for _, intercept in ipairs(intercepts) do
         local msg = intercept.message
@@ -845,18 +863,16 @@ function PeekIntercepts(m_x, m_y)
             if msg == 'WM_LBUTTONUP' then
                 if not is_left_click then return end
                 if reaper.JS_Mouse_GetState(16) == 16 then
+                    local menu_env = LoadMenuScript()
+                    if menu_env then menu_env.SetStraightGrid() end
                     local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
                     local new_swing = swing ~= 1 and 1 or 0
                     reaper.GetSetProjectGrid(0, true, nil, new_swing, swing_amt)
                     return
                 end
                 if resize_flags == 0 or math.min(bm_w, bm_h) < min_area_size * 1.5 then
-                    local menu_env = {}
-                    for key, val in pairs(_G) do menu_env[key] = val end
-                    menu_env._G = {menu = true}
-                    local menu_chunk, err = loadfile(menu_script, 'bt', menu_env)
-                    if menu_chunk then
-                        menu_chunk()
+                    local menu_env = LoadMenuScript()
+                    if menu_env then
                         ShowMenu(menu_env._G.menu)
                         local main_mult = menu_env.GetGridMultiplier()
                         local midi_mult = menu_env.GetMIDIGridMultiplier()
@@ -864,10 +880,6 @@ function PeekIntercepts(m_x, m_y)
                         menu_env.UpdateToolbarToggleStates(32060, midi_mult)
                         -- Avoid hover setting adaptive name before switching grid
                         reaper.defer(Main)
-                    else
-                        local err_msg = 'Could not load script: %s:\n%s'
-                        reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
-                        return
                     end
                 end
             end
@@ -889,7 +901,11 @@ function PeekIntercepts(m_x, m_y)
                 local mouse_state = reaper.JS_Mouse_GetState(20)
                 if mouse_state & 16 == 16 then
                     wph = wph / math.abs(wph)
-                    local _, _, _, swing_amt = reaper.GetSetProjectGrid(0, false)
+                    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+                    if swing == 0 then
+                        local menu_env = LoadMenuScript()
+                        if menu_env then menu_env.SetStraightGrid() end
+                    end
                     -- Scroll slower when Ctrl is pressed
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
                     reaper.GetSetProjectGrid(0, true, nil, 1, swing_amt + amt)
