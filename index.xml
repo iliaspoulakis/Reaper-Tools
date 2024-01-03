@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="3b16affaa85c257db9b03a67184fb79ec1e4a718">
+<index version="1" name="FTC Tools" commit="44a1959bfc74d67aefdc2eea49a490d4a1fecc6a">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -307,6 +307,21 @@
         <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
         <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
       </version>
+      <version name="1.7.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-03T11:21:55Z">
+        <changelog><![CDATA[- Adjust grid via mousewheel script now also respect grid limits when
+  scrolling through fixed grid divisions (adaptive turned off)]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
     </reapack>
     <reapack name="Gridbox.lua" type="script">
       <metadata>
@@ -320,6 +335,11 @@
       </metadata>
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-02T15:13:20Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3b16affaa85c257db9b03a67184fb79ec1e4a718/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-03T11:20:30Z">
+        <changelog><![CDATA[- Add option to reset customizations
+- Switch to straight grid before enabling swing]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c8da51bb113d88bd0b0927f6c01c40f4e06576e4/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
