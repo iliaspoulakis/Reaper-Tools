@@ -448,6 +448,10 @@ function SetUserGridLimits(is_midi)
     for limit in (limits .. ','):gmatch('(.-),') do
         local fraction
         local nom, denom, suffix = limit:match('(%d+)/(%d+)([TtDd]?)')
+        if not nom then
+            nom, suffix = limit:match('(%d+)([TtDd]?)')
+            denom = 1
+        end
         if nom then
             local factor = 1
             if suffix == 'T' or suffix == 't' then factor = 2 / 3 end

@@ -69,7 +69,8 @@ function UpdateToolbarToggleStates(section, multiplier)
     end
 end
 
-reaper.Undo_BeginBlock()
+-- Avoid undo point
+reaper.defer(function() end)
 
 local GetMultiplier = GetGridMultiplier
 local SetMultiplier = SetGridMultiplier
@@ -99,15 +100,41 @@ else
         local hwnd = reaper.MIDIEditor_GetActive()
         local take = reaper.MIDIEditor_GetTake(hwnd)
         if reaper.ValidatePtr(take, 'MediaItem_Take*') then
+            -- Calculate new grid division
             local grid_div = reaper.MIDI_GetGrid(take) / 4
-            grid_div = val < 0 and grid_div * 2 or grid_div / 2
+            local factor = reaper.GetExtState(extname, 'midi_zoom_div')
+            factor = tonumber(factor) or 2
+            grid_div = val < 0 and grid_div * factor or grid_div / factor
+            -- Respect user limits
+            local min_grid_div = reaper.GetExtState(extname, 'midi_min_limit')
+            min_grid_div = tonumber(min_grid_div) or 0
+            if min_grid_div ~= 0 and grid_div < min_grid_div then
+                if val > 0 then return end
+            end
+            local max_grid_div = reaper.GetExtState(extname, 'midi_max_limit')
+            max_grid_div = tonumber(max_grid_div) or 0
+            if max_grid_div ~= 0 and grid_div > max_grid_div then
+                if val < 0 then return end
+            end
             reaper.SetMIDIEditorGrid(0, grid_div)
         end
     else
+        -- Calculate new grid division
         local _, grid_div = reaper.GetSetProjectGrid(0, 0)
-        grid_div = val < 0 and grid_div * 2 or grid_div / 2
+        local factor = reaper.GetExtState(extname, 'zoom_div')
+        factor = tonumber(factor) or 2
+        grid_div = val < 0 and grid_div * factor or grid_div / factor
+        -- Respect user limits
+        local min_grid_div = reaper.GetExtState(extname, 'min_limit')
+        min_grid_div = tonumber(min_grid_div) or 0
+        if min_grid_div ~= 0 and grid_div < min_grid_div then
+            if val > 0 then return end
+        end
+        local max_grid_div = reaper.GetExtState(extname, 'max_limit')
+        max_grid_div = tonumber(max_grid_div) or 0
+        if max_grid_div ~= 0 and grid_div > max_grid_div then
+            if val < 0 then return end
+        end
         reaper.SetProjectGrid(0, grid_div)
     end
 end
-
-reaper.Undo_EndBlock('Adjust grid', -1)

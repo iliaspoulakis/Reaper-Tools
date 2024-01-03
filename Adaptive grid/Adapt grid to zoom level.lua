@@ -42,10 +42,14 @@ function AdaptGrid(spacing)
     -- Check if new grid division exceeds user limits
     local min_grid_div = reaper.GetExtState(extname, 'min_limit')
     min_grid_div = tonumber(min_grid_div) or 0
-    if min_grid_div ~= 0 and new_grid_div < min_grid_div then return end
+    if min_grid_div ~= 0 and new_grid_div < min_grid_div then
+        if new_grid_div < grid_div then return end
+    end
     local max_grid_div = reaper.GetExtState(extname, 'max_limit')
     max_grid_div = tonumber(max_grid_div) or 0
-    if max_grid_div ~= 0 and new_grid_div > max_grid_div then return end
+    if max_grid_div ~= 0 and new_grid_div > max_grid_div then
+        if new_grid_div > grid_div then return end
+    end
 
     reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
 end
@@ -207,10 +211,14 @@ function AdaptMIDIGrid(spacing)
     -- Check if new grid division exceeds user limits
     local min_grid_div = reaper.GetExtState(extname, 'midi_min_limit')
     min_grid_div = tonumber(min_grid_div) or 0
-    if min_grid_div ~= 0 and new_grid_div < min_grid_div then return end
+    if min_grid_div ~= 0 and new_grid_div < min_grid_div then
+        if new_grid_div < grid_div then return end
+    end
     local max_grid_div = reaper.GetExtState(extname, 'midi_max_limit')
     max_grid_div = tonumber(max_grid_div) or 0
-    if max_grid_div ~= 0 and new_grid_div > max_grid_div then return end
+    if max_grid_div ~= 0 and new_grid_div > max_grid_div then
+        if new_grid_div > grid_div then return end
+    end
 
     reaper.SetMIDIEditorGrid(0, new_grid_div)
     if swing ~= 0 then
