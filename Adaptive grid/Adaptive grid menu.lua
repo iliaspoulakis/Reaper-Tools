@@ -376,7 +376,7 @@ function SetTripletGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div) * 2 / 3
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing, swing_amt)
+        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
     end
 end
 
@@ -399,7 +399,7 @@ function SetDottedGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div) * 3 / 2
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing, swing_amt)
+        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
     end
 end
 
