@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add option to reset customizations
-    - Switch to straight grid before enabling swing
+    - Fix custom color menu
 ]]
 
 local extname = 'FTC.GridBox'
@@ -597,10 +596,12 @@ function SetCustomColors()
         return is_valid and color or nil
     end
 
+    local i = 1
     for input in (inputs .. ','):gmatch('[^,]*') do
         input = input:gsub('^#', '')
         if input == '' then input = nil else input = ValidateColor(input) end
-        colors[#colors + 1] = input
+        colors[i] = input
+        i = i + 1
     end
 
     user_bg_color = colors[1]
