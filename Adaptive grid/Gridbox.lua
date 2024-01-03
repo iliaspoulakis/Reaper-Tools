@@ -1,8 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @about Adds a little box to transport that displays project grid information
+  @changelog
+    - Add option to reset customizations
+    - Switch to straight grid before enabling swing
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1019,6 +1022,22 @@ function ShowRightClickMenu()
                     end
                 },
             },
+            {separator = true},
+            {
+                title = 'Reset',
+                OnReturn = function()
+                    local msg = 'This will clear all customizations you made \z
+                    for the active theme.\n\nProceed?'
+                    local ret = reaper.MB(msg, 'Warning', 4)
+                    if ret ~= 6 then return end
+                    -- If theme inside resource folder, save as relative path
+                    local theme_path = prev_color_theme
+                    theme_path = GetRelativeThemePath(theme_path) or theme_path
+                    if theme_path == '' then theme_path = 'default' end
+                    ExtSave(theme_path, nil)
+                    prev_color_theme = nil
+                end
+            }
         },
         {
             title = 'Lock position',
