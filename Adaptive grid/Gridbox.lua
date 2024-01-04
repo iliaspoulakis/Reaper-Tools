@@ -1,12 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.2
+  @version 1.1.3
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix text disappearing on hover
-    - Improve click behavior
-    - Linux specific improvements to make menu show
+    - Fix font family setting not being saved
 ]]
 
 local extname = 'FTC.GridBox'
@@ -455,6 +453,7 @@ function LoadThemeSettings(theme_path)
     user_swing_color = settings.swing_color
     user_adaptive_color = settings.adaptive_color
     user_font_size = settings.font_size
+    user_font_family = settings.font_family
     user_corner_radius = settings.corner_radius
     return has_settings
 end
@@ -473,6 +472,7 @@ function SaveThemeSettings(theme_path)
         swing_color = user_swing_color,
         adaptive_color = user_adaptive_color,
         font_size = user_font_size,
+        font_family = user_font_family,
         corner_radius = user_corner_radius,
     }
 
