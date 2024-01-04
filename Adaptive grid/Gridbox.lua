@@ -1,10 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.1
+  @version 1.1.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix custom color menu
+    - Fix text disappearing on hover
+    - Improve click behavior
+    - Linux specific improvements to make menu show
 ]]
 
 local extname = 'FTC.GridBox'
@@ -116,6 +118,7 @@ if #missing_dependencies > 0 then
         end
     end
     reaper.ReaPack_BrowsePackages(table.concat(missing_dependencies, " OR "))
+    return
 end
 
 -- Check REAPER version
@@ -1067,25 +1070,32 @@ function ShowMenu(menu)
 
     local focus_hwnd = reaper.JS_Window_GetFocus()
     -- Open gfx window
+    gfx.clear = reaper.GetThemeColor('col_main_bg2', 0)
     local ClientToScreen = reaper.JS_Window_ClientToScreen
     local transport_x, transport_y = ClientToScreen(transport_hwnd, 0, 0)
-    gfx.init('FTC.GB', 0, 0, 0, transport_x, transport_y)
+    transport_x, transport_y = transport_x + 4, transport_y + 4
+    gfx.init('FTC.GB', math.floor(24 * scale), 0, 0, transport_x, transport_y)
+
     -- Open menu at bottom left corner
     local menu_x, menu_y = ClientToScreen(transport_hwnd, bm_x, bm_y + bm_h)
     gfx.x, gfx.y = gfx.screentoclient(menu_x, menu_y)
 
-    if focus_hwnd then reaper.JS_Window_SetFocus(focus_hwnd) end
-
     -- Hide gfx window
     local gfx_hwnd = reaper.JS_Window_Find('FTC.GB', true)
-    if not is_linux then reaper.JS_Window_Show(gfx_hwnd, 'HIDE') end
     reaper.JS_Window_SetOpacity(gfx_hwnd, 'ALPHA', 0)
-    if focus_hwnd then reaper.JS_Window_SetFocus(focus_hwnd) end
+
+    if is_linux then
+        reaper.JS_Window_SetStyle(gfx_hwnd, 'POPUP')
+    else
+        reaper.JS_Window_Show(gfx_hwnd, 'HIDE')
+        if focus_hwnd then reaper.JS_Window_SetFocus(focus_hwnd) end
+    end
 
     -- Show menu
     local menu_str = CreateMenuRecursive(menu)
     local ret = gfx.showmenu(menu_str)
     gfx.quit()
+
     if focus_hwnd then reaper.JS_Window_SetFocus(focus_hwnd) end
     if ret > 0 then ReturnMenuRecursive(menu, ret) end
 
@@ -1542,6 +1552,8 @@ function Main()
             PeekIntercepts(m_x, m_y)
         else
             EndIntercepts()
+            is_left_click = false
+            is_right_click = false
             if resize_flags > 0 and not drag_x then
                 is_redraw = true
                 resize_flags = 0
@@ -1549,20 +1561,13 @@ function Main()
         end
 
         -- Release drags / left clicks / right clicks
-        if is_left_click or is_right_click or drag_x then
-            local mouse_state = reaper.JS_Mouse_GetState(3)
-            if mouse_state == 0 then
-                if drag_x then
-                    EnsureBitmapVisible()
-                    UpdateAttachPosition()
-                    SaveThemeSettings(color_theme)
-                    is_redraw = true
-                end
-                drag_x = nil
-                drag_y = nil
-                is_left_click = false
-                is_right_click = false
-            end
+        if drag_x and reaper.JS_Mouse_GetState(3) == 0 then
+            EnsureBitmapVisible()
+            UpdateAttachPosition()
+            SaveThemeSettings(color_theme)
+            drag_x = nil
+            drag_y = nil
+            is_redraw = true
         end
     end
 
@@ -1603,7 +1608,7 @@ function Main()
             prev_grid_div = nil
             is_redraw = true
         end
-    elseif is_hovered and tonumber(main_mult) ~= 0 then
+    elseif is_hovered and (tonumber(main_mult) or 0) ~= 0 then
         -- Display adaptive mode name when hovered and adaptive grid is on
         local text = adaptive_names[tonumber(main_mult)]
         if text ~= grid_text then
