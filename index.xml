@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="6ea1286ff2c027b0218b7ce761a14dee72c44b06">
+<index version="1" name="FTC Tools" commit="09a54c70e9aa2bc5029ec2cbbe1594225246c0d6">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -344,6 +344,12 @@
       <version name="1.1.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-03T17:06:47Z">
         <changelog><![CDATA[- Fix custom color menu]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/6ea1286ff2c027b0218b7ce761a14dee72c44b06/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.1.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-04T12:07:28Z">
+        <changelog><![CDATA[- Fix text disappearing on hover
+- Improve click behavior
+- Linux specific improvements to make menu show]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/09a54c70e9aa2bc5029ec2cbbe1594225246c0d6/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
