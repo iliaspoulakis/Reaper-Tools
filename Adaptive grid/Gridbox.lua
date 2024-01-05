@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.3
+  @version 1.2.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix font family setting not being saved
+    - Mousewheel temporarily changes grid size for adaptive modes
 ]]
 
 local extname = 'FTC.GridBox'
@@ -57,14 +57,6 @@ local is_redraw = false
 local is_resize = false
 local resize_flags = 0
 
-local adaptive_names = {}
-adaptive_names[-1] = 'Custom'
-adaptive_names[1] = 'Narrowest'
-adaptive_names[2] = 'Narrow'
-adaptive_names[3] = 'Medium'
-adaptive_names[4] = 'Wide'
-adaptive_names[6] = 'Widest'
-
 local has_reapack = reaper.ReaPack_BrowsePackages ~= nil
 local missing_dependencies = {}
 
@@ -91,10 +83,9 @@ local file_dir = file:match('^(.+)[\\/]')
 
 function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
 
-local adjust_script = ConcatPath(file_dir, 'Adjust adaptive grid (mousewheel).lua')
 local menu_script = ConcatPath(file_dir, 'Adaptive grid menu.lua')
 
-if not reaper.file_exists(adjust_script) or not reaper.file_exists(menu_script) then
+if not reaper.file_exists(menu_script) then
     if has_reapack then
         table.insert(missing_dependencies, 'Adaptive Grid')
     else
@@ -917,14 +908,23 @@ function PeekIntercepts(m_x, m_y)
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
                     reaper.GetSetProjectGrid(0, true, nil, 1, swing_amt + amt)
                 else
-                    local adjust_chunk, err = loadfile(adjust_script)
-                    if adjust_chunk then
-                        _G.scroll_dir = wph
-                        adjust_chunk()
-                    else
-                        local err_msg = 'Could not load script: %s:\n%s'
-                        reaper.MB(err_msg:format(adjust_script, err), 'Error', 0)
+                    -- Calculate new grid division
+                    local _, grid_div = reaper.GetSetProjectGrid(0, 0)
+                    local factor = reaper.GetExtState(extname, 'zoom_div')
+                    factor = tonumber(factor) or 2
+                    grid_div = wph < 0 and grid_div * factor or grid_div / factor
+                    -- Respect user limits
+                    local min_grid_div = reaper.GetExtState(extname, 'min_limit')
+                    min_grid_div = tonumber(min_grid_div) or 0
+                    if min_grid_div ~= 0 and grid_div < min_grid_div then
+                        if wph > 0 then return end
                     end
+                    local max_grid_div = reaper.GetExtState(extname, 'max_limit')
+                    max_grid_div = tonumber(max_grid_div) or 0
+                    if max_grid_div ~= 0 and grid_div > max_grid_div then
+                        if wph < 0 then return end
+                    end
+                    reaper.SetProjectGrid(0, grid_div)
                 end
             end
         end
@@ -1602,15 +1602,6 @@ function Main()
         else
             text = text .. 'off'
         end
-        if text ~= grid_text then
-            grid_text = text
-            is_adaptive = false
-            prev_grid_div = nil
-            is_redraw = true
-        end
-    elseif is_hovered and (tonumber(main_mult) or 0) ~= 0 then
-        -- Display adaptive mode name when hovered and adaptive grid is on
-        local text = adaptive_names[tonumber(main_mult)]
         if text ~= grid_text then
             grid_text = text
             is_adaptive = false
