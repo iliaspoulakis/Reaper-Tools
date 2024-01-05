@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Mousewheel temporarily changes grid size for adaptive modes
+    - Fix grid limits with mousewheel
 ]]
 
 local extname = 'FTC.GridBox'
@@ -908,18 +908,19 @@ function PeekIntercepts(m_x, m_y)
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
                     reaper.GetSetProjectGrid(0, true, nil, 1, swing_amt + amt)
                 else
+                    local ext = 'FTC.AdaptiveGrid'
                     -- Calculate new grid division
                     local _, grid_div = reaper.GetSetProjectGrid(0, 0)
-                    local factor = reaper.GetExtState(extname, 'zoom_div')
+                    local factor = reaper.GetExtState(ext, 'zoom_div')
                     factor = tonumber(factor) or 2
                     grid_div = wph < 0 and grid_div * factor or grid_div / factor
                     -- Respect user limits
-                    local min_grid_div = reaper.GetExtState(extname, 'min_limit')
+                    local min_grid_div = reaper.GetExtState(ext, 'min_limit')
                     min_grid_div = tonumber(min_grid_div) or 0
                     if min_grid_div ~= 0 and grid_div < min_grid_div then
                         if wph > 0 then return end
                     end
-                    local max_grid_div = reaper.GetExtState(extname, 'max_limit')
+                    local max_grid_div = reaper.GetExtState(ext, 'max_limit')
                     max_grid_div = tonumber(max_grid_div) or 0
                     if max_grid_div ~= 0 and grid_div > max_grid_div then
                         if wph < 0 then return end
