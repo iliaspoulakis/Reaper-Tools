@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="96bab667336000d28aeb4d5e7f51f3ce83b81820">
+<index version="1" name="FTC Tools" commit="a51c08a39e4c600dfa01fc8eb8cf63072463f9c9">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -358,6 +358,10 @@
       <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-05T13:25:26Z">
         <changelog><![CDATA[- Mousewheel temporarily changes grid size for adaptive modes]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/96bab667336000d28aeb4d5e7f51f3ce83b81820/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-05T19:15:47Z">
+        <changelog><![CDATA[- Fix grid limits with mousewheel]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a51c08a39e4c600dfa01fc8eb8cf63072463f9c9/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
