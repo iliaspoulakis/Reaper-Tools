@@ -120,7 +120,7 @@ else
         end
     else
         -- Calculate new grid division
-        local _, grid_div = reaper.GetSetProjectGrid(0, 0)
+        local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
         local factor = reaper.GetExtState(extname, 'zoom_div')
         factor = tonumber(factor) or 2
         grid_div = val < 0 and grid_div * factor or grid_div / factor
@@ -135,6 +135,6 @@ else
         if max_grid_div ~= 0 and grid_div > max_grid_div then
             if val < 0 then return end
         end
-        reaper.SetProjectGrid(0, grid_div)
+        reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
     end
 end

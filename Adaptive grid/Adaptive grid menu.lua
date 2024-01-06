@@ -422,6 +422,7 @@ function SetUserGridDivisor(is_midi)
     local ret, divisor_str = reaper.GetUserInputs(title, 1, captions, val)
     if not ret then return end
 
+    if divisor_str == '' then divisor_str = '2' end
     local divisor = tonumber(divisor_str)
     if not divisor or divisor <= 1 then
         local msg = 'Value \'%s\' not permitted!'

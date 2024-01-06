@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.1
+  @version 1.2.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix grid limits with mousewheel
+    - Mousewheel updates MIDI editor grid when synced
 ]]
 
 local extname = 'FTC.GridBox'
@@ -910,7 +910,7 @@ function PeekIntercepts(m_x, m_y)
                 else
                     local ext = 'FTC.AdaptiveGrid'
                     -- Calculate new grid division
-                    local _, grid_div = reaper.GetSetProjectGrid(0, 0)
+                    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
                     local factor = reaper.GetExtState(ext, 'zoom_div')
                     factor = tonumber(factor) or 2
                     grid_div = wph < 0 and grid_div * factor or grid_div / factor
@@ -925,7 +925,7 @@ function PeekIntercepts(m_x, m_y)
                     if max_grid_div ~= 0 and grid_div > max_grid_div then
                         if wph < 0 then return end
                     end
-                    reaper.SetProjectGrid(0, grid_div)
+                    reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
                 end
             end
         end
