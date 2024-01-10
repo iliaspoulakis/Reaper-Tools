@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.3
+  @version 2.0.4
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Windows: Improve behavior of MIDI channel combobox
+    - Optimized idle CPU usage
+    - Open ReaPack window to install JS_ReaScriptAPI (if not installed)
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -56,8 +57,11 @@ local lice_font
 local bm_x, bm_y, bm_w, bm_h
 
 -- Check if js_ReaScriptAPI extension is installed
-if not reaper.JS_Window_SetPosition then
+if reaper.JS_Window_SetPosition then
     reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
+    if reaper.ReaPack_BrowsePackages then
+        reaper.ReaPack_BrowsePackages('js_ReaScriptAPI')
+    end
     return
 end
 
