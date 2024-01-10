@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="bc312508f3a67bd569bd07a032a7465bd2063169">
+<index version="1" name="FTC Tools" commit="86bb5ce020e2062338c044eb1ebf6c22d2509042">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1195,6 +1195,10 @@
         <changelog><![CDATA[- Optimized idle CPU usage
 - Open ReaPack window to install JS_ReaScriptAPI (if not installed)]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/bc312508f3a67bd569bd07a032a7465bd2063169/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.5" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-10T21:07:07Z">
+        <changelog><![CDATA[- Fix JS_ReaScript prompt]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/86bb5ce020e2062338c044eb1ebf6c22d2509042/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
