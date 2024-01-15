@@ -29,6 +29,9 @@ if arch then
     end
 end
 
+local version = tonumber(app:match('[%d.]+'))
+if version >= 7.03 then reaper.set_action_options(1) end
+
 -- Links to REAPER websites
 local main_dlink = 'https://www.reaper.fm/download.php'
 local dev_dlink = 'https://www.landoleet.org/'
