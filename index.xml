@@ -260,6 +260,127 @@
         <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/6bf63d7c4410bd38771fef7aacbbd1803b197ab9/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
         <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/6bf63d7c4410bd38771fef7aacbbd1803b197ab9/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
       </version>
+      <version name="1.6.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-12-20T21:05:49Z">
+        <changelog><![CDATA[- Windows: Improve behavior of MIDI channel combobox]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4172f4ea7a2c00ad2257f9d0f8c6a4b777151871/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+      <version name="1.7.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-12-31T14:57:41Z">
+        <changelog><![CDATA[- Added new swing menu
+- Triplet is now a toggle
+- Added support for Gridbox
+- Reduced CPU usage for adaptive MIDI grid
+- Opening menu doesn't change window focus (requires JS_ReaScriptAPI)
+- Fixed "Adjust adaptive grid (mousewheel)" script not switching to Widest]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4066d8bceb013c6f08e336b01d9d0daa0ac1f4ef/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+      <version name="1.7.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-02T07:53:09Z">
+        <changelog><![CDATA[- Added option for dotted grid]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/73f7e223027c1254fe7d6cec276feca63165fe25/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+      <version name="1.7.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-03T11:21:55Z">
+        <changelog><![CDATA[- Adjust grid via mousewheel script now also respect grid limits when
+  scrolling through fixed grid divisions (adaptive turned off)]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/44a1959bfc74d67aefdc2eea49a490d4a1fecc6a/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+      <version name="1.7.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-06T18:32:40Z">
+        <changelog><![CDATA[- Update MIDI editor grid when synced]]></changelog>
+        <source main="main midi_editor" file="Adaptive grid menu.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Adaptive%20grid%20menu.lua</source>
+        <source file="Adaptive grid (background service).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Adaptive%20grid%20(background%20service).lua</source>
+        <source file="Adapt grid to zoom level.lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Adapt%20grid%20to%20zoom%20level.lua</source>
+        <source main="main midi_editor" file="Set grid to custom size (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20custom%20size%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to fixed (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20fixed%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to medium (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20medium%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrow (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20narrow%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to narrowest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20narrowest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to wide (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20wide%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Set grid to widest (adaptive).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Set%20grid%20to%20widest%20(adaptive).lua</source>
+        <source main="main midi_editor" file="Adjust adaptive grid (mousewheel).lua">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Adjust%20adaptive%20grid%20(mousewheel).lua</source>
+      </version>
+    </reapack>
+    <reapack name="Gridbox.lua" type="script">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Adds a little box to transport that displays project grid information\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-02T15:13:20Z">
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3b16affaa85c257db9b03a67184fb79ec1e4a718/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-03T11:20:30Z">
+        <changelog><![CDATA[- Add option to reset customizations
+- Switch to straight grid before enabling swing]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c8da51bb113d88bd0b0927f6c01c40f4e06576e4/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.1.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-03T17:06:47Z">
+        <changelog><![CDATA[- Fix custom color menu]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/6ea1286ff2c027b0218b7ce761a14dee72c44b06/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.1.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-04T12:07:28Z">
+        <changelog><![CDATA[- Fix text disappearing on hover
+- Improve click behavior
+- Linux specific improvements to make menu show]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/09a54c70e9aa2bc5029ec2cbbe1594225246c0d6/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.1.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-04T18:28:53Z">
+        <changelog><![CDATA[- Fix font family setting not being saved]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/4fd0879155daa0524bf0761428443f969ec13829/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.2.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-05T13:25:26Z">
+        <changelog><![CDATA[- Mousewheel temporarily changes grid size for adaptive modes]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/96bab667336000d28aeb4d5e7f51f3ce83b81820/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-05T19:15:47Z">
+        <changelog><![CDATA[- Fix grid limits with mousewheel]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a51c08a39e4c600dfa01fc8eb8cf63072463f9c9/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.2.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-06T18:32:40Z">
+        <changelog><![CDATA[- Mousewheel updates MIDI editor grid when synced]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/4881579c5ff6424b1c53483f22aa09b26a3ca2c8/Adaptive%20grid/Gridbox.lua</source>
+      </version>
     </reapack>
   </category>
   <category name="Auto-Hide">
@@ -1065,6 +1186,19 @@
       <version name="2.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-10-23T15:16:17Z">
         <changelog><![CDATA[- Fix crash when glueing MIDI items]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5eb4a3bc11895a8113cfacdae4da184dc0e34319/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2023-12-20T21:16:44Z">
+        <changelog><![CDATA[- Windows: Improve behavior of MIDI channel combobox]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/22570d33394ccd6ee97e3882407da8a0c90d68be/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-10T20:52:33Z">
+        <changelog><![CDATA[- Optimized idle CPU usage
+- Open ReaPack window to install JS_ReaScriptAPI (if not installed)]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/bc312508f3a67bd569bd07a032a7465bd2063169/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.5" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-01-10T21:07:07Z">
+        <changelog><![CDATA[- Fix JS_ReaScript prompt]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/86bb5ce020e2062338c044eb1ebf6c22d2509042/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>

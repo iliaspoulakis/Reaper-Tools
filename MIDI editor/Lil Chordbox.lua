@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.2
+  @version 2.0.5
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Fix crash when glueing MIDI items
+    - Fix JS_ReaScript prompt
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -26,11 +26,14 @@ local input_timer
 local input_note_map = {}
 local input_note_cnt = 0
 
-local prev_hwnd
+local prev_editor_hwnd
 local prev_hash
 local prev_take
 local prev_mode
-local prev_time
+local prev_chunk_time
+local prev_pane_time
+local prev_editor_time
+local prev_take_time
 local prev_input_idx
 local prev_piano_pane_w
 local prev_cursor_pos
@@ -55,6 +58,9 @@ local bm_x, bm_y, bm_w, bm_h
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_SetPosition then
     reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
+    if reaper.ReaPack_BrowsePackages then
+        reaper.ReaPack_BrowsePackages('js_ReaScriptAPI')
+    end
     return
 end
 
@@ -64,6 +70,7 @@ if version < 6.4 then
     reaper.MB('Please install REAPER v6.40 or later', 'Error', 0)
     return
 end
+if version >= 7.03 then reaper.set_action_options(1) end
 
 local _, _, sec, cmd = reaper.get_action_context()
 
@@ -621,9 +628,7 @@ function GetMIDIInputChord(track)
     end
 end
 
-function IsBitmapHovered(hwnd)
-    local x, y = reaper.GetMousePosition()
-    if hwnd ~= reaper.JS_Window_FromPoint(x, y) then return false end
+function IsBitmapHovered(x, y, hwnd)
     x, y = reaper.JS_Window_ScreenToClient(hwnd, x, y)
     return x >= bm_x and y > bm_y and x < bm_x + bm_w and y <= bm_y + bm_h
 end
@@ -1094,7 +1099,6 @@ function CreateChordTrack()
     reaper.Undo_EndBlock('Create chord track', -1)
 end
 
-
 function CreateChordProjectRegions()
     local hwnd = reaper.MIDIEditor_GetActive()
     local take = reaper.MIDIEditor_GetTake(hwnd)
@@ -1444,6 +1448,121 @@ function GetCursorPPQPosition(take, cursor_pos)
     return cursor_ppq
 end
 
+function ShowChordBoxMenu()
+    local menu = {
+        {
+            title = 'Export chords as',
+            {
+                title = 'Chord track',
+                OnReturn = CreateChordTrack,
+            },
+            {
+                title = 'Project regions',
+                OnReturn = CreateChordProjectRegions,
+            },
+            {
+                title = 'Project markers',
+                OnReturn = CreateChordProjectMarkers,
+            },
+            {
+                title = 'Take markers',
+                OnReturn = CreateChordTakeMarkers,
+            },
+            {
+                title = 'Text events',
+                OnReturn = CreateChordTextEvents,
+            },
+            {
+                title = 'Notation events',
+                OnReturn = CreateChordNotationEvents,
+            },
+        },
+        {
+            title = 'Options',
+            {
+                title = 'Display chords as',
+                {
+                    title = 'Flat',
+                    OnReturn = SetSharpMode,
+                    is_checked = not use_sharps,
+                    arg = false,
+                },
+                {
+                    title = 'Sharp',
+                    OnReturn = SetSharpMode,
+                    is_checked = use_sharps,
+                    arg = true,
+                },
+                {separator = true},
+                {
+                    title = 'Solfège (do, re, mi)',
+                    OnReturn = ToggleSolfegeMode,
+                    is_checked = use_solfege,
+                },
+            },
+            {
+                title = 'Key snap',
+                {
+                    title = 'Display chord and degree',
+                    OnReturn = SetDegreeMode,
+                    is_checked = degree_mode == 3,
+                    arg = 3,
+                },
+                {
+                    title = 'Display degree only',
+                    OnReturn = SetDegreeMode,
+                    is_checked = degree_mode == 2,
+                    arg = 2,
+                },
+                {
+                    title = 'Display chord only',
+                    OnReturn = SetDegreeMode,
+                    is_checked = degree_mode == 1,
+                    arg = 1,
+                },
+                {separator = true},
+                {
+                    title = 'Auto-detect sharps/flats',
+                    OnReturn = ToggleSharpsAutoDetect,
+                    is_checked = use_sharps_autodetect,
+                },
+            },
+            {
+                title = 'Chord track',
+                {
+                    title = 'Set track name...',
+                    OnReturn = SetChordTrackName,
+                },
+                {
+                    title = 'Reuse existing chord track',
+                    OnReturn = ToggleReuseChordTrack,
+                    is_checked = reuse_chord_track,
+                },
+            },
+            {
+                title = 'Analyze incoming MIDI (live input)',
+                OnReturn = ToggleInputMode,
+                is_checked = use_input,
+            },
+        },
+        {title = 'Customize...', OnReturn = SetCustomColors},
+        {
+            title = 'Run script on startup',
+            IsChecked = IsStartupHookEnabled,
+            OnReturn = function()
+                local is_enabled = IsStartupHookEnabled()
+                local comment = 'Start script: Lil Chordbox'
+                local var_name = 'chord_box_cmd_name'
+                SetStartupHookEnabled(not is_enabled, comment, var_name)
+            end,
+        },
+    }
+
+    local menu_str = MenuCreateRecursive(menu)
+    local ret = ShowMenu(menu_str)
+    MenuReturnRecursive(menu, ret)
+end
+
 function DrawLICE(chord, mode)
     reaper.JS_LICE_Clear(bitmap, 0)
 
@@ -1497,7 +1616,6 @@ function DrawLICE(chord, mode)
 
     -- Draw Text
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
-    gfx.setfont(1, 'Arial', font_size)
     local text_w, text_h = gfx.measurestr(chord)
     local text_x = (bm_w - text_w) // 2
     local text_y = (bm_h - text_h) // 2
@@ -1553,11 +1671,20 @@ function DrawLICE(chord, mode)
 end
 
 function Main()
-    local hwnd = reaper.MIDIEditor_GetActive()
+    local time = reaper.time_precise()
+    local editor_hwnd = prev_editor_hwnd
+    -- Find MIDI editor window
+    if not prev_editor_time or time > prev_editor_time + 0.2 then
+        prev_editor_time = time
+        editor_hwnd = reaper.MIDIEditor_GetActive()
+    elseif editor_hwnd and not reaper.ValidatePtr(editor_hwnd, 'HWND*') then
+        editor_hwnd = reaper.MIDIEditor_GetActive()
+    end
 
     -- Keep process idle when no MIDI editor is open
-    if not reaper.ValidatePtr(hwnd, 'HWND*') then
+    if not editor_hwnd then
         reaper.defer(Main)
+        prev_editor_hwnd = nil
         prev_take = nil
         return
     end
@@ -1566,60 +1693,67 @@ function Main()
     local is_forced_redraw = false
 
     -- Monitor MIDI editor window handle changes
-    if hwnd ~= prev_hwnd then
-        prev_hwnd = hwnd
-        notes_view = reaper.JS_Window_FindChildByID(hwnd, 1001)
-        piano_pane = reaper.JS_Window_FindChildByID(hwnd, 1003)
-        key_snap_root_cbox = reaper.JS_Window_FindChildByID(hwnd, 1261)
+    if editor_hwnd ~= prev_editor_hwnd then
+        prev_editor_hwnd = editor_hwnd
+        notes_view = reaper.JS_Window_FindChildByID(editor_hwnd, 1001)
+        piano_pane = reaper.JS_Window_FindChildByID(editor_hwnd, 1003)
+        key_snap_root_cbox = reaper.JS_Window_FindChildByID(editor_hwnd, 1261)
         prev_piano_pane_w = nil
+        prev_pane_time = nil
+        prev_chunk_time = nil
+        prev_take = nil
     end
 
-    -- Detect width changes (e.g. when editor moves from hdpi to non-hppi monitor)
-    local _, piano_pane_w = reaper.JS_Window_GetClientSize(piano_pane)
-    if piano_pane_w ~= prev_piano_pane_w then
-        prev_piano_pane_w = piano_pane_w
-        -- Calculate scale from piano pane width
-        scale = piano_pane_w / piano_pane_scale1_w
+    if not prev_pane_time or time > prev_pane_time + 0.5 then
+        prev_pane_time = time
+        -- Detect width changes (e.g. when editor moves from hdpi to non-hppi monitor)
+        local _, piano_pane_w = reaper.JS_Window_GetClientSize(piano_pane)
+        if piano_pane_w ~= prev_piano_pane_w then
+            prev_piano_pane_w = piano_pane_w
+            -- Calculate scale from piano pane width
+            scale = piano_pane_w / piano_pane_scale1_w
 
-        -- Use 2 times the size of the boxes above + inbetween margin
-        bm_w = math.ceil(edit_box_scale1_w * scale) * 2
-        bm_w = bm_w + math.floor(box_m * scale)
-        bm_h = math.floor(box_h * scale)
-        bm_x = math.floor(box_x * scale)
-        bm_y = math.floor(box_y * scale)
+            -- Use 2 times the size of the boxes above + inbetween margin
+            bm_w = math.ceil(edit_box_scale1_w * scale) * 2
+            bm_w = bm_w + math.floor(box_m * scale)
+            bm_h = math.floor(box_h * scale)
+            bm_x = math.floor(box_x * scale)
+            bm_y = math.floor(box_y * scale)
 
-        bm_x = bm_x + box_x_offs
-        bm_y = bm_y + box_y_offs
-        bm_w = bm_w + box_w_offs
-        bm_h = bm_h + box_h_offs
+            bm_x = bm_x + box_x_offs
+            bm_y = bm_y + box_y_offs
+            bm_w = bm_w + box_w_offs
+            bm_h = bm_h + box_h_offs
 
-        -- Find optimal font_size by incrementing until it doesn't fit box
-        font_size = 1
-        local font_max_height = bm_h - math.floor(box_p * scale)
-        if is_macos then font_max_height = font_max_height + 2 end
-        for i = 1, 100 do
-            gfx.setfont(1, 'Arial', i)
-            local _, h = gfx.measurestr('F')
-            if h > font_max_height then break end
-            font_size = i
+            -- Find optimal font_size by incrementing until it doesn't fit box
+            font_size = 1
+            local font_max_height = bm_h - math.floor(box_p * scale)
+            if is_macos then font_max_height = font_max_height + 2 end
+            for i = 1, 100 do
+                gfx.setfont(1, 'Arial', i)
+                local _, h = gfx.measurestr('F')
+                if h > font_max_height then break end
+                font_size = i
+            end
+            gfx.setfont(1, 'Arial', font_size)
+
+            -- Prepare LICE bitmap for drawing
+            if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
+            if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
+
+            bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
+            lice_font = reaper.JS_LICE_CreateFont()
+
+            local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0, 'Arial')
+            reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
+            reaper.JS_GDI_DeleteObject(gdi)
+
+            -- Draw LICE bitmap on piano pane
+            reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
+                bm_w, bm_h)
+            reaper.JS_Composite_Delay(piano_pane, 0.03, 0.03, 2)
+            is_forced_redraw = true
         end
-
-        -- Prepare LICE bitmap for drawing
-        if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
-        if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
-
-        bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
-        lice_font = reaper.JS_LICE_CreateFont()
-
-        local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0, 'Arial')
-        reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
-        reaper.JS_GDI_DeleteObject(gdi)
-
-        -- Draw LICE bitmap on piano pane
-        reaper.JS_Composite(piano_pane, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
-            bm_w, bm_h)
-        reaper.JS_Composite_Delay(piano_pane, 0.03, 0.03, 2)
-        is_forced_redraw = true
     end
 
     -- Monitor color theme changes
@@ -1629,10 +1763,24 @@ function Main()
         is_forced_redraw = true
     end
 
+    local take = prev_take
+    -- Find MIDI editor window
+    if not prev_take_time or time > prev_take_time + 0.2 then
+        prev_take_time = time
+        take = reaper.MIDIEditor_GetTake(editor_hwnd)
+    end
+
+    if take and not reaper.ValidatePtr(take, 'MediaItem_Take*') then
+        take = reaper.MIDIEditor_GetTake(editor_hwnd)
+        if take and not reaper.ValidatePtr(take, 'MediaItem_Take*') then
+            take = nil
+        end
+    end
+
     -- Keep process idle when no valid take is open
-    local take = reaper.MIDIEditor_GetTake(hwnd)
-    if not reaper.ValidatePtr(take, 'MediaItem_Take*') then
+    if not take then
         reaper.defer(Main)
+        prev_take = nil
         return
     end
 
@@ -1649,144 +1797,39 @@ function Main()
         input_note_map = {}
     end
 
-    -- Open options menu when user clicks on the box
-    local mouse_state = reaper.JS_Mouse_GetState(7)
-    if mouse_state ~= prev_mouse_state then
-        prev_mouse_state = mouse_state
-        local is_left_click = mouse_state & 1 == 1
-        local is_right_click = mouse_state & 2 == 2
-        if (is_left_click or is_right_click) and IsBitmapHovered(piano_pane) then
-            local menu = {
-                {
-                    title = 'Export chords as',
-                    {
-                        title = 'Chord track',
-                        OnReturn = CreateChordTrack,
-                    },
-                    {
-                        title = 'Project regions',
-                        OnReturn = CreateChordProjectRegions,
-                    },
-                    {
-                        title = 'Project markers',
-                        OnReturn = CreateChordProjectMarkers,
-                    },
-                    {
-                        title = 'Take markers',
-                        OnReturn = CreateChordTakeMarkers,
-                    },
-                    {
-                        title = 'Text events',
-                        OnReturn = CreateChordTextEvents,
-                    },
-                    {
-                        title = 'Notation events',
-                        OnReturn = CreateChordNotationEvents,
-                    },
-                },
-                {
-                    title = 'Options',
-                    {
-                        title = 'Display chords as',
-                        {
-                            title = 'Flat',
-                            OnReturn = SetSharpMode,
-                            is_checked = not use_sharps,
-                            arg = false,
-                        },
-                        {
-                            title = 'Sharp',
-                            OnReturn = SetSharpMode,
-                            is_checked = use_sharps,
-                            arg = true,
-                        },
-                        {separator = true},
-                        {
-                            title = 'Solfège (do, re, mi)',
-                            OnReturn = ToggleSolfegeMode,
-                            is_checked = use_solfege,
-                        },
-                    },
-                    {
-                        title = 'Key snap',
-                        {
-                            title = 'Display chord and degree',
-                            OnReturn = SetDegreeMode,
-                            is_checked = degree_mode == 3,
-                            arg = 3,
-                        },
-                        {
-                            title = 'Display degree only',
-                            OnReturn = SetDegreeMode,
-                            is_checked = degree_mode == 2,
-                            arg = 2,
-                        },
-                        {
-                            title = 'Display chord only',
-                            OnReturn = SetDegreeMode,
-                            is_checked = degree_mode == 1,
-                            arg = 1,
-                        },
-                        {separator = true},
-                        {
-                            title = 'Auto-detect sharps/flats',
-                            OnReturn = ToggleSharpsAutoDetect,
-                            is_checked = use_sharps_autodetect,
-                        },
-                    },
-                    {
-                        title = 'Chord track',
-                        {
-                            title = 'Set track name...',
-                            OnReturn = SetChordTrackName,
-                        },
-                        {
-                            title = 'Reuse existing chord track',
-                            OnReturn = ToggleReuseChordTrack,
-                            is_checked = reuse_chord_track,
-                        },
-                    },
-                    {
-                        title = 'Analyze incoming MIDI (live input)',
-                        OnReturn = ToggleInputMode,
-                        is_checked = use_input,
-                    },
-                },
-                {title = 'Customize...', OnReturn = SetCustomColors},
-                {
-                    title = 'Run script on startup',
-                    IsChecked = IsStartupHookEnabled,
-                    OnReturn = function()
-                        local is_enabled = IsStartupHookEnabled()
-                        local comment = 'Start script: Lil Chordbox'
-                        local var_name = 'chord_box_cmd_name'
-                        SetStartupHookEnabled(not is_enabled, comment, var_name)
-                    end,
-                },
-            }
+    local x, y = reaper.GetMousePosition()
+    local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
 
-            local is_ctrl_pressed = mouse_state & 4 == 4
-            if is_ctrl_pressed and is_left_click then
-                local last_export = reaper.GetExtState(extname, 'last_export')
-                local export_functions = {
-                    chord_track = CreateChordTrack,
-                    project_region = CreateChordProjectRegions,
-                    project_marker = CreateChordProjectMarkers,
-                    take_marker = CreateChordTakeMarkers,
-                    text_event = CreateChordTextEvents,
-                    notation_event = CreateChordNotationEvents,
-                }
-                if export_functions[last_export] then
-                    export_functions[last_export]()
+    if hover_hwnd == piano_pane and IsBitmapHovered(x, y, piano_pane) then
+        -- Open options menu when user clicks on the box
+        local mouse_state = reaper.JS_Mouse_GetState(7)
+        if mouse_state ~= prev_mouse_state then
+            prev_mouse_state = mouse_state
+            local is_lclick = mouse_state & 1 == 1
+            local is_rclick = mouse_state & 2 == 2
+            if (is_lclick or is_rclick) and reaper.JS_Window_GetFocus() then
+                -- Avoid mouse clicks when no REAPER window is focused
+                local is_ctrl_pressed = mouse_state & 4 == 4
+                if is_ctrl_pressed and is_lclick then
+                    local last_export = reaper.GetExtState(extname, 'last_export')
+                    local export_functions = {
+                        chord_track = CreateChordTrack,
+                        project_region = CreateChordProjectRegions,
+                        project_marker = CreateChordProjectMarkers,
+                        take_marker = CreateChordTakeMarkers,
+                        text_event = CreateChordTextEvents,
+                        notation_event = CreateChordNotationEvents,
+                    }
+                    if export_functions[last_export] then
+                        export_functions[last_export]()
+                    end
+                else
+                    ShowChordBoxMenu()
                 end
-            else
-                local menu_str = MenuCreateRecursive(menu)
-                local ret = ShowMenu(menu_str)
-                MenuReturnRecursive(menu, ret)
+                is_forced_redraw = true
+                -- Flush input chords on click
+                input_note_map = {}
             end
-            is_forced_redraw = true
-            -- Flush input chords on click
-            input_note_map = {}
         end
     end
 
@@ -1864,32 +1907,54 @@ function Main()
         is_redraw = true
     end
 
-    local mode = -1
-    local cursor_pos
-
-    -- Monitor item chunk (for getting time position at mouse)
     -- Note: Avoid using GetItemStateChunk every defer cycle so that tooltips
-    -- show on Windows
-    local curr_time = reaper.time_precise()
-    if not prev_time or curr_time > prev_time + tooltip_delay then
-        prev_time = curr_time
+    -- show on Windows (and reduce overall CPU usage on other OSs)
+    if not prev_chunk_time or time > prev_chunk_time + tooltip_delay then
+        prev_chunk_time = time
+
+        local is_channel_combobox_hovered = false
+        -- Note: Avoid calling GetItemStateChunk when channel combobox is hovered
+        if is_windows then
+            local GetLong = reaper.JS_Window_GetLong
+            local is_valid = reaper.ValidatePtr(hover_hwnd, 'HWND*')
+            local hover_id = is_valid and GetLong(hover_hwnd, 'ID')
+
+            -- Note: 1000 is the id of the combobox menu when opened
+            if hover_id == 1000 then
+                local focus_hwnd = reaper.JS_Window_GetFocus()
+                is_valid = reaper.ValidatePtr(focus_hwnd, 'HWND*')
+
+                local focus_id = is_valid and GetLong(focus_hwnd, 'ID')
+                -- Check if the channel combobox (ID 1006) is focused
+                if focus_id == 1006 then
+                    if reaper.JS_Window_IsChild(editor_hwnd, focus_hwnd) then
+                        is_channel_combobox_hovered = true
+                    end
+                end
+            end
+        end
+
+        -- Avoid calling GetItemStateChunk as long as tooltip is shown
         local tooltip_hwnd = reaper.GetTooltipWindow()
-        local tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd)
-        -- Avoid getting chunk as long as tooltip is shown
-        if tooltip == '' then
+        local has_tooltip = reaper.JS_Window_GetTitle(tooltip_hwnd) ~= ''
+
+        -- Monitor item chunk (for getting time position at mouse)
+        if not has_tooltip and not is_channel_combobox_hovered then
             local _, chunk = reaper.GetItemStateChunk(item, '', false)
             if chunk ~= prev_item_chunk then
                 prev_item_chunk = chunk
-                curr_start_time, curr_end_time = GetMIDIEditorView(hwnd, chunk)
+                curr_start_time, curr_end_time = GetMIDIEditorView(editor_hwnd, chunk)
             end
         end
     end
 
+    local mode = -1
+    local cursor_pos
+
     -- Calculate time position at mouse using start/end time of the MIDI editor
-    if curr_start_time then
+    if curr_start_time and hover_hwnd == notes_view then
         local diff = curr_end_time - curr_start_time
         local _, notes_view_width = reaper.JS_Window_GetClientSize(notes_view)
-        local x, y = reaper.GetMousePosition()
         x, y = reaper.JS_Window_ScreenToClient(notes_view, x, y)
         cursor_pos = curr_start_time + x / notes_view_width * diff
         mode = 0

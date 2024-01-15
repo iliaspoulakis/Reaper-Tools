@@ -5,8 +5,10 @@
   @about Use the mousewheel to go through adaptive grid sizes
 ]]
 local extname = 'FTC.AdaptiveGrid'
-local _, file, sec, cmd, _, _, val = reaper.get_action_context()
+local _, file, sec, _, _, _, val = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
+
+if _G.scroll_dir then val = _G.scroll_dir end
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
@@ -67,7 +69,8 @@ function UpdateToolbarToggleStates(section, multiplier)
     end
 end
 
-reaper.Undo_BeginBlock()
+-- Avoid undo point
+reaper.defer(function() end)
 
 local GetMultiplier = GetGridMultiplier
 local SetMultiplier = SetGridMultiplier
@@ -84,8 +87,10 @@ if mult == -1 then mult = 3 end
 
 if mult > 0 then
     -- Change adaptive grid size
+    if mult == 6 then mult = 5 end
     mult = mult + (val < 0 and 1 or -1)
     mult = math.min(5, math.max(1, mult))
+    if mult == 5 then mult = 6 end
     SetMultiplier(mult)
     RunAdaptScript(sec == 32060)
     UpdateToolbarToggleStates(sec, mult)
@@ -95,15 +100,41 @@ else
         local hwnd = reaper.MIDIEditor_GetActive()
         local take = reaper.MIDIEditor_GetTake(hwnd)
         if reaper.ValidatePtr(take, 'MediaItem_Take*') then
+            -- Calculate new grid division
             local grid_div = reaper.MIDI_GetGrid(take) / 4
-            grid_div = val < 0 and grid_div * 2 or grid_div / 2
+            local factor = reaper.GetExtState(extname, 'midi_zoom_div')
+            factor = tonumber(factor) or 2
+            grid_div = val < 0 and grid_div * factor or grid_div / factor
+            -- Respect user limits
+            local min_grid_div = reaper.GetExtState(extname, 'midi_min_limit')
+            min_grid_div = tonumber(min_grid_div) or 0
+            if min_grid_div ~= 0 and grid_div < min_grid_div then
+                if val > 0 then return end
+            end
+            local max_grid_div = reaper.GetExtState(extname, 'midi_max_limit')
+            max_grid_div = tonumber(max_grid_div) or 0
+            if max_grid_div ~= 0 and grid_div > max_grid_div then
+                if val < 0 then return end
+            end
             reaper.SetMIDIEditorGrid(0, grid_div)
         end
     else
-        local _, grid_div = reaper.GetSetProjectGrid(0, 0)
-        grid_div = val < 0 and grid_div * 2 or grid_div / 2
-        reaper.SetProjectGrid(0, grid_div)
+        -- Calculate new grid division
+        local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
+        local factor = reaper.GetExtState(extname, 'zoom_div')
+        factor = tonumber(factor) or 2
+        grid_div = val < 0 and grid_div * factor or grid_div / factor
+        -- Respect user limits
+        local min_grid_div = reaper.GetExtState(extname, 'min_limit')
+        min_grid_div = tonumber(min_grid_div) or 0
+        if min_grid_div ~= 0 and grid_div < min_grid_div then
+            if val > 0 then return end
+        end
+        local max_grid_div = reaper.GetExtState(extname, 'max_limit')
+        max_grid_div = tonumber(max_grid_div) or 0
+        if max_grid_div ~= 0 and grid_div > max_grid_div then
+            if val < 0 then return end
+        end
+        reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
     end
 end
-
-reaper.Undo_EndBlock('Adjust grid', -1)
