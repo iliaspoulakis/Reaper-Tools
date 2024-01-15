@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.8
+  @version 1.8.9
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix +dev version order in old version history
+    - Improve old version ordering
 ]]
 
 -- App version & platform architecture
@@ -114,10 +114,10 @@ end
 function ExecInstall(install_cmd)
     if settings.dialog_install.enabled then
         local msg =
-            'Reaper has to close for the installation process to begin.\n\z
-            Should you have unsaved projects, you will be prompted to save them.\n\z
-            After the installation is complete, reaper will restart automatically.\n\n\z
-            Quit reaper and proceed with installation of v%s?'
+        'Reaper has to close for the installation process to begin.\n\z
+        Should you have unsaved projects, you will be prompted to save them.\n\z
+        After the installation is complete, reaper will restart automatically.\n\n\z
+        Quit reaper and proceed with installation of v%s?'
         local ret = reaper.MB(msg:format(install_version), title, 4)
         if ret == 7 then
             print('User exit...')
@@ -206,12 +206,21 @@ function ParseHistory(file, dlink)
     end
 end
 
-local function SortByAttributeName(array, attribute)
+local function SortByAttributeName(array, attribute, is_descending)
     local function Format(d) return ('%03d%s'):format(#d, d) end
     local function Compare(a, b)
         a = a[attribute]
         b = b[attribute]
-        return tostring(a):gsub('%d+', Format) < tostring(b):gsub('%d+', Format)
+        local a_num = tonumber(a)
+        local b_num = tonumber(b)
+        if a_num and b_num then
+            if is_descending then return a_num < b_num end
+            return a_num > b_num
+        end
+        local a_str = tostring(a):gsub('%d+', Format)
+        local b_str = tostring(b):gsub('%d+', Format)
+        if is_descending then return a_str < b_str end
+        return a_str > b_str
     end
     table.sort(array, Compare)
 end
@@ -222,15 +231,15 @@ function ShowHistoryMenu()
     local menu_list = {}
     local group_list = {}
 
-    SortByAttributeName(list, 'version')
+    SortByAttributeName(list, 'version', true)
 
     -- Reorder list for showing in menu (reverse order)
     for i = #list, 1, -1 do
         local group = list[i].version:match('^[%d.]+')
         if prev_group and group ~= prev_group or i == 1 then
-            -- Create submenus 
+            -- Create submenus
             if #group_list > 1 or not is_main_clicked then
-                 -- Move dev versions to the top
+                -- Move dev versions to the top
                 local offs = 1
                 for n = 1, #group_list do
                     if group_list[n].version:match('dev') then
@@ -244,18 +253,28 @@ function ShowHistoryMenu()
                 group_list[1].is_first = true
                 group_list[#group_list].is_last = true
             end
-            for n = 1, #group_list do
-                menu_list[#menu_list + 1] = group_list[n]
-            end
+            reaper.ShowConsoleMsg(group)
+            reaper.ShowConsoleMsg('\n')
+            menu_list[#menu_list + 1] = group_list
             group_list = {}
         end
         group_list[#group_list + 1] = list[i]
+        group_list.group = group
         prev_group = group
+    end
+
+    SortByAttributeName(menu_list, 'group', false)
+
+    local flat_menu_list = {}
+    for _, group in ipairs(menu_list) do
+        for _, item in ipairs(group) do
+            flat_menu_list[#flat_menu_list + 1] = item
+        end
     end
 
     -- Create string to use with showmenu function
     local menu = ''
-    for i, item in ipairs(menu_list) do
+    for i, item in ipairs(flat_menu_list) do
         local sep = i == 1 and '' or '|'
         if item.is_first then
             local group = item.version:match('^[%d.]+')
@@ -271,8 +290,8 @@ function ShowHistoryMenu()
 
     local ret = gfx.showmenu(menu)
     if ret > 0 then
-        user_dlink = menu_list[ret].link
-        install_version = menu_list[ret].version
+        user_dlink = flat_menu_list[ret].link
+        install_version = flat_menu_list[ret].version
         ExecProcess('echo download > ' .. step_path)
         show_buttons = false
     end
@@ -284,7 +303,6 @@ function CheckStartupHook()
     local startup_script_path = scripts_path .. '__startup.lua'
 
     if reaper.file_exists(startup_script_path) then
-
         local file = io.open(startup_script_path, 'r')
         if not file then return false end
         local content = file:read('*a')
@@ -314,7 +332,6 @@ function SetStartupHook(is_enabled)
 
     -- Check startup script for existing hook
     if reaper.file_exists(startup_script_path) then
-
         local file = io.open(startup_script_path, 'r')
         if not file then return end
         content = file:read('*a')
@@ -335,7 +352,7 @@ function SetStartupHook(is_enabled)
 
             file = io.open(startup_script_path, 'w')
             if not file then
-                reaper.MB('Could not write to file', 'Error' , 0)
+                reaper.MB('Could not write to file', 'Error', 0)
                 return
             end
             file:write(content)
@@ -346,9 +363,9 @@ function SetStartupHook(is_enabled)
     -- Create startup hook
     if is_enabled and not hook_exists then
         local hook =
-            '-- Start script: REAPER Update Utility (check for new versions)\n\z
-            local update_utility_cmd = \'_%s\'\n\z
-            reaper.Main_OnCommand(reaper.NamedCommandLookup(update_utility_cmd), 0)\n\n'
+        '-- Start script: REAPER Update Utility (check for new versions)\n\z
+        local update_utility_cmd = \'_%s\'\n\z
+        reaper.Main_OnCommand(reaper.NamedCommandLookup(update_utility_cmd), 0)\n\n'
 
         local file = io.open(startup_script_path, 'w')
         if not file then return end
@@ -389,10 +406,10 @@ function ShowSettingsMenu()
     end
 
     local menu =
-        '>Startup notifications|%1Run script on startup||%2Only show window when \z
-        a new version is available (notifications)|>Check for...|%3Main|%4Dev|<%5RC|<\z
-        |>Confirmation dialogs|%6Before installing|<%7When cancelling download\z
-        |>Debugging|%8Dump startup log|%9Log to console|%10Log to file'
+    '>Startup notifications|%1Run script on startup||%2Only show window when \z
+    a new version is available (notifications)|>Check for...|%3Main|%4Dev|<%5RC|<\z
+    |>Confirmation dialogs|%6Before installing|<%7When cancelling download\z
+    |>Debugging|%8Dump startup log|%9Log to console|%10Log to file'
     local function substitute(s)
         return state[tonumber(s)].enabled and '!' or ''
     end
@@ -502,9 +519,8 @@ function DrawSettingsButton()
 end
 
 function DrawVersionHistoryButton(x, y, is_main)
-
-    local is_hover =
-        m_x >= x - 10 and m_x <= x + 10 and m_y >= y - 10 and m_y <= y + 10
+    local is_hover = m_x >= x - 10 and m_x <= x + 10 and
+        m_y >= y - 10 and m_y <= y + 10
     local is_clicked = click.type == is_main and click.action == 'show_hist'
 
     -- Hover
@@ -547,9 +563,8 @@ function DrawVersionHistoryButton(x, y, is_main)
 end
 
 function DrawChangelogButton(x, y, is_main)
-
-    local is_hover =
-        m_x >= x - 10 and m_x <= x + 10 and m_y >= y - 10 and m_y <= y + 10
+    local is_hover = m_x >= x - 10 and m_x <= x + 10 and
+        m_y >= y - 10 and m_y <= y + 10
     local is_clicked = click.type == is_main and click.action == 'show_cl'
 
     -- Hover
@@ -594,9 +609,7 @@ function DrawChangelogButton(x, y, is_main)
 end
 
 function DrawInstallButton(x, y, w, h, version, dlink)
-
     local is_new = version == new_version
-    local is_dev = version == dev_version
     local is_main = version == main_version
     local is_installed = version == curr_version
     local is_hover = m_x >= x and m_x <= x + w and m_y >= y and m_y <= y + h
@@ -652,16 +665,6 @@ function DrawInstallButton(x, y, w, h, version, dlink)
     gfx.roundrect(x + 1, y, w, h, 4, 1)
     gfx.roundrect(x, y + 1, w, h, 4, 1)
 
-    --[[   -- State
-    gfx.setfont(1, '', 12 * font_factor, string.byte('b'))
-    if is_new or is_installed then
-        local state = is_installed and 'INSTALLED' or 'NEW!'
-        local t_w, t_h = gfx.measurestr(state)
-        gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
-        gfx.y = math.floor(y + h / 4 - t_h / 2) - 4
-        gfx.drawstr(state, 1)
-    end ]]
-
     -- Version
     gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
     local version_text = version:match('^([%d%.]+)') or 'none'
@@ -677,11 +680,9 @@ function DrawInstallButton(x, y, w, h, version, dlink)
     gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
     gfx.y = math.floor(gfx.y + t_h) + 5
     gfx.drawstr(subversion_text, 1)
-
 end
 
 function DrawGUI()
-
     if gfx.mouse_x ~= m_x or gfx.mouse_y ~= m_y then
         hover_cnt = 0
         reaper.TrackCtl_SetToolTip('', 0, 0, true)
@@ -1039,8 +1040,7 @@ function Main()
             else
                 file_path = dev_path
                 version = dev_version
-                changelog = version:match('rc') and rc_changelog or
-                                dev_changelog
+                changelog = version:match('rc') and rc_changelog or dev_changelog
             end
             local file = io.open(file_path, 'r')
             if file then
@@ -1171,8 +1171,8 @@ print('Portable: ' .. (is_portable and 'yes' or 'no'))
 dl_cmd = 'curl -k -L %s -o %s'
 if platform:match('Win') then
     dl_cmd =
-        'powershell.exe -windowstyle hidden (new-object System.Net.WebClient)'
-    dl_cmd = dl_cmd .. '.DownloadFile(\'%s\', \'%s\')'
+    'powershell.exe -windowstyle hidden (new-object \z
+    System.Net.WebClient).DownloadFile(\'%s\', \'%s\')'
 end
 
 -- Set command for opening web-pages from terminal
@@ -1215,7 +1215,7 @@ print('Startup mode: ' .. tostring(startup_mode))
 
 if settings.debug_file.enabled then
     local msg =
-        ' \nLogging to file is enabled!\n\nYou can find the file \'update-utility.log\' \z
+    ' \nLogging to file is enabled!\n\nYou can find the file \'update-utility.log\' \z
     in your resource directory:\n--> Options --> Show REAPER resource path...\n '
     reaper.MB(msg, title, 0)
 end
