@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.9
+  @version 1.9.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Improve old version ordering
+    - Remove console messages when loading old versions
 ]]
 
 -- App version & platform architecture
@@ -256,8 +256,6 @@ function ShowHistoryMenu()
                 group_list[1].is_first = true
                 group_list[#group_list].is_last = true
             end
-            reaper.ShowConsoleMsg(group)
-            reaper.ShowConsoleMsg('\n')
             menu_list[#menu_list + 1] = group_list
             group_list = {}
         end
