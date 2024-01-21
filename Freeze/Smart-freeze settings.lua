@@ -27,6 +27,12 @@ local settings = {
         type = 'string',
         default = 'ReaInsert;',
     },
+    {
+        caption = 'Only freeze instrument (y/n/ask)',
+        key = 'instr_freeze',
+        type = 'ask',
+        default = 'ask',
+    },
 }
 
 function BuildCaptions()
@@ -63,6 +69,28 @@ function CheckReturnValues(values)
                 reaper.SetExtState(extname, setting.key, values[i], true)
             else
                 local msg = '\n%s:\n  - has to be either yes or no\n'
+                log = log .. msg:format(setting.caption)
+            end
+        end
+
+        if setting.type == 'ask' then
+            if values[i] == '' then values[i] = setting.default end
+
+            local bool = values[i]:lower()
+            if bool == 'yes' or bool == 'y' or bool == 'true' or bool == '1' then
+                bool = true
+            end
+            if bool == 'no' or bool == 'n' or bool == 'false' or bool == '0' then
+                bool = false
+            end
+            if bool == 'ask' then
+                bool = nil
+            end
+            if bool == nil or type(bool) == 'boolean' then
+                values[i] = bool == nil and 'ask' or bool and 'yes' or 'no'
+                reaper.SetExtState(extname, setting.key, values[i], true)
+            else
+                local msg = '\n%s:\n  - has to be either yes/no/ask\n'
                 log = log .. msg:format(setting.caption)
             end
         end

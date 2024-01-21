@@ -1,9 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.0
   @noindex
   @about Configurable freeze action
+  @changelog
+    - Add option to freeze up to first instrument on tracks
 ]]
 if not reaper.SNM_GetIntConfigVar then
     reaper.MB('Please install SWS extension', 'Error', 0)
@@ -24,6 +26,13 @@ local realtime_fx = reaper.GetExtState(extname, 'realtime_fx')
 local realtime_fx_names = {}
 for fx in (realtime_fx .. ';'):gmatch('(.-);') do
     if fx ~= '' then realtime_fx_names[#realtime_fx_names + 1] = fx end
+end
+
+-- Freeze up to first instrument
+local instr_freeze = reaper.GetExtState(extname, 'instr_freeze')
+local user_wants_instr_freeze = instr_freeze ~= 'no'
+if instr_freeze == '' or instr_freeze == 'ask' then
+    user_wants_instr_freeze = nil
 end
 
 function IsItemMono(item)
@@ -70,8 +79,54 @@ local item_guids = {}
 local item_bounds = {}
 local is_realtime = false
 
-for t = 0, reaper.CountSelectedTracks(0) - 1 do
+local fx_backup_tracks
+
+local sel_track_cnt = reaper.CountSelectedTracks(0)
+for t = 0, sel_track_cnt - 1 do
     local track = reaper.GetSelectedTrack(0, t)
+
+    local fx_cnt = reaper.TrackFX_GetCount(track)
+    local instr_fx = reaper.TrackFX_GetInstrument(track)
+
+    local freeze_up_to_fx
+    if instr_fx >= 0 and instr_fx < fx_cnt - 1 then
+        if user_wants_instr_freeze == nil then
+            user_wants_instr_freeze = false
+            local msg = 'Only freeze up to first instrument on track%s?'
+            local plural = sel_track_cnt > 1 and 's' or ''
+            local ret = reaper.MB(msg:format(plural), 'Smart-Freeze', 3)
+            if ret == 6 then
+                freeze_up_to_fx = instr_fx
+                user_wants_instr_freeze = true
+            end
+            if ret == 2 then
+                reaper.Undo_EndBlock('Smart-freeze tracks (cancel)', -1)
+                reaper.PreventUIRefresh(-1)
+                return
+            end
+        end
+        if user_wants_instr_freeze then
+            freeze_up_to_fx = instr_fx
+        end
+    end
+
+    if freeze_up_to_fx then
+        -- Add track at end of track list
+        local track_cnt = reaper.CountTracks()
+        reaper.InsertTrackAtIndex(track_cnt, false)
+        local fx_track = reaper.GetTrack(0, track_cnt)
+
+        fx_backup_tracks = fx_backup_tracks or {}
+        fx_backup_tracks[track] = fx_track
+
+        -- Hide track in tcp and mixer
+        reaper.SetMediaTrackInfo_Value(fx_track, 'B_SHOWINMIXER', 0)
+        reaper.SetMediaTrackInfo_Value(fx_track, 'B_SHOWINTCP', 0)
+        -- Move FX to hidden fx track
+        for i = fx_cnt, freeze_up_to_fx + 1, -1 do
+            reaper.TrackFX_CopyToTrack(track, i, fx_track, 0, true)
+        end
+    end
 
     item_bounds[track] = {}
     for i = 0, reaper.CountTrackMediaItems(track) - 1 do
@@ -120,6 +175,17 @@ reaper.Main_OnCommand(41223, 0)
 -- Restore settings
 reaper.SNM_SetIntConfigVar('rendertail', prev_render_tail)
 reaper.SNM_SetIntConfigVar('workrender', prev_work_render)
+
+if fx_backup_tracks then
+    for freeze_track, fx_track in pairs(fx_backup_tracks) do
+        local fx_cnt = reaper.TrackFX_GetCount(fx_track)
+        -- Move back FX from hidden fx track
+        for i = 0, fx_cnt - 1 do
+            reaper.TrackFX_CopyToTrack(fx_track, 0, freeze_track, fx_cnt + i, 1)
+        end
+        reaper.DeleteTrack(fx_track)
+    end
+end
 
 for t = 0, reaper.CountSelectedTracks(0) - 1 do
     local track = reaper.GetSelectedTrack(0, t)
