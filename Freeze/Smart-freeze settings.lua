@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.1.1
   @noindex
   @about Settings dialog for smart-freeze script
 ]]
@@ -28,7 +28,7 @@ local settings = {
         default = 'ReaInsert;',
     },
     {
-        caption = 'Only freeze instrument (y/n/ask)',
+        caption = 'Only freeze instruments (y/n/ask)',
         key = 'instr_freeze',
         type = 'ask',
         default = 'ask',

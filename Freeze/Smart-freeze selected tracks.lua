@@ -1,11 +1,9 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.1.1
   @noindex
   @about Configurable freeze action
-  @changelog
-    - Add option to freeze up to first instrument on tracks
 ]]
 if not reaper.SNM_GetIntConfigVar then
     reaper.MB('Please install SWS extension', 'Error', 0)
@@ -71,6 +69,15 @@ function IsItemMono(item)
     return is_mono
 end
 
+function GetLastInstrument(track)
+    local instr_fx = reaper.TrackFX_GetInstrument(track)
+    for fx = instr_fx + 1, reaper.TrackFX_GetCount(track) - 1 do
+        local _, fx_type = reaper.TrackFX_GetNamedConfigParm(track, fx, 'fx_type')
+        if fx_type:match('i$') then instr_fx = fx end
+    end
+    return instr_fx
+end
+
 reaper.Undo_BeginBlock()
 reaper.PreventUIRefresh(1)
 
@@ -86,15 +93,14 @@ for t = 0, sel_track_cnt - 1 do
     local track = reaper.GetSelectedTrack(0, t)
 
     local fx_cnt = reaper.TrackFX_GetCount(track)
-    local instr_fx = reaper.TrackFX_GetInstrument(track)
+    local instr_fx = GetLastInstrument(track)
 
     local freeze_up_to_fx
     if instr_fx >= 0 and instr_fx < fx_cnt - 1 then
         if user_wants_instr_freeze == nil then
             user_wants_instr_freeze = false
-            local msg = 'Only freeze up to first instrument on track%s?'
-            local plural = sel_track_cnt > 1 and 's' or ''
-            local ret = reaper.MB(msg:format(plural), 'Smart-Freeze', 3)
+            local msg = 'Only freeze instruments?'
+            local ret = reaper.MB(msg, 'Smart-Freeze', 3)
             if ret == 6 then
                 freeze_up_to_fx = instr_fx
                 user_wants_instr_freeze = true
