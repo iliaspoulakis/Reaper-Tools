@@ -14,6 +14,9 @@ if version >= 7.03 then reaper.set_action_options(3) end
 
 local min_spacing
 
+local is_frame_grid = reaper.GetToggleCommandState(41885) == 1
+local is_measure_grid = reaper.GetToggleCommandState(40725) == 1
+
 function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
 
 function MenuCreateRecursive(menu)
@@ -404,8 +407,8 @@ function SetDottedGrid()
 end
 
 function IsSwingEnabled()
-    local _, _, swing = reaper.GetSetProjectGrid(0, false)
-    return swing == 1
+    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    return swing == 1 and swing_amt ~= 0
 end
 
 function SetSwingEnabled(is_enabled)
@@ -522,6 +525,7 @@ function CheckUserCustomGridSpacing(is_midi)
 end
 
 function CheckAdaptiveGrid(multiplier)
+    if is_frame_grid or is_measure_grid then return false end
     return IsGridVisible() and GetGridMultiplier() == multiplier
 end
 
@@ -530,6 +534,8 @@ function CheckMIDIAdaptiveGrid(multiplier)
 end
 
 function SetAdaptiveGrid(multiplier)
+    if is_frame_grid then reaper.Main_OnCommand(41885, 0) end
+    if is_measure_grid then reaper.Main_OnCommand(40725, 0) end
     -- Ask user for custom grid spacing if not available
     if multiplier == -1 and not CheckUserCustomGridSpacing(false) then return end
     -- Toggle adaptive mode when selecting an entry that's already active
@@ -571,6 +577,8 @@ function SetUserCustomGridSpacing(is_midi)
 end
 
 function SetFixedGrid(new_grid_div)
+    if is_frame_grid then reaper.Main_OnCommand(41885, 0) end
+    if is_measure_grid then reaper.Main_OnCommand(40725, 0) end
     ShowGrid(true)
     SetGridMultiplier(0)
     local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
@@ -580,11 +588,56 @@ function SetFixedGrid(new_grid_div)
 end
 
 function CheckFixedGrid(grid_div)
+    if is_frame_grid or is_measure_grid then return false end
     if not IsGridVisible() or GetGridMultiplier() ~= 0 then return false end
     local _, curr_grid_div = reaper.GetSetProjectGrid(0, false)
     if IsTripletGrid(curr_grid_div) then grid_div = grid_div * 2 / 3 end
     if IsDottedGrid(curr_grid_div) then grid_div = grid_div * 3 / 2 end
     return grid_div == curr_grid_div
+end
+
+function IsFrameVisibleInMenu()
+    return reaper.GetExtState(extname, 'show_frame') == '1'
+end
+
+function SetFrameVisibleInMenu(is_show)
+    reaper.SetExtState(extname, 'show_frame', is_show and 1 or 0, true)
+end
+
+function IsMeasureVisibleInMenu()
+    return reaper.GetExtState(extname, 'show_measure') == '1'
+end
+
+function SetMeasureVisibleInMenu(is_show)
+    reaper.SetExtState(extname, 'show_measure', is_show and 1 or 0, true)
+end
+
+local frame_entry = {}
+local measure_entry = {}
+
+local is_frame_option_visible = is_frame_grid or IsFrameVisibleInMenu()
+local is_measure_option_visible = is_measure_grid or IsMeasureVisibleInMenu()
+
+if is_frame_option_visible then
+    frame_entry = {
+        title = 'Frame',
+        is_checked = is_frame_grid,
+        OnReturn = function()
+            SetGridMultiplier(0)
+            reaper.Main_OnCommand(41885, 0)
+        end,
+    }
+end
+
+if is_measure_option_visible then
+    measure_entry = {
+        title = 'Measure',
+        is_checked = is_measure_grid,
+        OnReturn = function()
+            SetGridMultiplier(0)
+            reaper.Main_OnCommand(40725, 0)
+        end,
+    }
 end
 
 local options_menu = {
@@ -594,6 +647,22 @@ local options_menu = {
     {title = 'Set custom size', OnReturn = SetUserCustomGridSpacing, arg = false},
     {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = false},
     {title = 'Set limits', OnReturn = SetUserGridLimits, arg = false},
+    {separator = true},
+    {
+        title = 'Show in menu',
+        {
+            title = 'Frame',
+            is_checked = is_frame_option_visible,
+            OnReturn = SetFrameVisibleInMenu,
+            arg = not is_frame_option_visible,
+        },
+        {
+            title = 'Measure',
+            is_checked = is_measure_option_visible,
+            OnReturn = SetMeasureVisibleInMenu,
+            arg = not is_measure_option_visible,
+        },
+    },
     {separator = true},
     {title = 'MIDI editor', is_grayed = true},
     {separator = true},
@@ -748,7 +817,7 @@ if not has_swing_amt_entry then
         title = title,
         IsChecked = CheckSwingAmount,
         OnReturn = SetSwingAmount,
-        arg = swing_amt
+        arg = swing_amt,
     }
     if swing_amt > 75 then
         table.insert(swing_menu, #swing_menu - 1, new_entry)
@@ -793,6 +862,8 @@ local main_menu = {
     {separator = true},
     {title = 'Fixed', is_grayed = true},
     {separator = true},
+    frame_entry,
+    measure_entry,
     {
         title = '1/128',
         IsChecked = CheckFixedGrid,
