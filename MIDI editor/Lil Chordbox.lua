@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.5
+  @version 2.0.6
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Fix JS_ReaScript prompt
+    - Support detecting "add9 omit5" chords
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -235,7 +235,9 @@ chord_names['1 5 9 11'] = 'aug7'
 chord_names['1 5 9 12'] = 'aug/maj7'
 
 -- Additions
+chord_names['1 3 4'] = 'm add9 omit5'
 chord_names['1 3 4 8'] = 'm add9'
+chord_names['1 3 5'] = 'maj add9 omit5'
 chord_names['1 3 5 8'] = 'maj add9'
 chord_names['1 5 10 11'] = '7 add13'
 
@@ -1744,7 +1746,8 @@ function Main()
             bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
             lice_font = reaper.JS_LICE_CreateFont()
 
-            local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0, 'Arial')
+            local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0,
+                'Arial')
             reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
             reaper.JS_GDI_DeleteObject(gdi)
 
@@ -1943,7 +1946,8 @@ function Main()
             local _, chunk = reaper.GetItemStateChunk(item, '', false)
             if chunk ~= prev_item_chunk then
                 prev_item_chunk = chunk
-                curr_start_time, curr_end_time = GetMIDIEditorView(editor_hwnd, chunk)
+                curr_start_time, curr_end_time = GetMIDIEditorView(editor_hwnd,
+                    chunk)
             end
         end
     end
