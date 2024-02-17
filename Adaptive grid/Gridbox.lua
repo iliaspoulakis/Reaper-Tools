@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.2
+  @version 1.2.3
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Mousewheel updates MIDI editor grid when synced
+    - Improve behavior with "Adjust items when swing is enabled" setting
 ]]
 
 local extname = 'FTC.GridBox'
@@ -860,6 +860,7 @@ function PeekIntercepts(m_x, m_y)
 
             if msg == 'WM_LBUTTONUP' then
                 if not is_left_click then return end
+                -- Check if alt is pressed
                 if reaper.JS_Mouse_GetState(16) == 16 then
                     local menu_env = LoadMenuScript()
                     if menu_env then menu_env.SetStraightGrid() end
@@ -897,12 +898,14 @@ function PeekIntercepts(m_x, m_y)
 
             if msg == 'WM_MOUSEWHEEL' then
                 local mouse_state = reaper.JS_Mouse_GetState(20)
+                -- Check if alt is pressed
                 if mouse_state & 16 == 16 then
                     wph = wph / math.abs(wph)
                     local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
                     if swing == 0 then
                         local menu_env = LoadMenuScript()
                         if menu_env then menu_env.SetStraightGrid() end
+                        reaper.GetSetProjectGrid(0, true, nil, 1, swing_amt)
                     end
                     -- Scroll slower when Ctrl is pressed
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
