@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.7
+  @version 2.0.8
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Improve CPU consumption during playback
+    - Added diminished chords m7b5, m7b9, m7b5b9
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -224,7 +224,10 @@ chord_names['1 3 4 8 10'] = 'm6/9'
 -- Diminished
 chord_names['1 4 7'] = 'dim'
 chord_names['1 4 7 10'] = 'dim7'
-chord_names['1 2 4 7 11'] = 'm7b5'
+chord_names['1 4 7 11'] = 'm7b5'
+chord_names['1 2 4 8 11'] = 'm7b9'
+chord_names['1 2 4 7 11'] = 'm7b5b9'
+chord_names['1 2 4 11'] = 'm7b9 omit5'
 chord_names['1 3 4 7 11'] = 'm9b5'
 chord_names['1 3 4 6 7 11'] = 'm11b5'
 chord_names['1 3 5 7 10 11'] = '13b5'
