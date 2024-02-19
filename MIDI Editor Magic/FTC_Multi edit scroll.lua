@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.0
+  @version 1.5.1
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Support script in custom actions (as mouse modifier)
-    - Speed up script when opening lots of MIDI items by approximating
+    - Added smart note color switching
 ]]
 
 ------------------------------- GENERAL SETTINGS --------------------------------
@@ -19,6 +18,9 @@ _G.hzoom_mode = 1
 
 -- Which note to scroll to when item/visible area contains no notes
 _G.base_note = 60
+
+-- Switch note color to track when opening items from tracks with different colors
+_G.smart_note_color = true
 
 ---------------------------- MOUSE MODIFIER SETTINGS ----------------------------
 
@@ -724,6 +726,39 @@ if midi_item_cnt > 1 then
 
     if visibility == 0 or _G.keep_items_selected then
         mouse_item = nil
+    end
+
+    if _G.smart_note_color then
+        local has_multiple_track_colors = false
+        local prev_color
+        for take in pairs(midi_takes) do
+            local track = reaper.GetMediaItemTake_Track(take)
+            local color = reaper.GetMediaTrackInfo_Value(track, 'I_CUSTOMCOLOR')
+            if prev_color and color ~= prev_color then
+                has_multiple_track_colors = true
+                break
+            end
+            prev_color = color
+        end
+
+        if has_multiple_track_colors then
+            -- Color notes/CC by track custom color
+            reaper.MIDIEditor_OnCommand(hwnd, 40768)
+        else
+            -- If note color is set to track, switch to velocity
+            if reaper.GetToggleCommandStateEx(32060, 40768) == 1 then
+                -- Color notes by velocity
+                reaper.MIDIEditor_OnCommand(hwnd, 40738)
+            end
+        end
+    end
+else
+    if _G.smart_note_color then
+        -- If note color is set to track, switch to velocity
+        if reaper.GetToggleCommandStateEx(32060, 40768) == 1 then
+            -- Color notes by velocity
+            reaper.MIDIEditor_OnCommand(hwnd, 40738)
+        end
     end
 end
 
