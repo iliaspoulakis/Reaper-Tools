@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.5.0
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and zooms to their content
   @changelog
-    - Overhaul of mouse modifier functionality (same as multi-edit scroll)
+    - Support script in custom actions (as mouse modifier)
+    - Speed up script when opening lots of MIDI items by approximating
 ]]
 
 ------------------------------- GENERAL SETTINGS --------------------------------
@@ -233,6 +234,44 @@ function RestoreItemSelection()
     end
 end
 
+function LoadCustomActions(script_cmd_name)
+    local sep = package.config:sub(1, 1)
+    local kb_ini_path = reaper.GetResourcePath() .. sep .. 'reaper-kb.ini'
+    local kb_ini_file = io.open(kb_ini_path, 'r')
+
+    local custom_actions = {}
+    if kb_ini_file then
+        for line in kb_ini_file:lines() do
+            if line:match('^ACT') and line:match(script_cmd_name) then
+                local custom_action_id = '_' .. line:match('"(.-)"')
+                custom_actions[custom_action_id] = true
+            end
+        end
+        kb_ini_file:close()
+    end
+    return custom_actions
+end
+
+local custom_actions
+function IsScriptInCustomAction(action_cmd_name, script_cmd_name)
+    local is_in_custom_action = false
+    -- Check if modifier is set to a custom action
+    if action_cmd_name:match('^_') and not action_cmd_name:match('^_RS') then
+        -- Check if custom action includes this script
+        -- Note: Avoid always loading custom actions (parse kb.ini) by caching
+        local state = tonumber(reaper.GetExtState(extname, action_cmd_name))
+        if state then
+            is_in_custom_action = state == 1
+        else
+            custom_actions = custom_actions or LoadCustomActions(script_cmd_name)
+            is_in_custom_action = custom_actions[action_cmd_name] or false
+            state = is_in_custom_action and 1 or 0
+            reaper.SetExtState(extname, action_cmd_name, state, 0)
+        end
+    end
+    return is_in_custom_action
+end
+
 -- Avoid creating undo points
 reaper.defer(function() end)
 
@@ -241,13 +280,14 @@ local prev_time = tonumber(reaper.GetExtState(extname, 'timestamp')) or 0
 reaper.SetExtState(extname, 'timestamp', time, false)
 
 local mouse_item
-local _, _, _, cmd, rel, res, val = reaper.get_action_context()
+local _, _, sec, cmd, rel, res, val, context_str = reaper.get_action_context()
+if sec == 0 and context_str:match('custom') then rel, res, val = -1, -1, -1 end
 
 local x, y = reaper.GetMousePosition()
 local _, mouse_context = reaper.GetThingFromPoint(x, y)
 
 -- Check if action is executed through item context mouse modifier
-if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
+if sec == 0 and mouse_context == 'arrange' and rel + res + val == -3 then
     -- Get item under mouse
     mouse_item = reaper.GetItemFromPoint(x, y, true)
     if not reaper.ValidatePtr(mouse_item, 'MediaItem*') then
@@ -261,9 +301,13 @@ if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
     for i = 0, 15 do
         local dc_mod = reaper.GetMouseModifier('MM_CTX_ITEM_DBLCLK', i, '')
         local sc_mod = reaper.GetMouseModifier('MM_CTX_ITEM_CLK', i, '')
-        if dc_mod == cmd_name then
+
+        local is_in_custom_sc_action = IsScriptInCustomAction(sc_mod, cmd_name)
+        local is_in_custom_dc_action = IsScriptInCustomAction(dc_mod, cmd_name)
+
+        if dc_mod == cmd_name or is_in_custom_dc_action then
             is_double_click_mod = true
-            if sc_mod ~= cmd_name then
+            if sc_mod ~= cmd_name and not is_in_custom_sc_action then
                 local msg =
                 'For the script to function as a double click modifier it also \z
                 has to be set as a single click modifier for the same context.\z
@@ -277,7 +321,7 @@ if mouse_context == 'arrange' and rel == -1 and res == -1 and val == -1 then
             end
             break
         end
-        if sc_mod == cmd_name then
+        if sc_mod == cmd_name or is_in_custom_sc_action then
             is_single_click_mod = true
             break
         end
@@ -495,52 +539,74 @@ local note_hi = -1
 local density = 0
 local density_cnt = 0
 
+local analysis_start_time = reaper.time_precise()
+
+local GetNote = reaper.MIDI_GetNote
+local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
+local GetItemInfo = reaper.GetMediaItemInfo_Value
+local GetTrackMIDINoteRange = reaper.GetTrackMIDINoteRange
+
 -- Analyze all selected items
-for _, item in ipairs(sel_items) do
+for i = 1, #sel_items do
+    local item = sel_items[i]
     local take = reaper.GetActiveTake(item)
     if reaper.ValidatePtr(take, 'MediaItem_Take*') and reaper.TakeIsMIDI(take) then
         midi_item_cnt = midi_item_cnt + 1
         midi_takes[take] = true
-        -- Get mininum item start position and maximum item end position
-        local item_length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
-        local item_start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
-        local item_end_pos = item_start_pos + item_length
-        zoom_start_pos = math.min(zoom_start_pos, item_start_pos)
-        zoom_end_pos = math.max(zoom_end_pos, item_end_pos)
 
-        -- Get note center
-        local start_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_start_pos)
-        local end_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_end_pos)
+        -- Get minimum item start position and maximum item end position
+        local length = GetItemInfo(item, 'D_LENGTH')
+        local start_pos = GetItemInfo(item, 'D_POSITION')
+        local end_pos = start_pos + length
+        if start_pos < zoom_start_pos then zoom_start_pos = start_pos end
+        if end_pos > zoom_end_pos then zoom_end_pos = end_pos end
 
-        if reaper.GetMediaItemInfo_Value(item, 'B_LOOPSRC') == 1 then
-            local src_ppq_length = GetSourcePPQLength(take)
-            if end_ppq - start_ppq >= src_ppq_length then
-                start_ppq = 0
-                end_ppq = src_ppq_length
-            else
-                start_ppq = start_ppq % src_ppq_length
-                end_ppq = end_ppq % src_ppq_length
-            end
-        end
-
-        local function IsNoteVisible(sppq, eppq)
-            if end_ppq < start_ppq then
-                return eppq > start_ppq or sppq < end_ppq
-            else
-                return eppq > start_ppq and sppq < end_ppq
-            end
-        end
-        local i = 0
-        repeat
-            local ret, _, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
-            if ret and IsNoteVisible(sppq, eppq) then
-                note_lo = math.min(note_lo, pitch)
-                note_hi = math.max(note_hi, pitch)
-                density = density + pitch
+        if reaper.time_precise() - analysis_start_time > 0.15 then
+            -- If analysis takes too long, start using track note range
+            local track = reaper.GetMediaItem_Track(item)
+            local range_note_lo, range_note_hi = GetTrackMIDINoteRange(0, track)
+            if range_note_lo + range_note_hi > 0 then
+                if range_note_lo < note_lo then note_lo = range_note_lo end
+                if range_note_hi > note_hi then note_hi = range_note_hi end
+                density = density + (note_lo + note_hi) / 2
                 density_cnt = density_cnt + 1
             end
-            i = i + 1
-        until not ret
+        else
+            -- Get note center
+            local start_ppq = GetPPQFromTime(take, start_pos)
+            local end_ppq = GetPPQFromTime(take, end_pos)
+
+            if GetItemInfo(item, 'B_LOOPSRC') == 1 then
+                local src_ppq_length = GetSourcePPQLength(take)
+                if end_ppq - start_ppq >= src_ppq_length then
+                    start_ppq = 0
+                    end_ppq = src_ppq_length
+                else
+                    start_ppq = start_ppq % src_ppq_length
+                    end_ppq = end_ppq % src_ppq_length
+                end
+            end
+
+            local function IsNoteVisible(sppq, eppq)
+                if end_ppq < start_ppq then
+                    return eppq > start_ppq or sppq < end_ppq
+                else
+                    return eppq > start_ppq and sppq < end_ppq
+                end
+            end
+
+            local n = 0
+            repeat
+                local ret, _, _, sppq, eppq, _, pitch = GetNote(take, n)
+                if ret and IsNoteVisible(sppq, eppq) then
+                    if pitch < note_lo then note_lo = pitch end
+                    if pitch > note_hi then note_hi = pitch end
+                    density = density + pitch
+                    density_cnt = density_cnt + 1
+                end
+                n = n + 1
+            until not ret
+        end
     end
 end
 
