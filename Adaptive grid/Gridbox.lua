@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.3
+  @version 1.2.4
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Improve behavior with "Adjust items when swing is enabled" setting
+    - Fix crash when setting non-integer font size
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1697,7 +1697,8 @@ function Main()
         -- Create LICE font
         if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
         lice_font = reaper.JS_LICE_CreateFont()
-
+        
+        font_size = math.floor(font_size)
         local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0, font_family)
         reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
         reaper.JS_GDI_DeleteObject(gdi)
