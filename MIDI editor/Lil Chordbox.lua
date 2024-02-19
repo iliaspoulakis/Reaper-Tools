@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.6
+  @version 2.0.7
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Support detecting "add9 omit5" chords
+    - Improve CPU consumption during playback
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -1910,9 +1910,12 @@ function Main()
         is_redraw = true
     end
 
+    local play_state = reaper.GetPlayState()
     -- Note: Avoid using GetItemStateChunk every defer cycle so that tooltips
     -- show on Windows (and reduce overall CPU usage on other OSs)
-    if not prev_chunk_time or time > prev_chunk_time + tooltip_delay then
+    -- Avoid completely during playback as it isn't necessary and can cause
+    -- play cursor stutter on Windows
+    if play_state == 0 and (not prev_chunk_time or time > prev_chunk_time + tooltip_delay) then
         prev_chunk_time = time
 
         local is_channel_combobox_hovered = false
@@ -1965,7 +1968,6 @@ function Main()
     end
 
     -- Use play cursor position during playback/record
-    local play_state = reaper.GetPlayState()
     if play_state > 0 then
         cursor_pos = reaper.GetPlayPosition()
         mode = 1
