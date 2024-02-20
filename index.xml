@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="9d7ef36e598eebf6213984318f4c0f2fe9c40974">
+<index version="1" name="FTC Tools" commit="4bf176ca52d02d3e00ee34328f21e790fb919bf4">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1106,6 +1106,11 @@
 - Added configurable analysis window in menu > algorithm
 - FTC algorithm is now deprecated]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/56fb9af786b6a275a45a9ebf77cbb8ac577b5244/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.8.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-02-20T00:41:11Z">
+        <changelog><![CDATA[- Stop running script when window is closed
+- Small performance improvement]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/4bf176ca52d02d3e00ee34328f21e790fb919bf4/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
