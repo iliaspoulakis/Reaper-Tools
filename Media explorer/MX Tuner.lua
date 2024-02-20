@@ -1,16 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.0
+  @version 1.8.1
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Alt-click on a key now adds 'key' metadata (not automatic on MacOS)
-    - Alt-click on the metadata icon now removes 'key' metadata
-    - Improved FFT pitch detection algorithm (better harmonics detection)
-    - MX tuner now finds and analyzes the loudest section of a file
-    - Added configurable analysis window in menu > algorithm
-    - FTC algorithm is now deprecated
+    - Stop running script when window is closed
+    - Small performance improvement
 ]]
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
@@ -29,6 +25,8 @@ local mx_title = reaper.JS_Localize('Media Explorer', 'common')
 local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
+
+local char_flags = version >= 7.08 and 65537 or 65536
 
 local w_x, w_y, w_w, w_h
 
@@ -1286,7 +1284,9 @@ function Main()
         reaper.SetExtState('FTC.MXTuner', 'name_mode', parse_name_mode, true)
     end
 
-    if gfx.getchar(65536) & 2 == 2 and focus_mode == 1 then
+    if gfx.getchar() == -1 then return end
+
+    if gfx.getchar(char_flags) & 2 == 2 and focus_mode == 1 then
         local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
         reaper.JS_Window_SetFocus(mx_list_view)
     end
