@@ -1,12 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.1
+  @version 1.8.2
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Stop running script when window is closed
-    - Small performance improvement
+    - Add tooltips to detection indicator icons
+    - Avoid "Terminate instance" dialog
 ]]
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
@@ -19,6 +19,8 @@ if version < 6.52 then
     reaper.MB('Please install REAPER v6.52 or later', 'MX Tuner', 0)
     return
 end
+
+if version >= 7.03 then reaper.set_action_options(1) end
 
 -- Open media explorer window
 local mx_title = reaper.JS_Localize('Media Explorer', 'common')
@@ -888,6 +890,14 @@ function DrawPiano()
 
     local button_w = math.max(18, math.min(f_w // 4, gfx.h // 4))
     if curr_parsing_mode > 0 and m_x <= button_w and m_y <= button_w then
+        local x, y = gfx.clienttoscreen(button_w // 0.6, button_w // 8)
+        local tooltip_fn = 'Pitch detected via file name'
+        local tooltip_md = 'Pitch detected via metadata'
+        local tooltip_algo = 'Pitch detected via algorithm'
+        local tooltip = curr_parsing_mode == 1 and tooltip_fn or tooltip_md
+        if is_parsing_bypassed then tooltip = tooltip_algo end
+        reaper.TrackCtl_SetToolTip(tooltip, x, y, true)
+
         if not is_pressed then
             if gfx.mouse_cap & 17 == 17 then
                 MediaExplorer_SetMetaDataKey('')
@@ -1286,7 +1296,7 @@ function Main()
 
     if gfx.getchar() == -1 then return end
 
-    if gfx.getchar(char_flags) & 2 == 2 and focus_mode == 1 then
+    if focus_mode == 1 and gfx.getchar(char_flags) & 2 == 2 then
         local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
         reaper.JS_Window_SetFocus(mx_list_view)
     end
