@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.4
+  @version 1.2.5
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix crash when setting non-integer font size
+    - Add option to reverse scroll direction (enabled by default on MacOS)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -139,6 +139,9 @@ local scale = ini_scale * GetWindowScale()
 
 -- Smallest size the bitmap is allowed to have (width and height in pixels)
 local min_area_size = math.floor(12 * scale)
+
+local scroll_dir = is_macos and -1 or 1
+scroll_dir =  tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
 
 -------------------------------- FUNCTIONS -----------------------------------
 
@@ -897,6 +900,7 @@ function PeekIntercepts(m_x, m_y)
             end
 
             if msg == 'WM_MOUSEWHEEL' then
+                wph = wph * scroll_dir
                 local mouse_state = reaper.JS_Mouse_GetState(20)
                 -- Check if alt is pressed
                 if mouse_state & 16 == 16 then
@@ -1029,6 +1033,14 @@ function ShowRightClickMenu()
                         SaveThemeSettings(prev_color_theme)
                     end
                 },
+            },
+            {
+                title = 'Reverse scroll',
+                is_checked = scroll_dir < 0,
+                OnReturn = function()
+                    scroll_dir = scroll_dir > 0 and -1 or 1
+                    reaper.SetExtState(extname, 'scroll_dir', scroll_dir, true)
+                end
             },
             {separator = true},
             {
