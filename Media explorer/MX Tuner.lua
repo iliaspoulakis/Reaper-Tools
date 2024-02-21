@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.2
+  @version 1.8.3
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Add tooltips to detection indicator icons
-    - Avoid "Terminate instance" dialog
+    - Rework "Avoid focus" mode to only switch focus when clicking inside window
 ]]
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
@@ -1019,6 +1018,9 @@ function Main()
         if not mx then return end
     end
 
+    -- Stop script when MX Tuner window is closed
+    if gfx.getchar() == -1 then return end
+
     local is_redraw = false
 
     -- Monitor media explorer pitch and rate changes
@@ -1152,6 +1154,10 @@ function Main()
 
     -- Redraw UI when mouse_cap changes
     if prev_mouse_cap ~= gfx.mouse_cap then
+        if focus_mode == 1 and prev_mouse_cap and prev_mouse_cap > 0 then
+            local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+            reaper.JS_Window_SetFocus(mx_list_view)
+        end
         prev_mouse_cap = gfx.mouse_cap
         is_redraw = true
     end
@@ -1188,7 +1194,7 @@ function Main()
     if is_redraw then DrawPiano() end
 
     -- Open settings menu on right click
-    if gfx.mouse_cap & 2 == 2 then
+    if prev_mouse_cap & 2 == 2 then
         local menu =
         '>Window|%sDock window|%sHide frame|%sAlways on top|<%sAvoid focus\z
             |>Pitch snap|%sContinuous|%sQuarter tones|%sSemitones||<%sTune with \z
@@ -1292,13 +1298,6 @@ function Main()
         reaper.SetExtState('FTC.MXTuner', 'algo_mode', algo_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'meta_mode', parse_meta_mode, true)
         reaper.SetExtState('FTC.MXTuner', 'name_mode', parse_name_mode, true)
-    end
-
-    if gfx.getchar() == -1 then return end
-
-    if focus_mode == 1 and gfx.getchar(char_flags) & 2 == 2 then
-        local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
-        reaper.JS_Window_SetFocus(mx_list_view)
     end
 
     reaper.defer(Main)
