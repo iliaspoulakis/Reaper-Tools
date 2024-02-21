@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.3
+  @version 1.8.4
   @provides [main=main,mediaexplorer] .
   @about Simple tuner utility for the reaper media explorer
   @changelog
-    - Rework "Avoid focus" mode to only switch focus when clicking inside window
+    - Improve CPU usage
 ]]
 -- Check if js_ReaScriptAPI extension is installed
 if not reaper.JS_Window_Find then
@@ -42,7 +42,10 @@ local prev_mx_rate
 local prev_use_rate
 local prev_file_pitch
 local sel_note_name
-local prev_file
+
+local prev_item
+local prev_item_idx
+local curr_file
 
 local locked_key
 local hovered_key
@@ -152,61 +155,50 @@ function IsMediaFile(file)
     end
 end
 
-function MediaExplorer_GetSelectedMediaFiles()
-    local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
-    local show_leading_path = reaper.GetToggleCommandStateEx(32063, 42134) == 1
-    local forced_full_path = false
-
-    local path_hwnd = reaper.JS_Window_FindChildByID(mx, 1002)
-    local path = reaper.JS_Window_GetTitle(path_hwnd)
-
+function MediaExplorer_GetFirstSelectedItem()
     local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
     local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
 
-    local sep = package.config:sub(1, 1)
-    local sel_files = {}
+    local index = tonumber(sel_indexes:match('[^,]+'))
+    if not index then return end
 
-    for index in string.gmatch(sel_indexes, '[^,]+') do
-        index = tonumber(index)
-        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
-        -- File name might not include extension, due to MX option
-        local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
-        if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
-            file_name = file_name .. '.' .. ext
-        end
-        if IsMediaFile(file_name) then
-            -- Check if file_name is valid path itself (for searches and DBs)
-            if not reaper.file_exists(file_name) then
-                file_name = path .. sep .. file_name
-            end
+    local item_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+    return item_name, index
+end
 
-            -- If file does not exist, try enabling option that shows full path
-            if not show_full_path and not reaper.file_exists(file_name) then
-                show_full_path = true
-                forced_full_path = true
-                -- Browser: Show full path in databases and searches
-                reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
-                file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
-                if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
-                    file_name = file_name .. '.' .. ext
-                end
-            end
-            sel_files[#sel_files + 1] = file_name
-        end
+function MediaExplorer_GetMediaFileFromItemIndex(index)
+    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+
+    local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+    -- File name might not include extension, due to MX option
+    local ext = reaper.JS_ListView_GetItem(mx_list_view, index, 3)
+    if ext ~= '' and not file_name:match('%.' .. ext .. '$') then
+        file_name = file_name .. '.' .. ext
+    end
+    if not IsMediaFile(file_name) then return end
+
+    local file_path = file_name
+    -- Check if file_name is valid path itself (for searches and DBs)
+    if not reaper.file_exists(file_path) then
+        local path_hwnd = reaper.JS_Window_FindChildByID(mx, 1002)
+        local path = reaper.JS_Window_GetTitle(path_hwnd)
+        local sep = package.config:sub(1, 1)
+        file_path = path .. sep .. file_path
     end
 
-    -- Restore previous settings
-    if forced_full_path then
+    local show_full_path = reaper.GetToggleCommandStateEx(32063, 42026) == 1
+    -- If file does not exist, try enabling option that shows full path
+    if not show_full_path and not reaper.file_exists(file_path) then
         -- Browser: Show full path in databases and searches
         reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
-
-        if show_leading_path then
-            -- Browser: Show leading path in databases and searches
-            reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42134, 0, 0, 0)
+        file_path = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        if ext ~= '' and not file_path:match('%.' .. ext .. '$') then
+            file_path = file_path .. '.' .. ext
         end
+        -- Browser: Show full path in databases and searches
+        reaper.JS_WindowMessage_Send(mx, 'WM_COMMAND', 42026, 0, 0, 0)
     end
-
-    return sel_files
+    return file_path
 end
 
 function MediaExplorer_GetSelectedFileInfo(sel_file, id)
@@ -368,7 +360,7 @@ end
 function GetPitchFTC(file)
     -- Get media source peaks
     local src = reaper.PCM_Source_CreateFromFileEx(file, true)
-    if not reaper.ValidatePtr(src, 'PCM_source*') then return end
+    if not src then return end
 
     local src_len = reaper.GetMediaSourceLength(src)
     if src_len == 0 then
@@ -376,6 +368,10 @@ function GetPitchFTC(file)
         return
     end
 
+    -- Avoid processing more that 100 seconds of audio
+    src_len = math.min(src_len, 100)
+
+    -- We find the highest peak and set our time window there
     local time_window = math.min(src_len, algo_window)
     local soffs = GetApproximatePeakTime(src, src_len)
     soffs = soffs - time_window / 5
@@ -543,6 +539,9 @@ function GetPitchFFT(file)
         reaper.PCM_Source_Destroy(src)
         return
     end
+
+    -- Avoid processing more that 100 seconds of audio
+    src_len = math.min(src_len, 100)
 
     -- We find the highest peak and set our time window there
     local time_window = math.min(src_len, algo_window)
@@ -1050,39 +1049,51 @@ function Main()
     end
 
     -- Monitor media explorer file selection
-    local files = MediaExplorer_GetSelectedMediaFiles()
-    local new_file = files[1]
-    local has_file_changed = prev_file ~= new_file
-    if new_file and (has_file_changed or trigger_pitch_rescan) then
-        if has_file_changed then is_parsing_bypassed = false end
+    local sel_item, sel_idx = MediaExplorer_GetFirstSelectedItem()
+    local has_item_changed = sel_item ~= prev_item or sel_idx ~= prev_item_idx
 
+    if has_item_changed then
+        prev_item, prev_item_idx = sel_item, sel_idx
+        curr_file = nil
+        is_parsing_bypassed = false
+        curr_file = sel_item and MediaExplorer_GetMediaFileFromItemIndex(sel_idx)
+        if curr_file then
+            trigger_pitch_rescan = true
+        else
+            curr_parsing_mode = 0
+            sel_note_name = nil
+            is_redraw = true
+        end
+    end
+
+    if curr_file and trigger_pitch_rescan then
         local file_pitch
         -- Check metadata for pitch
         if parse_meta_mode == 1 then
             curr_parsing_mode = 2
-            file_pitch = GetPitchFromMetadata(new_file)
+            file_pitch = GetPitchFromMetadata(curr_file)
         end
         -- Check file name for pitch
         if not file_pitch and parse_name_mode == 1 then
             curr_parsing_mode = 1
-            file_pitch = GetPitchFromFileName(new_file)
+            file_pitch = GetPitchFromFileName(curr_file)
         end
         -- Use chosen pitch detection algorithm to find pitch
         if not file_pitch or is_parsing_bypassed then
             if not is_parsing_bypassed then curr_parsing_mode = 0 end
 
-            local ext = new_file:match('%.([^.]+)$')
+            local ext = curr_file:match('%.([^.]+)$')
             if ext and ext:lower() == 'mid' then
                 -- Get pitch from MIDI file
-                local root_name = GetMIDIFileRootName(new_file)
+                local root_name = GetMIDIFileRootName(curr_file)
                 file_pitch = NameToFrequency(root_name)
             else
                 -- Get pitch from audio file
                 if algo_mode == 1 then
-                    file_pitch = GetPitchFTC(new_file)
+                    file_pitch = GetPitchFTC(curr_file)
                 end
                 if algo_mode == 2 then
-                    file_pitch = GetPitchFFT(new_file)
+                    file_pitch = GetPitchFFT(curr_file)
                 end
             end
         end
@@ -1122,13 +1133,9 @@ function Main()
                 end
             end
         end
-        -- Redraw UI when file changes
         is_redraw = true
         trigger_pitch_rescan = false
     end
-
-    if not new_file then sel_note_name = nil end
-    prev_file = new_file
 
     -- Monitor changes to window dock state
     local dock, x, y, w, h = gfx.dock(-1, 0, 0, 0, 0)
