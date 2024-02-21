@@ -106,7 +106,7 @@ if #missing_dependencies > 0 then
             missing_dependencies[i] = '"' .. missing_dependencies[i] .. '"'
         end
     end
-    reaper.ReaPack_BrowsePackages(table.concat(missing_dependencies, " OR "))
+    reaper.ReaPack_BrowsePackages(table.concat(missing_dependencies, ' OR '))
     return
 end
 
@@ -141,7 +141,7 @@ local scale = ini_scale * GetWindowScale()
 local min_area_size = math.floor(12 * scale)
 
 local scroll_dir = is_macos and -1 or 1
-scroll_dir =  tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
+scroll_dir = tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
 
 -------------------------------- FUNCTIONS -----------------------------------
 
@@ -545,7 +545,9 @@ function SetCustomFont()
     local title = 'Font'
     local captions = 'Size: (e.g.42),Family (e.g. Comic Sans),extrawidth=50'
 
-    local curr_vals_str = ('%s,%s'):format(user_font_size or '', user_font_family or '')
+    local curr_vals_str = ('%s,%s'):format(
+        user_font_size or '',
+        user_font_family or '')
 
     local ret, inputs = reaper.GetUserInputs(title, 2, captions, curr_vals_str)
     if not ret or inputs == curr_vals_str then return end
@@ -622,8 +624,9 @@ function DrawLICERect(color, x, y, w, h, fill, r, a)
     a = a or 1
 
     if not fill or fill == 0 then
+        local LICE_RoundRect = reaper.JS_LICE_RoundRect
         for _ = 1, math.max(1, math.max(1, scale)) do
-            reaper.JS_LICE_RoundRect(bitmap, x, y, w - 1, h - 1, r, color, a, 0, true)
+            LICE_RoundRect(bitmap, x, y, w - 1, h - 1, r, color, a, 0, true)
             x, y, w, h = x + 1, y + 1, w - 2, h - 2
         end
         return
@@ -639,13 +642,14 @@ function DrawLICERect(color, x, y, w, h, fill, r, a)
     if w <= 2 * r then r = math.floor(w / 2 - 1) end
 
     -- Top left corner
-    reaper.JS_LICE_FillCircle(bitmap, x + r, y + r, r, color, a, 0, 1)
+    local LICE_FillCircle = reaper.JS_LICE_FillCircle
+    LICE_FillCircle(bitmap, x + r, y + r, r, color, a, 0, 1)
     -- Top right corner
-    reaper.JS_LICE_FillCircle(bitmap, x + w - r - 1, y + r, r, color, a, 0, 1)
+    LICE_FillCircle(bitmap, x + w - r - 1, y + r, r, color, a, 0, 1)
     -- Bottom right corner
-    reaper.JS_LICE_FillCircle(bitmap, x + w - r - 1, y + h - r - 1, r, color, a, 0, 1)
+    LICE_FillCircle(bitmap, x + w - r - 1, y + h - r - 1, r, color, a, 0, 1)
     -- Bottom left corner
-    reaper.JS_LICE_FillCircle(bitmap, x + r, y + h - r - 1, r, color, a, 0, 1)
+    LICE_FillCircle(bitmap, x + r, y + h - r - 1, r, color, a, 0, 1)
     -- Ends
     reaper.JS_LICE_FillRect(bitmap, x, y + r, r, h - r * 2, color, a, 0)
     reaper.JS_LICE_FillRect(bitmap, x + w - r, y + r, r, h - r * 2, color, a, 0)
@@ -724,15 +728,15 @@ function DrawLiceBitmap()
     -- Draw Text
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
     local len = tostring(grid_text):len()
-    reaper.JS_LICE_DrawText(bitmap, lice_font, grid_text, len, text_x, text_y, bm_w,
-        bm_h)
+    local LICE_DrawText = reaper.JS_LICE_DrawText
+    LICE_DrawText(bitmap, lice_font, grid_text, len, text_x, text_y, bm_w, bm_h)
 
     -- Draw adaptive icon (A)
     if icon_w > 0 then
         local x = text_x - icon_w
         reaper.JS_LICE_SetFontColor(lice_font, adaptive_color)
-        reaper.JS_LICE_DrawText(bitmap, lice_font, 'A', 1, text_x - icon_w,
-            text_y, bm_w, bm_h)
+        LICE_DrawText(bitmap, lice_font, 'A', 1, text_x - icon_w, text_y,
+            bm_w, bm_h)
     end
 
     -- Refresh window
@@ -771,12 +775,13 @@ function DecimalToFraction(x, error)
     end
 end
 
-local normal_cursor = reaper.JS_Mouse_LoadCursor(is_windows and 32512 or 0)
-local diag1_resize_cursor = reaper.JS_Mouse_LoadCursor(is_linux and 32642 or 32643)
-local diag2_resize_cursor = reaper.JS_Mouse_LoadCursor(is_linux and 32643 or 32642)
-local horz_resize_cursor = reaper.JS_Mouse_LoadCursor(32644)
-local vert_resize_cursor = reaper.JS_Mouse_LoadCursor(32645)
-local move_cursor = reaper.JS_Mouse_LoadCursor(32646)
+local LoadCursor = reaper.JS_Mouse_LoadCursor
+local normal_cursor = LoadCursor(is_windows and 32512 or 0)
+local diag1_resize_cursor = LoadCursor(is_linux and 32642 or 32643)
+local diag2_resize_cursor = LoadCursor(is_linux and 32643 or 32642)
+local horz_resize_cursor = LoadCursor(32644)
+local vert_resize_cursor = LoadCursor(32645)
+local move_cursor = LoadCursor(32646)
 
 local is_edit_mode = ExtLoad('is_edit_mode', true)
 
@@ -867,7 +872,7 @@ function PeekIntercepts(m_x, m_y)
                 if reaper.JS_Mouse_GetState(16) == 16 then
                     local menu_env = LoadMenuScript()
                     if menu_env then menu_env.SetStraightGrid() end
-                    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+                    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
                     local new_swing = swing ~= 1 and 1 or 0
                     reaper.GetSetProjectGrid(0, true, nil, new_swing, swing_amt)
                     return
@@ -902,22 +907,23 @@ function PeekIntercepts(m_x, m_y)
             if msg == 'WM_MOUSEWHEEL' then
                 wph = wph * scroll_dir
                 local mouse_state = reaper.JS_Mouse_GetState(20)
+                local GetSetGrid = reaper.GetSetProjectGrid
                 -- Check if alt is pressed
                 if mouse_state & 16 == 16 then
                     wph = wph / math.abs(wph)
-                    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+                    local _, _, swing, swing_amt = GetSetGrid(0, 0)
                     if swing == 0 then
                         local menu_env = LoadMenuScript()
                         if menu_env then menu_env.SetStraightGrid() end
-                        reaper.GetSetProjectGrid(0, true, nil, 1, swing_amt)
+                        GetSetGrid(0, true, nil, 1, swing_amt)
                     end
                     -- Scroll slower when Ctrl is pressed
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
-                    reaper.GetSetProjectGrid(0, true, nil, 1, swing_amt + amt)
+                    GetSetGrid(0, true, nil, 1, swing_amt + amt)
                 else
                     local ext = 'FTC.AdaptiveGrid'
                     -- Calculate new grid division
-                    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
+                    local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
                     local factor = reaper.GetExtState(ext, 'zoom_div')
                     factor = tonumber(factor) or 2
                     grid_div = wph < 0 and grid_div * factor or grid_div / factor
@@ -957,7 +963,7 @@ function ShowRightClickMenu()
                         user_bg_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
                         is_redraw = true
-                    end
+                    end,
                 },
                 {
                     title = 'Text',
@@ -965,7 +971,7 @@ function ShowRightClickMenu()
                         user_text_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
                         is_redraw = true
-                    end
+                    end,
                 },
                 {
                     title = 'Border',
@@ -973,7 +979,7 @@ function ShowRightClickMenu()
                         user_border_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
                         is_redraw = true
-                    end
+                    end,
                 },
                 {
                     title = 'Swing',
@@ -981,7 +987,7 @@ function ShowRightClickMenu()
                         user_swing_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
                         is_redraw = true
-                    end
+                    end,
                 },
                 {
                     title = 'Adaptive',
@@ -989,7 +995,7 @@ function ShowRightClickMenu()
                         user_adaptive_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
                         is_redraw = true
-                    end
+                    end,
                 },
 
             },
@@ -1004,7 +1010,7 @@ function ShowRightClickMenu()
                         attach_mode = 3
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
-                    end
+                    end,
                 },
                 {
                     title = 'Right status edge',
@@ -1013,7 +1019,7 @@ function ShowRightClickMenu()
                         attach_mode = 4
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
-                    end
+                    end,
                 },
                 {
                     title = 'Left transport edge',
@@ -1022,7 +1028,7 @@ function ShowRightClickMenu()
                         attach_mode = 1
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
-                    end
+                    end,
                 },
                 {
                     title = 'Right transport edge',
@@ -1031,7 +1037,7 @@ function ShowRightClickMenu()
                         attach_mode = 2
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
-                    end
+                    end,
                 },
             },
             {
@@ -1040,7 +1046,7 @@ function ShowRightClickMenu()
                 OnReturn = function()
                     scroll_dir = scroll_dir > 0 and -1 or 1
                     reaper.SetExtState(extname, 'scroll_dir', scroll_dir, true)
-                end
+                end,
             },
             {separator = true},
             {
@@ -1056,8 +1062,8 @@ function ShowRightClickMenu()
                     if theme_path == '' then theme_path = 'default' end
                     ExtSave(theme_path, nil)
                     prev_color_theme = nil
-                end
-            }
+                end,
+            },
         },
         {
             title = 'Lock position',
@@ -1065,7 +1071,7 @@ function ShowRightClickMenu()
             OnReturn = function()
                 is_edit_mode = not is_edit_mode
                 ExtSave('is_edit_mode', is_edit_mode)
-            end
+            end,
         },
         {
             title = 'Run script on startup',
@@ -1354,16 +1360,17 @@ function FindInitialPosition()
         end
     end
 
-    local x_start, y = reaper.JS_Window_ClientToScreen(transport_hwnd, 0, st_mid_y)
-    local x_end = reaper.JS_Window_ClientToScreen(transport_hwnd, st_l, st_mid_y)
+    local ClientToScreen = reaper.JS_Window_ClientToScreen
+    local x_start, y = ClientToScreen(transport_hwnd, 0, st_mid_y)
+    local x_end = ClientToScreen(transport_hwnd, st_l, st_mid_y)
 
     for x = x_start, x_end do
         AddEmptyArea(x, y, 1)
     end
     AddEmptyArea(x_end, -1, 1)
 
-    x_start = reaper.JS_Window_ClientToScreen(transport_hwnd, st_r, st_mid_y)
-    x_end = reaper.JS_Window_ClientToScreen(transport_hwnd, transport_w, st_mid_y)
+    x_start = ClientToScreen(transport_hwnd, st_r, st_mid_y)
+    x_end = ClientToScreen(transport_hwnd, transport_w, st_mid_y)
 
     for x = x_start, x_end do
         AddEmptyArea(x, y, -1)
@@ -1670,9 +1677,9 @@ function Main()
         end
 
         if num >= denom and num % denom == 0 then
-            grid_text = ("%.0f%s"):format(num / denom, suffix)
+            grid_text = ('%.0f%s'):format(num / denom, suffix)
         else
-            grid_text = ("%.0f/%.0f%s"):format(num, denom, suffix)
+            grid_text = ('%.0f/%.0f%s'):format(num, denom, suffix)
         end
         is_redraw = true
     end
@@ -1709,9 +1716,10 @@ function Main()
         -- Create LICE font
         if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
         lice_font = reaper.JS_LICE_CreateFont()
-        
+
         font_size = math.floor(font_size)
-        local gdi = reaper.JS_GDI_CreateFont(font_size, 0, 0, 0, 0, 0, font_family)
+        local GDI_CreateFont = reaper.JS_GDI_CreateFont
+        local gdi = GDI_CreateFont(font_size, 0, 0, 0, 0, 0, font_family)
         reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
         reaper.JS_GDI_DeleteObject(gdi)
 
