@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="d2dc4e5e297e679c6fac4676d6d4125bbf1e4963">
+<index version="1" name="FTC Tools" commit="6eb95e20214842659c897160906efa666ca06776">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1138,6 +1138,10 @@
       <version name="1.8.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-02-21T13:45:08Z">
         <changelog><![CDATA[- Rework "Avoid focus" mode to only switch focus when clicking inside window]]></changelog>
         <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/d2dc4e5e297e679c6fac4676d6d4125bbf1e4963/Media%20explorer/MX%20Tuner.lua</source>
+      </version>
+      <version name="1.8.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-02-21T17:57:50Z">
+        <changelog><![CDATA[- Improve CPU usage]]></changelog>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/6eb95e20214842659c897160906efa666ca06776/Media%20explorer/MX%20Tuner.lua</source>
       </version>
     </reapack>
   </category>
