@@ -1013,17 +1013,20 @@ local main_menu = {
     options_menu,
 }
 
--- Return menu to external scripts
-if _G.menu then
-    _G.menu = main_menu
-    return
-end
-
-if reaper.SNM_GetIntConfigVar then
+local ret, projgridmin = reaper.get_config_var_string('projgridmin')
+if ret then
+    min_spacing = projgridmin
+elseif reaper.SNM_GetIntConfigVar then
     min_spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
 else
     min_spacing = GetIniConfigValue('projgridmin', 8)
     reaper.SetExtState(extname, 'projgridmin', min_spacing, true)
+end
+
+-- Return menu to external scripts
+if _G.menu then
+    _G.menu = main_menu
+    return
 end
 
 local is_hook_enabled = IsStartupHookEnabled()

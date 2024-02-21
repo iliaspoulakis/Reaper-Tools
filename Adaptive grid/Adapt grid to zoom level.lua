@@ -311,7 +311,10 @@ if is_midi then
     -- Note: The minimum grid spacing for the MIDI editor is fixed
     spacing = 15
 else
-    if reaper.SNM_GetIntConfigVar then
+    local ret, projgridmin = reaper.get_config_var_string('projgridmin')
+    if ret then
+        spacing = projgridmin
+    elseif reaper.SNM_GetIntConfigVar then
         spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
     else
         spacing = tonumber(reaper.GetExtState(extname, 'projgridmin')) or 8
