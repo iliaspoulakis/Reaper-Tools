@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.8.1
+  @version 1.8.2
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -11,5 +11,5 @@
     [main=main,midi_editor] Set grid to * (adaptive).lua
     [main=main,midi_editor] Adjust adaptive grid (mousewheel).lua
   @changelog
-    - Fix setting custom size in gridbox
+    - Fix enabling background service through Gridbox
 ]]

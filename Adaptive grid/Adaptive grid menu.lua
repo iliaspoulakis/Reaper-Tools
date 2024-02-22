@@ -65,6 +65,7 @@ function MenuReturnRecursive(menu, idx, i)
 end
 
 function GetStartupHookCommandID()
+    if _G.cmd then return _G.cmd end
     -- Note: Startup hook commands have to be in the main section
     local _, script_file, section, cmd_id = reaper.get_action_context()
     if section == 0 then

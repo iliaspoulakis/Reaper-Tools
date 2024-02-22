@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.5
+  @version 1.2.6
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add option to reverse scroll direction (enabled by default on MacOS)
+    - Fix enabling background service
 ]]
 
 local extname = 'FTC.GridBox'
@@ -142,6 +142,8 @@ local min_area_size = math.floor(12 * scale)
 
 local scroll_dir = is_macos and -1 or 1
 scroll_dir = tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
+
+local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
 -------------------------------- FUNCTIONS -----------------------------------
 
@@ -831,7 +833,7 @@ end
 function LoadMenuScript()
     local menu_env = {}
     for key, val in pairs(_G) do menu_env[key] = val end
-    menu_env._G = {menu = true}
+    menu_env._G = {menu = true, cmd = menu_cmd}
     local menu_chunk, err = loadfile(menu_script, 'bt', menu_env)
     if menu_chunk then
         menu_chunk()
