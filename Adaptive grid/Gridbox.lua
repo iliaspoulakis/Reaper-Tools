@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.6
+  @version 1.2.7
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix enabling background service
+    - Avoid incorrectly showing adaptive mode on startup when service is not enabled
 ]]
 
 local extname = 'FTC.GridBox'
@@ -283,10 +283,10 @@ function GetStartupHookCommandID()
     return cmd_id
 end
 
-function IsStartupHookEnabled()
+function IsStartupHookEnabled(opt_cmd_id)
     local res_path = reaper.GetResourcePath()
     local startup_path = ConcatPath(res_path, 'Scripts', '__startup.lua')
-    local cmd_id = GetStartupHookCommandID()
+    local cmd_id = opt_cmd_id or GetStartupHookCommandID()
     local cmd_name = reaper.ReverseNamedCommandLookup(cmd_id)
 
     if reaper.file_exists(startup_path) then
@@ -1759,6 +1759,23 @@ function Exit()
     end
 
     EndIntercepts()
+end
+
+local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
+reaper.SetExtState(extname, 'has_run', 'yes', false)
+
+-- Switch to fixed grid on startup if adaptive service is not enabled
+if not has_run then
+    local ext = 'FTC.AdaptiveGrid'
+    local main_mult = tonumber(reaper.GetExtState(ext, 'main_mult')) or 0
+    local midi_mult = tonumber(reaper.GetExtState(ext, 'midi_mult')) or 0
+    if main_mult > 0 or midi_mult > 0 then
+        local is_service_enabled = IsStartupHookEnabled(menu_cmd)
+        if not is_service_enabled then
+            reaper.SetExtState(ext, 'main_mult', 0, true)
+            reaper.SetExtState(ext, 'midi_mult', 0, true)
+        end
+    end
 end
 
 reaper.atexit(Exit)
