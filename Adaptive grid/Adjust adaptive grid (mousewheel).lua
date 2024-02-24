@@ -108,12 +108,14 @@ else
             -- Respect user limits
             local min_grid_div = reaper.GetExtState(extname, 'midi_min_limit')
             min_grid_div = tonumber(min_grid_div) or 0
-            if min_grid_div ~= 0 and grid_div < min_grid_div then
+            if min_grid_div == 0 then min_grid_div = 1 / 4096 * 2 / 3 end
+            if grid_div < min_grid_div then
                 if val > 0 then return end
             end
             local max_grid_div = reaper.GetExtState(extname, 'midi_max_limit')
             max_grid_div = tonumber(max_grid_div) or 0
-            if max_grid_div ~= 0 and grid_div > max_grid_div then
+            if max_grid_div == 0 then max_grid_div = 4096 * 3 / 2 end
+            if grid_div > max_grid_div then
                 if val < 0 then return end
             end
             reaper.SetMIDIEditorGrid(0, grid_div)
@@ -127,12 +129,14 @@ else
         -- Respect user limits
         local min_grid_div = reaper.GetExtState(extname, 'min_limit')
         min_grid_div = tonumber(min_grid_div) or 0
-        if min_grid_div ~= 0 and grid_div < min_grid_div then
+        if min_grid_div == 0 then min_grid_div = 1 / 4096 * 2 / 3 end
+        if grid_div < min_grid_div then
             if val > 0 then return end
         end
         local max_grid_div = reaper.GetExtState(extname, 'max_limit')
         max_grid_div = tonumber(max_grid_div) or 0
-        if max_grid_div ~= 0 and grid_div > max_grid_div then
+        if max_grid_div == 0 then max_grid_div = 4096 * 3 / 2 end
+        if grid_div > max_grid_div then
             if val < 0 then return end
         end
         reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)

@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.7
+  @version 1.2.8
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Avoid incorrectly showing adaptive mode on startup when service is not enabled
+    - Enforce grid limits of minimum 1/4096 and maximum 4096
 ]]
 
 local extname = 'FTC.GridBox'
@@ -932,12 +932,14 @@ function PeekIntercepts(m_x, m_y)
                     -- Respect user limits
                     local min_grid_div = reaper.GetExtState(ext, 'min_limit')
                     min_grid_div = tonumber(min_grid_div) or 0
-                    if min_grid_div ~= 0 and grid_div < min_grid_div then
+                    if min_grid_div == 0 then min_grid_div = 1 / 4096 * 2 / 3 end
+                    if grid_div < min_grid_div then
                         if wph > 0 then return end
                     end
                     local max_grid_div = reaper.GetExtState(ext, 'max_limit')
                     max_grid_div = tonumber(max_grid_div) or 0
-                    if max_grid_div ~= 0 and grid_div > max_grid_div then
+                    if max_grid_div == 0 then max_grid_div = 4096 * 3 / 2 end
+                    if grid_div > max_grid_div then
                         if wph < 0 then return end
                     end
                     reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)

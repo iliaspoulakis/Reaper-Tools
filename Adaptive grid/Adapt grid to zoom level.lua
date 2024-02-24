@@ -42,12 +42,14 @@ function AdaptGrid(spacing)
     -- Check if new grid division exceeds user limits
     local min_grid_div = reaper.GetExtState(extname, 'min_limit')
     min_grid_div = tonumber(min_grid_div) or 0
-    if min_grid_div ~= 0 and new_grid_div < min_grid_div then
+    if min_grid_div == 0 then min_grid_div = 1 / 4096 * 2 / 3 end
+    if new_grid_div < min_grid_div then
         if new_grid_div < grid_div then return end
     end
     local max_grid_div = reaper.GetExtState(extname, 'max_limit')
     max_grid_div = tonumber(max_grid_div) or 0
-    if max_grid_div ~= 0 and new_grid_div > max_grid_div then
+    if max_grid_div == 0 then max_grid_div = 4096 * 3 / 2 end
+    if new_grid_div > max_grid_div then
         if new_grid_div > grid_div then return end
     end
 
