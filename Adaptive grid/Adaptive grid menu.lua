@@ -504,8 +504,7 @@ function GetUserCustomGridSpacing(is_midi)
         reaper.MB('Value not permitted!', 'Error', 0)
         return false
     else
-        min_spacing = is_midi and 15 or min_spacing
-        if spacing < min_spacing then
+        if spacing < (is_midi and 15 or min_spacing) then
             local status = ' (Currently: %s pixels in grid settings)'
             status = is_midi and ' (15px)' or status:format(min_spacing)
             local msg = 'The value you set is smaller than the minimum \z
@@ -1016,7 +1015,7 @@ local main_menu = {
 
 local ret, projgridmin = reaper.get_config_var_string('projgridmin')
 if ret then
-    min_spacing = projgridmin
+    min_spacing = tonumber(projgridmin) or 8
 elseif reaper.SNM_GetIntConfigVar then
     min_spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
 else

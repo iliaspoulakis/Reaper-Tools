@@ -313,7 +313,7 @@ if is_midi then
 else
     local ret, projgridmin = reaper.get_config_var_string('projgridmin')
     if ret then
-        spacing = projgridmin
+        spacing = tonumber(projgridmin) or 8
     elseif reaper.SNM_GetIntConfigVar then
         spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
     else
