@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.8
+  @version 1.3.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Enforce grid limits of minimum 1/4096 and maximum 4096
+    - Add support for quintuplets and septuplets
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1660,11 +1660,17 @@ function Main()
         local num, denom = DecimalToFraction(grid_div)
 
         local is_triplet, is_dotted = false, false
+        local is_quintuplet, is_septuplet = false, false
+
         if grid_div > 1 then
             is_triplet = 2 * grid_div % (2 / 3) == 0
+            is_quintuplet = 4 * grid_div % (4 / 5) == 0
+            is_septuplet = 4 * grid_div % (4 / 7) == 0
             is_dotted = 2 * grid_div % 3 == 0
         else
             is_triplet = 2 / grid_div % 3 == 0
+            is_quintuplet = 4 / grid_div % 5 == 0
+            is_septuplet = 4 / grid_div % 7 == 0
             is_dotted = 2 / grid_div % (2 / 3) == 0
         end
 
@@ -1672,12 +1678,25 @@ function Main()
         if is_triplet then
             suffix = 'T'
             denom = denom * 2 / 3
+        elseif is_quintuplet then
+            suffix = 'Q'
+            denom = denom * 4 / 5
+        elseif is_septuplet then
+            suffix = 'S'
+            denom = denom * 4 / 7
         elseif is_dotted then
             suffix = 'D'
             denom = denom / 2
             num = num / 3
-            --[[  elseif swing == 1 then
-            suffix = 'S' ]]
+        end
+
+        -- Simplify fractions, e.g. 2/4 to 1/2
+        if num > 1 then
+            local rest = denom % num
+            if rest == 0 then
+                denom = denom / num
+                num = 1
+            end
         end
 
         if num >= denom and num % denom == 0 then

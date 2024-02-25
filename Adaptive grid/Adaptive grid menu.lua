@@ -351,9 +351,13 @@ function SetStraightGrid()
     local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, false)
     if not IsStraightGrid(grid_div) then
         if IsTripletGrid(grid_div) then
-            grid_div = grid_div * 3 / 2
+            grid_div = grid_div * (3 / 2)
+        elseif IsQuintupletGrid(grid_div) then
+            grid_div = grid_div * (5 / 4)
+        elseif IsSeptupletGrid(grid_div) then
+            grid_div = grid_div * (7 / 4)
         elseif IsDottedGrid(grid_div) then
-            grid_div = grid_div * 2 / 3
+            grid_div = grid_div * (2 / 3)
         else
             grid_div = GetClosestStraightGrid(grid_div)
         end
@@ -374,11 +378,69 @@ function SetTripletGrid()
     local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
     if not IsTripletGrid(grid_div) then
         if IsStraightGrid(grid_div) then
-            grid_div = grid_div * 2 / 3
+            grid_div = grid_div * (2 / 3)
+        elseif IsQuintupletGrid(grid_div) then
+            grid_div = grid_div * (5 / 4) * (2 / 3)
+        elseif IsSeptupletGrid(grid_div) then
+            grid_div = grid_div * (7 / 4) * (2 / 3)
         elseif IsDottedGrid(grid_div) then
             grid_div = grid_div * (2 / 3) ^ 2
         else
-            grid_div = GetClosestStraightGrid(grid_div) * 2 / 3
+            grid_div = GetClosestStraightGrid(grid_div) * (2 / 3)
+        end
+        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+    end
+end
+
+function IsQuintupletGrid(grid_div)
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    if grid_div > 1 then
+        return 4 * grid_div % (4 / 5) == 0
+    else
+        return 4 / grid_div % 5 == 0
+    end
+end
+
+function SetQuintupletGrid()
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    if not IsQuintupletGrid(grid_div) then
+        if IsStraightGrid(grid_div) then
+            grid_div = grid_div * (4 / 5)
+        elseif IsTripletGrid(grid_div) then
+            grid_div = grid_div * (3 / 2) * (4 / 5)
+        elseif IsSeptupletGrid(grid_div) then
+            grid_div = grid_div * (7 / 4) * (4 / 5)
+        elseif IsDottedGrid(grid_div) then
+            grid_div = grid_div * (2 / 3) * (4 / 5)
+        else
+            grid_div = GetClosestStraightGrid(grid_div) * (4 / 5)
+        end
+        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+    end
+end
+
+function IsSeptupletGrid(grid_div)
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    if grid_div > 1 then
+        return 4 * grid_div % (4 / 7) == 0
+    else
+        return 4 / grid_div % 7 == 0
+    end
+end
+
+function SetSeptupletGrid()
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    if not IsSeptupletGrid(grid_div) then
+        if IsStraightGrid(grid_div) then
+            grid_div = grid_div * (4 / 7)
+        elseif IsTripletGrid(grid_div) then
+            grid_div = grid_div * (3 / 2) * (4 / 7)
+        elseif IsQuintupletGrid(grid_div) then
+            grid_div = grid_div * (5 / 4) * (4 / 7)
+        elseif IsDottedGrid(grid_div) then
+            grid_div = grid_div * (2 / 3) * (4 / 7)
+        else
+            grid_div = GetClosestStraightGrid(grid_div) * (4 / 7)
         end
         reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
     end
@@ -397,11 +459,15 @@ function SetDottedGrid()
     local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
     if not IsDottedGrid(grid_div) then
         if IsStraightGrid(grid_div) then
-            grid_div = grid_div * 3 / 2
+            grid_div = grid_div * (3 / 2)
         elseif IsTripletGrid(grid_div) then
             grid_div = grid_div * (3 / 2) ^ 2
+        elseif IsQuintupletGrid(grid_div) then
+            grid_div = grid_div * (5 / 4) * (3 / 2)
+        elseif IsSeptupletGrid(grid_div) then
+            grid_div = grid_div * (7 / 4) * (3 / 2)
         else
-            grid_div = GetClosestStraightGrid(grid_div) * 3 / 2
+            grid_div = GetClosestStraightGrid(grid_div) * (3 / 2)
         end
         reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
     end
@@ -583,6 +649,8 @@ function SetFixedGrid(new_grid_div)
     SetGridMultiplier(0)
     local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
     if IsTripletGrid(grid_div) then new_grid_div = new_grid_div * 2 / 3 end
+    if IsQuintupletGrid(grid_div) then new_grid_div = new_grid_div * 4 / 5 end
+    if IsSeptupletGrid(grid_div) then new_grid_div = new_grid_div * 4 / 7 end
     if IsDottedGrid(grid_div) then new_grid_div = new_grid_div * 3 / 2 end
     reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
 end
@@ -592,6 +660,8 @@ function CheckFixedGrid(grid_div)
     if not IsGridVisible() or GetGridMultiplier() ~= 0 then return false end
     local _, curr_grid_div = reaper.GetSetProjectGrid(0, false)
     if IsTripletGrid(curr_grid_div) then grid_div = grid_div * 2 / 3 end
+    if IsQuintupletGrid(curr_grid_div) then grid_div = grid_div * 4 / 5 end
+    if IsSeptupletGrid(curr_grid_div) then grid_div = grid_div * 4 / 7 end
     if IsDottedGrid(curr_grid_div) then grid_div = grid_div * 3 / 2 end
     return grid_div == curr_grid_div
 end
@@ -640,6 +710,49 @@ if is_measure_option_visible then
     }
 end
 
+function IsQuintupletVisibleInMenu()
+    return reaper.GetExtState(extname, 'show_quintuplets') == '1'
+end
+
+function SetQuintupletVisibleInMenu(is_show)
+    reaper.SetExtState(extname, 'show_quintuplets', is_show and 1 or 0, true)
+end
+
+function IsSeptupletVisibleInMenu()
+    return reaper.GetExtState(extname, 'show_septuplets') == '1'
+end
+
+function SetSeptupletVisibleInMenu(is_show)
+    reaper.SetExtState(extname, 'show_septuplets', is_show and 1 or 0, true)
+end
+
+local is_quintuplet_option_visible = IsQuintupletVisibleInMenu()
+local is_septuplet_option_visible = IsSeptupletVisibleInMenu()
+
+local quintuplet_entry = {}
+if is_quintuplet_option_visible then
+    quintuplet_entry = {
+        title = 'Quintuplet',
+        IsChecked = IsQuintupletGrid,
+        OnReturn = function()
+            SetSwingEnabled(false)
+            SetQuintupletGrid()
+        end,
+    }
+end
+
+local septuplet_entry = {}
+if is_septuplet_option_visible then
+    septuplet_entry = {
+        title = 'Septuplet',
+        IsChecked = IsSeptupletGrid,
+        OnReturn = function()
+            SetSwingEnabled(false)
+            SetSeptupletGrid()
+        end,
+    }
+end
+
 local options_menu = {
     title = 'Options',
     {title = 'Arrange view', is_grayed = true},
@@ -650,6 +763,18 @@ local options_menu = {
     {separator = true},
     {
         title = 'Show in menu',
+        {
+            title = 'Quintuplets',
+            is_checked = is_quintuplet_option_visible,
+            OnReturn = SetQuintupletVisibleInMenu,
+            arg = not is_quintuplet_option_visible,
+        },
+        {
+            title = 'Septuplets',
+            is_checked = is_septuplet_option_visible,
+            OnReturn = SetSeptupletVisibleInMenu,
+            arg = not is_septuplet_option_visible,
+        },
         {
             title = 'Frame',
             is_checked = is_frame_option_visible,
@@ -850,6 +975,8 @@ local main_menu = {
             SetTripletGrid()
         end,
     },
+    quintuplet_entry,
+    septuplet_entry,
     {
         title = 'Dotted',
         IsChecked = IsDottedGrid,
