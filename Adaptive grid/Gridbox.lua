@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add support for quintuplets and septuplets
+    - Add option to display visible grid division (for straight grid only)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -37,6 +37,9 @@ local prev_color_theme
 local prev_main_mult
 local prev_swing_amt
 local prev_grid_div
+
+local prev_hzoom_lvl
+local prev_vis_grid_div
 
 local grid_text
 local is_adaptive
@@ -142,6 +145,8 @@ local min_area_size = math.floor(12 * scale)
 
 local scroll_dir = is_macos and -1 or 1
 scroll_dir = tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
+
+local use_vis_grid = reaper.GetExtState(extname, 'use_vis_grid') == '1'
 
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
@@ -1044,14 +1049,6 @@ function ShowRightClickMenu()
                     end,
                 },
             },
-            {
-                title = 'Reverse scroll',
-                is_checked = scroll_dir < 0,
-                OnReturn = function()
-                    scroll_dir = scroll_dir > 0 and -1 or 1
-                    reaper.SetExtState(extname, 'scroll_dir', scroll_dir, true)
-                end,
-            },
             {separator = true},
             {
                 title = 'Reset',
@@ -1066,6 +1063,34 @@ function ShowRightClickMenu()
                     if theme_path == '' then theme_path = 'default' end
                     ExtSave(theme_path, nil)
                     prev_color_theme = nil
+                end,
+            },
+        },
+        {
+            title = 'Options',
+            {
+                title = 'Reverse scroll',
+                is_checked = scroll_dir < 0,
+                OnReturn = function()
+                    scroll_dir = scroll_dir > 0 and -1 or 1
+                    reaper.SetExtState(extname, 'scroll_dir', scroll_dir, true)
+                end,
+            },
+            {
+                title = 'Display visible grid',
+                is_checked = use_vis_grid,
+                OnReturn = function()
+                    use_vis_grid = not use_vis_grid
+                    local val = use_vis_grid and 1 or 0
+                    reaper.SetExtState(extname, 'use_vis_grid', val, true)
+                    if use_vis_grid then
+                        local msg = 'Visible grid can only be displayed for \z
+                            straight grid divisions!'
+                        reaper.MB(msg, 'Notice', 0)
+                    end
+                    prev_hzoom_lvl = nil
+                    prev_grid_div = nil
+                    prev_vis_grid_div = nil
                 end,
             },
         },
@@ -1651,60 +1676,106 @@ function Main()
             prev_grid_div = nil
             is_redraw = true
         end
-    elseif grid_div ~= prev_grid_div then
-        prev_grid_div = grid_div
-        -- Grid division changed
+    else
+        local vis_grid_div
+        local hzoom_lvl = use_vis_grid and reaper.GetHZoomLevel() or nil
+        local hzoom_lvl_changed = prev_hzoom_lvl ~= hzoom_lvl
+        if hzoom_lvl_changed and not is_adaptive and math.log(grid_div, 2) % 1 == 0 then
+            prev_hzoom_lvl = hzoom_lvl
 
-        is_adaptive = (tonumber(main_mult) or 0) ~= 0
+            local start_time, end_time = reaper.GetSet_ArrangeView2(0, 0, 0, 0)
+            local _, _, _, start_beat = reaper.TimeMap2_timeToBeats(0, start_time)
+            local _, _, _, end_beat = reaper.TimeMap2_timeToBeats(0, end_time)
 
-        local num, denom = DecimalToFraction(grid_div)
+            -- Current view width in pixels
+            local arrange_pixels = (end_time - start_time) * hzoom_lvl
+            -- Number of measures that fit into current view
+            local arrange_measures = (end_beat - start_beat) / 4
 
-        local is_triplet, is_dotted = false, false
-        local is_quintuplet, is_septuplet = false, false
+            local measure_length_in_pixels = arrange_pixels / arrange_measures
 
-        if grid_div > 1 then
-            is_triplet = 2 * grid_div % (2 / 3) == 0
-            is_quintuplet = 4 * grid_div % (4 / 5) == 0
-            is_septuplet = 4 * grid_div % (4 / 7) == 0
-            is_dotted = 2 * grid_div % 3 == 0
-        else
-            is_triplet = 2 / grid_div % 3 == 0
-            is_quintuplet = 4 / grid_div % 5 == 0
-            is_septuplet = 4 / grid_div % 7 == 0
-            is_dotted = 2 / grid_div % (2 / 3) == 0
-        end
-
-        local suffix = ''
-        if is_triplet then
-            suffix = 'T'
-            denom = denom * 2 / 3
-        elseif is_quintuplet then
-            suffix = 'Q'
-            denom = denom * 4 / 5
-        elseif is_septuplet then
-            suffix = 'S'
-            denom = denom * 4 / 7
-        elseif is_dotted then
-            suffix = 'D'
-            denom = denom / 2
-            num = num / 3
-        end
-
-        -- Simplify fractions, e.g. 2/4 to 1/2
-        if num > 1 then
-            local rest = denom % num
-            if rest == 0 then
-                denom = denom / num
-                num = 1
+            local spacing
+            local ret, projgridmin = reaper.get_config_var_string('projgridmin')
+            if ret then
+                spacing = tonumber(projgridmin) or 8
+            elseif reaper.SNM_GetIntConfigVar then
+                spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
+            else
+                spacing = reaper.GetExtState('FTC.AdaptiveGrid', 'projgridmin')
+                spacing = tonumber(spacing) or 8
             end
+
+            -- The maximum grid (divisions) that would be allowed with spacing
+            local max_grid_div = spacing / measure_length_in_pixels
+
+            vis_grid_div = grid_div
+            -- Calculate smaller visible grid
+            if grid_div < max_grid_div then
+                local exp = math.ceil(math.log(max_grid_div / grid_div, 2))
+                vis_grid_div = grid_div * 2 ^ exp
+            end
+            if vis_grid_div == prev_vis_grid_div then
+                vis_grid_div = nil
+            end
+            prev_vis_grid_div = vis_grid_div
         end
 
-        if num >= denom and num % denom == 0 then
-            grid_text = ('%.0f%s'):format(num / denom, suffix)
-        else
-            grid_text = ('%.0f/%.0f%s'):format(num, denom, suffix)
+        if grid_div ~= prev_grid_div or vis_grid_div then
+            prev_grid_div = grid_div
+            -- Grid division changed
+            grid_div = vis_grid_div or grid_div
+
+            is_adaptive = (tonumber(main_mult) or 0) ~= 0
+
+            local num, denom = DecimalToFraction(grid_div)
+
+            local is_triplet, is_dotted = false, false
+            local is_quintuplet, is_septuplet = false, false
+
+            if grid_div > 1 then
+                is_triplet = 2 * grid_div % (2 / 3) == 0
+                is_quintuplet = 4 * grid_div % (4 / 5) == 0
+                is_septuplet = 4 * grid_div % (4 / 7) == 0
+                is_dotted = 2 * grid_div % 3 == 0
+            else
+                is_triplet = 2 / grid_div % 3 == 0
+                is_quintuplet = 4 / grid_div % 5 == 0
+                is_septuplet = 4 / grid_div % 7 == 0
+                is_dotted = 2 / grid_div % (2 / 3) == 0
+            end
+
+            local suffix = ''
+            if is_triplet then
+                suffix = 'T'
+                denom = denom * 2 / 3
+            elseif is_quintuplet then
+                suffix = 'Q'
+                denom = denom * 4 / 5
+            elseif is_septuplet then
+                suffix = 'S'
+                denom = denom * 4 / 7
+            elseif is_dotted then
+                suffix = 'D'
+                denom = denom / 2
+                num = num / 3
+            end
+
+            -- Simplify fractions, e.g. 2/4 to 1/2
+            if num > 1 then
+                local rest = denom % num
+                if rest == 0 then
+                    denom = denom / num
+                    num = 1
+                end
+            end
+
+            if num >= denom and num % denom == 0 then
+                grid_text = ('%.0f%s'):format(num / denom, suffix)
+            else
+                grid_text = ('%.0f/%.0f%s'):format(num, denom, suffix)
+            end
+            is_redraw = true
         end
-        is_redraw = true
     end
 
     -- Monitor swing amount
@@ -1748,11 +1819,13 @@ function Main()
 
         -- Set bitmap draw coordinates
         reaper.JS_Composite_Delay(transport_hwnd, 0.03, 0.03, 2)
-        reaper.JS_Composite(transport_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
+        reaper.JS_Composite(transport_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0,
+            0,
             bm_w, bm_h)
         is_resize = false
         is_redraw = true
     end
+
 
     if is_redraw then
         DrawLiceBitmap()
