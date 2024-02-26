@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.4.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add option to display visible grid division (for straight grid only)
+    - Add snap button
 ]]
 
 local extname = 'FTC.GridBox'
@@ -26,6 +26,11 @@ local user_adaptive_color
 local user_font_size
 local user_font_family
 
+local user_snap_size
+local user_snap_on_color
+local user_snap_off_color
+local user_snap_sep_color
+
 local transport_hwnd
 local transport_w
 local transport_h
@@ -46,9 +51,14 @@ local is_adaptive
 
 local drag_x
 local drag_y
+local click_x
 
 local is_left_click = false
 local is_right_click = false
+
+local left_w = 0
+local prev_is_snap
+local prev_is_snap_hovered
 
 local menu_time
 
@@ -147,6 +157,7 @@ local scroll_dir = is_macos and -1 or 1
 scroll_dir = tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
 
 local use_vis_grid = reaper.GetExtState(extname, 'use_vis_grid') == '1'
+local hide_snap = reaper.GetExtState(extname, 'hide_snap') == '1'
 
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
@@ -456,6 +467,10 @@ function LoadThemeSettings(theme_path)
     user_font_size = settings.font_size
     user_font_family = settings.font_family
     user_corner_radius = settings.corner_radius
+    user_snap_size = settings.snap_size
+    user_snap_on_color = settings.snap_on_color
+    user_snap_off_color = settings.snap_off_color
+    user_snap_sep_color = settings.snap_sep_color
     return has_settings
 end
 
@@ -475,6 +490,10 @@ function SaveThemeSettings(theme_path)
         font_size = user_font_size,
         font_family = user_font_family,
         corner_radius = user_corner_radius,
+        snap_size = user_snap_size,
+        snap_on_color = user_snap_on_color,
+        snap_off_color = user_snap_off_color,
+        snap_sep_color = user_snap_sep_color,
     }
 
     -- If theme inside resource folder, save as relative path
@@ -492,6 +511,23 @@ end
 function IntToHex(int_color)
     local r, g, b = reaper.ColorFromNative(int_color)
     return RGBAToHex(r, g, b)
+end
+
+function TintIntColor(color, factor)
+    local a = color & 0xFF000000
+    local r = (color & 0xFF0000) >> 16
+    local g = (color & 0x00FF00) >> 8
+    local b = (color & 0x0000FF)
+
+    r = (r * factor) // 1
+    g = (g * factor) // 1
+    b = (b * factor) // 1
+
+    r = r < 0 and 0 or r > 255 and 255 or r
+    g = g < 0 and 0 or g > 255 and 255 or g
+    b = b < 0 and 0 or b > 255 and 255 or b
+
+    return (r * 65536 + g * 256 + b) | a
 end
 
 function GetUserColor()
@@ -572,9 +608,31 @@ function SetCustomFont()
     SaveThemeSettings(prev_color_theme)
 end
 
+function SetCustomSnapSize()
+    local title = 'Snap'
+    local captions = 'Icon size: (e.g.24),extrawidth=50'
+
+    local curr_vals_str = ('%s'):format(
+        user_snap_size or '')
+
+    local ret, inputs = reaper.GetUserInputs(title, 1, captions, curr_vals_str)
+    if not ret or inputs == curr_vals_str then return end
+
+    local input_vals = {}
+    for input in (inputs .. ','):gmatch('[^,]*') do
+        input_vals[#input_vals + 1] = input
+    end
+
+    user_snap_size = tonumber(input_vals[1])
+    is_redraw = true
+
+    SaveThemeSettings(prev_color_theme)
+end
+
 function SetCustomColors()
     local title = 'Custom Colors'
-    local captions = 'Background: (e.g. #525252),Text:,Border:,Swing:,Adaptive:'
+    local captions = 'Background: (e.g. #525252),Text:,Border:,Swing:,\z
+        Adaptive:,Snap on:,Snap off:,Snap separator:'
 
     local curr_vals = {}
     local function AddCurrentValue(color)
@@ -587,10 +645,13 @@ function SetCustomColors()
     AddCurrentValue(user_border_color)
     AddCurrentValue(user_swing_color)
     AddCurrentValue(user_adaptive_color)
+    AddCurrentValue(user_snap_on_color)
+    AddCurrentValue(user_snap_off_color)
+    AddCurrentValue(user_snap_sep_color)
 
     local curr_vals_str = table.concat(curr_vals, ',')
 
-    local ret, inputs = reaper.GetUserInputs(title, 5, captions, curr_vals_str)
+    local ret, inputs = reaper.GetUserInputs(title, 8, captions, curr_vals_str)
     if not ret or inputs == curr_vals_str then return end
 
     local colors = {}
@@ -615,6 +676,9 @@ function SetCustomColors()
     user_border_color = colors[3]
     user_swing_color = colors[4]
     user_adaptive_color = colors[5]
+    user_snap_on_color = colors[6]
+    user_snap_off_color = colors[7]
+    user_snap_sep_color = colors[8]
 
     SaveThemeSettings(prev_color_theme)
     is_redraw = true
@@ -664,6 +728,31 @@ function DrawLICERect(color, x, y, w, h, fill, r, a)
     reaper.JS_LICE_FillRect(bitmap, x + r, y, w - r * 2, h, color, a, 0)
 end
 
+function DrawSnapIcon(snap_color, bg_color, x, y, h, a)
+    local w = h // 0.8
+    local r = h // 2
+
+    -- Draw circle for right side of snap icon
+    local LICE_FillCircle = reaper.JS_LICE_FillCircle
+    LICE_FillCircle(bitmap, x + r, y + r, r, snap_color, a, 0, 1)
+    LICE_FillCircle(bitmap, x + r, y + r, r - 0.5, snap_color, a, 0, 1)
+
+    -- Draw rectangle for left side of snap icon
+    reaper.JS_LICE_FillRect(bitmap, x, y, r, 2 * r + 1, snap_color, a, 0)
+
+    -- Draw inner circle with background color
+    local inner_r = r // 1.6
+    LICE_FillCircle(bitmap, x + r, y + r, inner_r, bg_color, a, 0, 1)
+    -- Draw inner rectangle with background color
+    local diff = r - inner_r
+    reaper.JS_LICE_FillRect(bitmap, x, y + diff, r, 2 * r + 1 - 2 * diff,
+        bg_color, a, 0)
+    -- Draw snap icon cutoff with background color
+    local snap_cut = r // 3
+    reaper.JS_LICE_FillRect(bitmap, x + snap_cut, y, snap_cut, 2 * r + 1,
+        bg_color, a, 0)
+end
+
 function DrawLiceBitmap()
     -- Determine colors
     local alpha = 0xFF000000
@@ -679,14 +768,14 @@ function DrawLiceBitmap()
     if user_swing_color then
         swing_color = tonumber(user_swing_color, 16) | alpha
     else
-        swing_color = reaper.GetThemeColor('toolbararmed_color', 0) | alpha
+        swing_color = reaper.GetThemeColor('areasel_outline', 0) | alpha
     end
 
     local adaptive_color
     if user_adaptive_color then
         adaptive_color = tonumber(user_adaptive_color, 16) | alpha
     else
-        adaptive_color = reaper.GetThemeColor('toolbararmed_color', 0) | alpha
+        adaptive_color = reaper.GetThemeColor('areasel_outline', 0) | alpha
     end
 
     -- Note: Clear to transparent avoids artifacts on aliased rect corners
@@ -705,6 +794,40 @@ function DrawLiceBitmap()
         DrawLICERect(border_color, 0, 0, bm_w, bm_h, false, corner_radius)
     end
 
+    local snap_h = user_snap_size
+    snap_h = snap_h or bm_h - 2 * math.max(math.floor(4 * scale), bm_h // 4)
+
+    left_w = snap_h // 0.4
+    local right_w = bm_w - left_w
+    -- Check if snap icon will be visible
+    if hide_snap or left_w == 0 or (left_w > bm_w / 2.3 and not user_snap_size) then
+        left_w = 0
+        right_w = bm_w
+    else
+        -- Determine snap color
+        local snap_on_color, snap_off_color, snap_sep_color
+        if user_snap_on_color then
+            snap_on_color = tonumber(user_snap_on_color, 16) | alpha
+        else
+            snap_on_color = reaper.GetThemeColor('areasel_outline', 0) | alpha
+        end
+        snap_off_color = tonumber(user_snap_off_color or '787878', 16) | alpha
+        snap_sep_color = tonumber(user_snap_sep_color or '3a3a3b', 16) |  alpha
+
+        local snap_color = prev_is_snap and snap_on_color or snap_off_color
+        if prev_is_snap_hovered then
+            -- Slightly brighten snap color when hovered
+            snap_color = TintIntColor(snap_color, 1.12)
+        end
+        -- Draw snap icon
+        local snap_x = (left_w - snap_h) // 1.78
+        local snap_y = (bm_h - snap_h) // 2
+        DrawSnapIcon(snap_color, bg_color, snap_x, snap_y, snap_h, 1)
+        local m = math.max(math.floor(3 * scale), bm_h // 14)
+        -- Draw snap separator
+        DrawLICERect(snap_sep_color, left_w - scale, m, 1, bm_h - 2 * m, true)
+    end
+
     -- Draw swing slider
     if prev_swing_amt ~= 0 then
         local m = math.floor(4 * scale)
@@ -712,9 +835,14 @@ function DrawLiceBitmap()
         local y_offs = border_color and math.floor(scale + 0.5) or 0
         local value = prev_swing_amt
 
-        local swing_len = math.ceil(math.abs(value) * (bm_w - 2 * m) / 2)
+        local swing_len = math.ceil(math.abs(value) * (right_w - 2 * m) / 2)
 
-        local x_offs = value > 0 and bm_w // 2 or math.ceil(bm_w / 2) - swing_len
+        local x_offs = left_w
+        if value > 0 then
+            x_offs = x_offs + right_w // 2
+        else
+            x_offs = x_offs + math.ceil(right_w / 2) - swing_len
+        end
         DrawLICERect(swing_color, x_offs, bm_h - h - y_offs, swing_len, h, true)
     end
 
@@ -722,8 +850,16 @@ function DrawLiceBitmap()
     local icon_w = 0
     if is_adaptive then icon_w = gfx.measurestr('A') * 4 // 3 end
 
+    -- If text with "Swing:" prefix doesn't fit, remove prefix
+    if grid_text:match('^Swing:') then
+        local text_w, text_h = gfx.measurestr('Swing: -100%')
+        if text_w > right_w then
+            grid_text = grid_text:gsub('^Swing:', '')
+        end
+    end
     local text_w, text_h = gfx.measurestr(grid_text)
-    local text_x = (bm_w - text_w + icon_w) // 2
+
+    local text_x = (right_w - text_w + icon_w) // 2
     local text_y = (bm_h - text_h) // 2
     if is_macos then text_y = text_y + 1 end
 
@@ -731,6 +867,7 @@ function DrawLiceBitmap()
     if text_x - icon_w < m then
         text_x = icon_w + m
     end
+    text_x = text_x + left_w
 
     -- Draw Text
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
@@ -875,6 +1012,12 @@ function PeekIntercepts(m_x, m_y)
 
             if msg == 'WM_LBUTTONUP' then
                 if not is_left_click then return end
+                -- Check if left section is pressed
+                if left_w > 0 and m_x - bm_x < left_w then
+                    -- Options: Toggle snapping
+                    reaper.Main_OnCommand(1157, 0)
+                    return
+                end
                 -- Check if alt is pressed
                 if reaper.JS_Mouse_GetState(16) == 16 then
                     local menu_env = LoadMenuScript()
@@ -908,10 +1051,18 @@ function PeekIntercepts(m_x, m_y)
 
             if msg == 'WM_RBUTTONUP' then
                 if not is_right_click then return end
+                -- Check if left section is pressed
+                if left_w > 0 and m_x - bm_x < left_w then
+                    -- Options: Show snap/grid settings
+                    reaper.Main_OnCommand(40071, 0)
+                    return
+                end
                 ShowRightClickMenu()
             end
 
             if msg == 'WM_MOUSEWHEEL' then
+                -- Check if left section is pressed
+                if left_w > 0 and m_x - bm_x < left_w then return end
                 wph = wph * scroll_dir
                 local mouse_state = reaper.JS_Mouse_GetState(20)
                 local GetSetGrid = reaper.GetSetProjectGrid
@@ -960,6 +1111,7 @@ function ShowRightClickMenu()
             title = 'Customize',
             {title = 'Size', OnReturn = SetCustomSize},
             {title = 'Font', OnReturn = SetCustomFont},
+            {title = 'Snap', OnReturn = SetCustomSnapSize},
             {title = 'Corners', OnReturn = SetCustomCornerRadius},
             {separator = true},
             {title = 'Colors', OnReturn = SetCustomColors},
@@ -1006,7 +1158,30 @@ function ShowRightClickMenu()
                         is_redraw = true
                     end,
                 },
-
+                {
+                    title = 'Snap on',
+                    OnReturn = function()
+                        user_snap_on_color = GetUserColor()
+                        SaveThemeSettings(prev_color_theme)
+                        is_redraw = true
+                    end,
+                },
+                {
+                    title = 'Snap off',
+                    OnReturn = function()
+                        user_snap_off_color = GetUserColor()
+                        SaveThemeSettings(prev_color_theme)
+                        is_redraw = true
+                    end,
+                },
+                {
+                    title = 'Snap separator',
+                    OnReturn = function()
+                        user_snap_sep_color = GetUserColor()
+                        SaveThemeSettings(prev_color_theme)
+                        is_redraw = true
+                    end,
+                },
             },
             {separator = true},
             {
@@ -1074,6 +1249,16 @@ function ShowRightClickMenu()
                 OnReturn = function()
                     scroll_dir = scroll_dir > 0 and -1 or 1
                     reaper.SetExtState(extname, 'scroll_dir', scroll_dir, true)
+                end,
+            },
+            {
+                title = 'Show snap button',
+                is_checked = not hide_snap,
+                OnReturn = function()
+                    hide_snap = not hide_snap
+                    local val = hide_snap and 1 or 0
+                    reaper.SetExtState(extname, 'hide_snap', val, true)
+                    is_redraw = true
                 end,
             },
             {
@@ -1496,7 +1681,9 @@ function Main()
         is_resize = true
     end
 
+    local is_snap_hovered = false
     local is_hovered = false
+
     if hover_hwnd == transport_hwnd or drag_x then
         local m_x, m_y = reaper.JS_Window_ScreenToClient(transport_hwnd, x, y)
         -- Handle drag move/resize
@@ -1599,6 +1786,9 @@ function Main()
                     resize_flags = new_resize
                     is_redraw = true
                 end
+            end
+            if left_w > 0 and m_x - bm_x < left_w then
+                is_snap_hovered = true
             end
             StartIntercepts()
             PeekIntercepts(m_x, m_y)
@@ -1819,13 +2009,24 @@ function Main()
 
         -- Set bitmap draw coordinates
         reaper.JS_Composite_Delay(transport_hwnd, 0.03, 0.03, 2)
-        reaper.JS_Composite(transport_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0,
-            0,
-            bm_w, bm_h)
+        reaper.JS_Composite(transport_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap,
+            0, 0, bm_w, bm_h)
         is_resize = false
         is_redraw = true
     end
 
+    if left_w > 0 then
+        local is_snap = reaper.GetToggleCommandState(1157) == 1
+        if is_snap ~= prev_is_snap then
+            prev_is_snap = is_snap
+            is_redraw = true
+        end
+
+        if is_snap_hovered ~= prev_is_snap_hovered then
+            prev_is_snap_hovered = is_snap_hovered
+            is_redraw = true
+        end
+    end
 
     if is_redraw then
         DrawLiceBitmap()
