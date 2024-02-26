@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.1
+  @version 1.4.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix crash when using REAPER with UI scaling
+    - Set default color for adaptive indicator to text color
 ]]
 
 local extname = 'FTC.GridBox'
@@ -775,7 +775,7 @@ function DrawLiceBitmap()
     if user_adaptive_color then
         adaptive_color = tonumber(user_adaptive_color, 16) | alpha
     else
-        adaptive_color = reaper.GetThemeColor('areasel_outline', 0) | alpha
+        adaptive_color = text_color
     end
 
     -- Note: Clear to transparent avoids artifacts on aliased rect corners
