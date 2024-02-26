@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.4.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add snap button
+    - Fix crash when using REAPER with UI scaling
 ]]
 
 local extname = 'FTC.GridBox'
@@ -824,8 +824,10 @@ function DrawLiceBitmap()
         local snap_y = (bm_h - snap_h) // 2
         DrawSnapIcon(snap_color, bg_color, snap_x, snap_y, snap_h, 1)
         local m = math.max(math.floor(3 * scale), bm_h // 14)
+        local sep_w = math.max(1, math.floor(scale + 0.5))
+        local sep_x = left_w - sep_w
         -- Draw snap separator
-        DrawLICERect(snap_sep_color, left_w - scale, m, 1, bm_h - 2 * m, true)
+        DrawLICERect(snap_sep_color, sep_x, m, sep_w, bm_h - 2 * m, true)
     end
 
     -- Draw swing slider
