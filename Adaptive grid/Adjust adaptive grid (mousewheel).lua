@@ -8,8 +8,6 @@ local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, _, _, _, val = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
 
-if _G.scroll_dir then val = _G.scroll_dir end
-
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
 function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
@@ -67,6 +65,51 @@ function UpdateToolbarToggleStates(section, multiplier)
     if updated_entries ~= entries then
         reaper.SetExtState(extname, 'toolbar_entries', updated_entries, true)
     end
+end
+
+function GetStraightGrid(grid_div)
+    if math.log(grid_div, 2) % 1 == 0 then return grid_div end
+    if grid_div > 1 then
+        local is_triplet = 2 * grid_div % (2 / 3) == 0
+        if is_triplet then return grid_div * (3 / 2) end
+        local is_quintuplet = 4 * grid_div % (4 / 5) == 0
+        if is_quintuplet then return grid_div * (5 / 4) end
+        local is_septuplet = 4 * grid_div % (4 / 7) == 0
+        if is_septuplet then return grid_div * (7 / 4) end
+        local is_dotted = 2 * grid_div % 3 == 0
+        if is_dotted then return grid_div * (2 / 3) end
+    else
+        local is_triplet = 2 / grid_div % 3 == 0
+        if is_triplet then return grid_div * (3 / 2) end
+        local is_quintuplet = 4 / grid_div % 5 == 0
+        if is_quintuplet then return grid_div * (5 / 4) end
+        local is_septuplet = 4 / grid_div % 7 == 0
+        if is_septuplet then return grid_div * (7 / 4) end
+        local is_dotted = 2 / grid_div % (2 / 3) == 0
+        if is_dotted then return grid_div * (2 / 3) end
+    end
+end
+
+function LoadProjectGrid(grid_div)
+    if reaper.GetExtState(extname, 'preserve_grid_type') ~= '1' then
+        return false
+    end
+    local str_grid_div = GetStraightGrid(grid_div)
+    if not str_grid_div then return false end
+
+    local _, state = reaper.GetProjExtState(0, extname, str_grid_div)
+    local swing = 0
+    local swing_amt
+    grid_div = str_grid_div
+    if state ~= '' then
+        if state:sub(1, 1) == 's' then
+            swing, swing_amt = 1, tonumber(state:sub(2))
+        else
+            grid_div = tonumber(state)
+        end
+    end
+    reaper.GetSetProjectGrid(0, 1, grid_div, swing, swing_amt)
+    return true
 end
 
 -- Avoid undo point
@@ -139,6 +182,8 @@ else
         if grid_div > max_grid_div then
             if val < 0 then return end
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
+        if not LoadProjectGrid(grid_div) then
+            reaper.GetSetProjectGrid(0, 1, grid_div, swing, swing_amt)
+        end
     end
 end

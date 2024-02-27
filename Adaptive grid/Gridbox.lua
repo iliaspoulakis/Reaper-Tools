@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.2
+  @version 1.5.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Set default color for adaptive indicator to text color
+    - Add option to preserve grid type per size
 ]]
 
 local extname = 'FTC.GridBox'
@@ -61,6 +61,7 @@ local prev_is_snap
 local prev_is_snap_hovered
 
 local menu_time
+local menu_env
 
 local bitmap
 local lice_font
@@ -69,6 +70,8 @@ local font_size
 local is_redraw = false
 local is_resize = false
 local resize_flags = 0
+
+local GetSetGrid = reaper.GetSetProjectGrid
 
 local has_reapack = reaper.ReaPack_BrowsePackages ~= nil
 local missing_dependencies = {}
@@ -975,18 +978,18 @@ function EndIntercepts()
 end
 
 function LoadMenuScript()
-    local menu_env = {}
-    for key, val in pairs(_G) do menu_env[key] = val end
-    menu_env._G = {menu = true, cmd = menu_cmd}
-    local menu_chunk, err = loadfile(menu_script, 'bt', menu_env)
+    local env = {}
+    for key, val in pairs(_G) do env[key] = val end
+    env._G = {menu = true, cmd = menu_cmd}
+    local menu_chunk, err = loadfile(menu_script, 'bt', env)
     if menu_chunk then
         menu_chunk()
-        if type(menu_env._G.menu) ~= 'table' then
+        if type(env._G.menu) ~= 'table' then
             local err_msg = 'Please update Adaptive Grid to latest version'
             reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
             return
         end
-        return menu_env
+        return env
     end
     local err_msg = 'Could not load script: %s:\n%s'
     reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
@@ -1020,26 +1023,28 @@ function PeekIntercepts(m_x, m_y)
                     reaper.Main_OnCommand(1157, 0)
                     return
                 end
+
+                -- Make sure menu is loaded
+                menu_env = menu_env or LoadMenuScript()
+                if not menu_env then return end
+
                 -- Check if alt is pressed
                 if reaper.JS_Mouse_GetState(16) == 16 then
-                    local menu_env = LoadMenuScript()
-                    if menu_env then menu_env.SetStraightGrid() end
-                    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
+                    menu_env.SetStraightGrid()
+                    local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
                     local new_swing = swing ~= 1 and 1 or 0
-                    reaper.GetSetProjectGrid(0, true, nil, new_swing, swing_amt)
+                    GetSetGrid(0, 1, nil, new_swing, swing_amt)
+                    menu_env.SaveProjectGrid(grid_div, new_swing, swing_amt)
                     return
                 end
                 if resize_flags == 0 or math.min(bm_w, bm_h) < min_area_size * 1.5 then
-                    local menu_env = LoadMenuScript()
-                    if menu_env then
-                        ShowMenu(menu_env._G.menu)
-                        local main_mult = menu_env.GetGridMultiplier()
-                        local midi_mult = menu_env.GetMIDIGridMultiplier()
-                        menu_env.UpdateToolbarToggleStates(0, main_mult)
-                        menu_env.UpdateToolbarToggleStates(32060, midi_mult)
-                        -- Avoid hover setting adaptive name before switching grid
-                        reaper.defer(Main)
-                    end
+                    -- Show adaptive grid menu
+                    local new_menu_env = LoadMenuScript()
+                    if new_menu_env then ShowMenu(new_menu_env._G.menu) end
+                    local main_mult = menu_env.GetGridMultiplier()
+                    local midi_mult = menu_env.GetMIDIGridMultiplier()
+                    menu_env.UpdateToolbarToggleStates(0, main_mult)
+                    menu_env.UpdateToolbarToggleStates(32060, midi_mult)
                 end
             end
 
@@ -1063,23 +1068,28 @@ function PeekIntercepts(m_x, m_y)
             end
 
             if msg == 'WM_MOUSEWHEEL' then
-                -- Check if left section is pressed
+                -- Check if left section is hovered
                 if left_w > 0 and m_x - bm_x < left_w then return end
+
+                -- Make sure menu is loaded
+                menu_env = menu_env or LoadMenuScript()
+                if not menu_env then return end
+
                 wph = wph * scroll_dir
                 local mouse_state = reaper.JS_Mouse_GetState(20)
-                local GetSetGrid = reaper.GetSetProjectGrid
                 -- Check if alt is pressed
                 if mouse_state & 16 == 16 then
                     wph = wph / math.abs(wph)
-                    local _, _, swing, swing_amt = GetSetGrid(0, 0)
+                    local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
                     if swing == 0 then
-                        local menu_env = LoadMenuScript()
-                        if menu_env then menu_env.SetStraightGrid() end
-                        GetSetGrid(0, true, nil, 1, swing_amt)
+                        menu_env.SetStraightGrid()
+                        -- Note: Enable for "Adjust items when changing swing"
+                        GetSetGrid(0, 1, nil, 1, swing_amt)
                     end
                     -- Scroll slower when Ctrl is pressed
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
-                    GetSetGrid(0, true, nil, 1, swing_amt + amt)
+                    GetSetGrid(0, 1, nil, 1, swing_amt + amt)
+                    menu_env.SaveProjectGrid(grid_div, swing, swing_amt)
                 else
                     local ext = 'FTC.AdaptiveGrid'
                     -- Calculate new grid division
@@ -1100,7 +1110,9 @@ function PeekIntercepts(m_x, m_y)
                     if grid_div > max_grid_div then
                         if wph < 0 then return end
                     end
-                    reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
+                    if not menu_env.LoadProjectGrid(grid_div) then
+                        GetSetGrid(0, 1, grid_div, swing, swing_amt)
+                    end
                 end
             end
         end
@@ -1244,7 +1256,7 @@ function ShowRightClickMenu()
             },
         },
         {
-            title = 'Options',
+            title = 'Preferences',
             {
                 title = 'Reverse scroll',
                 is_checked = scroll_dir < 0,
@@ -1836,7 +1848,7 @@ function Main()
     end
 
     -- Monitor grid division
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
 
     if is_hovered and reaper.JS_Mouse_GetState(16) == 16 then
         -- Display swing state when hovered and alt is pressed

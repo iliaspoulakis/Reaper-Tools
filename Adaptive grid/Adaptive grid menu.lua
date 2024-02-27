@@ -337,18 +337,78 @@ function ShowMIDIGrid(is_visible)
     end
 end
 
+function GetStraightGrid(grid_div)
+    if math.log(grid_div, 2) % 1 == 0 then return grid_div end
+    if grid_div > 1 then
+        local is_triplet = 2 * grid_div % (2 / 3) == 0
+        if is_triplet then return grid_div * (3 / 2) end
+        local is_quintuplet = 4 * grid_div % (4 / 5) == 0
+        if is_quintuplet then return grid_div * (5 / 4) end
+        local is_septuplet = 4 * grid_div % (4 / 7) == 0
+        if is_septuplet then return grid_div * (7 / 4) end
+        local is_dotted = 2 * grid_div % 3 == 0
+        if is_dotted then return grid_div * (2 / 3) end
+    else
+        local is_triplet = 2 / grid_div % 3 == 0
+        if is_triplet then return grid_div * (3 / 2) end
+        local is_quintuplet = 4 / grid_div % 5 == 0
+        if is_quintuplet then return grid_div * (5 / 4) end
+        local is_septuplet = 4 / grid_div % 7 == 0
+        if is_septuplet then return grid_div * (7 / 4) end
+        local is_dotted = 2 / grid_div % (2 / 3) == 0
+        if is_dotted then return grid_div * (2 / 3) end
+    end
+end
+
+function LoadProjectGrid(grid_div)
+    if reaper.GetExtState(extname, 'preserve_grid_type') ~= '1' then
+        return false
+    end
+    local str_grid_div = GetStraightGrid(grid_div)
+    if not str_grid_div then return false end
+
+    local _, state = reaper.GetProjExtState(0, extname, str_grid_div)
+    local swing = 0
+    local swing_amt
+    grid_div = str_grid_div
+    if state ~= '' then
+        if state:sub(1, 1) == 's' then
+            swing, swing_amt = 1, tonumber(state:sub(2))
+        else
+            grid_div = tonumber(state)
+        end
+    end
+    reaper.GetSetProjectGrid(0, 1, grid_div, swing, swing_amt)
+    return true
+end
+
+function SaveProjectGrid(grid_div, swing, swing_amt)
+    if reaper.GetExtState(extname, 'preserve_grid_type') ~= '1' then
+        return
+    end
+    local str_grid_div = GetStraightGrid(grid_div)
+    if not str_grid_div then return end
+    local state = ''
+    if swing == 1 and swing_amt then
+        state = 's' .. swing_amt
+    elseif str_grid_div ~= grid_div then
+        state = ('%.32f'):format(grid_div)
+    end
+    reaper.SetProjExtState(0, extname, str_grid_div, state)
+end
+
 function GetClosestStraightGrid(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, 0))
     return 2 ^ math.floor(math.log(grid_div, 2) + 0.5)
 end
 
 function IsStraightGrid(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, 0))
     return math.log(grid_div, 2) % 1 == 0
 end
 
 function SetStraightGrid()
-    local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, 0)
     if not IsStraightGrid(grid_div) then
         if IsTripletGrid(grid_div) then
             grid_div = grid_div * (3 / 2)
@@ -361,12 +421,14 @@ function SetStraightGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div)
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+        reaper.GetSetProjectGrid(0, 1, grid_div, 0, swing_amt)
+        SaveProjectGrid(grid_div, 0, swing_amt)
     end
+    return grid_div
 end
 
 function IsTripletGrid(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, 0))
     if grid_div > 1 then
         return 2 * grid_div % (2 / 3) == 0
     else
@@ -375,7 +437,7 @@ function IsTripletGrid(grid_div)
 end
 
 function SetTripletGrid()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
     if not IsTripletGrid(grid_div) then
         if IsStraightGrid(grid_div) then
             grid_div = grid_div * (2 / 3)
@@ -388,12 +450,14 @@ function SetTripletGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div) * (2 / 3)
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+        reaper.GetSetProjectGrid(0, 1, grid_div, 0, swing_amt)
+        SaveProjectGrid(grid_div, 0, swing_amt)
     end
+    return grid_div
 end
 
 function IsQuintupletGrid(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, 0))
     if grid_div > 1 then
         return 4 * grid_div % (4 / 5) == 0
     else
@@ -402,7 +466,7 @@ function IsQuintupletGrid(grid_div)
 end
 
 function SetQuintupletGrid()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
     if not IsQuintupletGrid(grid_div) then
         if IsStraightGrid(grid_div) then
             grid_div = grid_div * (4 / 5)
@@ -415,12 +479,14 @@ function SetQuintupletGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div) * (4 / 5)
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+        reaper.GetSetProjectGrid(0, 1, grid_div, 0, swing_amt)
+        SaveProjectGrid(grid_div, 0, swing_amt)
     end
+    return grid_div
 end
 
 function IsSeptupletGrid(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, 0))
     if grid_div > 1 then
         return 4 * grid_div % (4 / 7) == 0
     else
@@ -429,7 +495,7 @@ function IsSeptupletGrid(grid_div)
 end
 
 function SetSeptupletGrid()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
     if not IsSeptupletGrid(grid_div) then
         if IsStraightGrid(grid_div) then
             grid_div = grid_div * (4 / 7)
@@ -442,12 +508,14 @@ function SetSeptupletGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div) * (4 / 7)
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+        reaper.GetSetProjectGrid(0, 1, grid_div, 0, swing_amt)
+        SaveProjectGrid(grid_div, 0, swing_amt)
     end
+    return grid_div
 end
 
 function IsDottedGrid(grid_div)
-    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, false))
+    grid_div = grid_div or select(2, reaper.GetSetProjectGrid(0, 0))
     if grid_div > 1 then
         return 2 * grid_div % 3 == 0
     else
@@ -456,7 +524,7 @@ function IsDottedGrid(grid_div)
 end
 
 function SetDottedGrid()
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
     if not IsDottedGrid(grid_div) then
         if IsStraightGrid(grid_div) then
             grid_div = grid_div * (3 / 2)
@@ -469,19 +537,23 @@ function SetDottedGrid()
         else
             grid_div = GetClosestStraightGrid(grid_div) * (3 / 2)
         end
-        reaper.GetSetProjectGrid(0, true, grid_div, 0, swing_amt)
+        reaper.GetSetProjectGrid(0, 1, grid_div, 0, swing_amt)
+        SaveProjectGrid(grid_div, 0, swing_amt)
     end
+    return grid_div
 end
 
 function IsSwingEnabled()
-    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
     return swing == 1 and swing_amt ~= 0
 end
 
 function SetSwingEnabled(is_enabled)
     local swing = is_enabled and 1 or 0
-    local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, false)
-    reaper.GetSetProjectGrid(0, true, grid_div, swing, swing_amt)
+    local _, grid_div, _, swing_amt = reaper.GetSetProjectGrid(0, 0)
+    reaper.GetSetProjectGrid(0, 1, grid_div, swing, swing_amt)
+    SaveProjectGrid(grid_div, swing, swing_amt)
+    return grid_div, swing, swing_amt
 end
 
 function SetUserGridDivisor(is_midi)
@@ -647,18 +719,19 @@ function SetFixedGrid(new_grid_div)
     if is_measure_grid then reaper.Main_OnCommand(40725, 0) end
     ShowGrid(true)
     SetGridMultiplier(0)
-    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+    if LoadProjectGrid(new_grid_div) then return end
+    local _, grid_div, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
     if IsTripletGrid(grid_div) then new_grid_div = new_grid_div * 2 / 3 end
     if IsQuintupletGrid(grid_div) then new_grid_div = new_grid_div * 4 / 5 end
     if IsSeptupletGrid(grid_div) then new_grid_div = new_grid_div * 4 / 7 end
     if IsDottedGrid(grid_div) then new_grid_div = new_grid_div * 3 / 2 end
-    reaper.GetSetProjectGrid(0, true, new_grid_div, swing, swing_amt)
+    reaper.GetSetProjectGrid(0, 1, new_grid_div, swing, swing_amt)
 end
 
 function CheckFixedGrid(grid_div)
     if is_frame_grid or is_measure_grid then return false end
     if not IsGridVisible() or GetGridMultiplier() ~= 0 then return false end
-    local _, curr_grid_div = reaper.GetSetProjectGrid(0, false)
+    local _, curr_grid_div = reaper.GetSetProjectGrid(0, 0)
     if IsTripletGrid(curr_grid_div) then grid_div = grid_div * 2 / 3 end
     if IsQuintupletGrid(curr_grid_div) then grid_div = grid_div * 4 / 5 end
     if IsSeptupletGrid(curr_grid_div) then grid_div = grid_div * 4 / 7 end
@@ -764,13 +837,13 @@ local options_menu = {
     {
         title = 'Show in menu',
         {
-            title = 'Quintuplets',
+            title = 'Quintuplet',
             is_checked = is_quintuplet_option_visible,
             OnReturn = SetQuintupletVisibleInMenu,
             arg = not is_quintuplet_option_visible,
         },
         {
-            title = 'Septuplets',
+            title = 'Septuplet',
             is_checked = is_septuplet_option_visible,
             OnReturn = SetSeptupletVisibleInMenu,
             arg = not is_septuplet_option_visible,
@@ -787,6 +860,16 @@ local options_menu = {
             OnReturn = SetMeasureVisibleInMenu,
             arg = not is_measure_option_visible,
         },
+    },
+    {
+        title = 'Preserve grid type per size',
+        is_checked = reaper.GetExtState(extname, 'preserve_grid_type') == '1',
+        OnReturn = function()
+            local key = 'preserve_grid_type'
+            local state = reaper.GetExtState(extname, key) == '1'
+            local toggle_state = state and 0 or 1
+            reaper.SetExtState(extname, key, toggle_state, 1)
+        end,
     },
     {separator = true},
     {title = 'MIDI editor', is_grayed = true},
@@ -877,12 +960,13 @@ local midi_menu = {
     },
 }
 
-local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, false)
+local _, _, swing, swing_amt = reaper.GetSetProjectGrid(0, 0)
 swing_amt = math.floor(swing_amt * 100)
 
 function SetSwingAmount(amount)
-    SetStraightGrid()
-    reaper.GetSetProjectGrid(0, true, nil, 1, amount / 100)
+    local grid_div = SetStraightGrid()
+    reaper.GetSetProjectGrid(0, 1, nil, 1, amount / 100)
+    SaveProjectGrid(grid_div, 1, amount / 100)
 end
 
 function PromptSetSwingAmount()
@@ -1140,8 +1224,8 @@ local main_menu = {
     options_menu,
 }
 
-local ret, projgridmin = reaper.get_config_var_string('projgridmin')
-if ret then
+local has_config, projgridmin = reaper.get_config_var_string('projgridmin')
+if has_config then
     min_spacing = tonumber(projgridmin) or 8
 elseif reaper.SNM_GetIntConfigVar then
     min_spacing = reaper.SNM_GetIntConfigVar('projgridmin', 8)
@@ -1189,9 +1273,3 @@ function StartDeferred()
 end
 
 reaper.defer(StartDeferred)
-
--- TODO remove in next major version
--- Clean deprecated user extstate
-if reaper.GetExtState(extname, 'registered_cmds') ~= '' then
-    reaper.DeleteExtState(extname, 'registered_cmds', true)
-end
