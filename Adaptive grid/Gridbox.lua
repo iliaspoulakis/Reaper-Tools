@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.0
+  @version 1.6.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add option to preserve grid type per size
+    - Support setting colors with alpha in AARRGGBB format
+    - Fix theme colors on windows
 ]]
 
 local extname = 'FTC.GridBox'
@@ -66,6 +67,13 @@ local menu_env
 local bitmap
 local lice_font
 local font_size
+
+local snap_bitmap
+local bg_bitmap
+
+local prev_bg_color
+local prev_bg_corner_r
+local prev_snap_color
 
 local is_redraw = false
 local is_resize = false
@@ -505,6 +513,15 @@ function SaveThemeSettings(theme_path)
     ExtSave(theme_path, settings)
 end
 
+function GetThemeColor(key, flag)
+    local color = reaper.GetThemeColor(key, flag or 0)
+    if is_windows then
+        local r, g, b = reaper.ColorFromNative(color)
+        color = r * 65536 + g * 256 + b
+    end
+    return color
+end
+
 function RGBAToHex(r, g, b, a)
     local int_color = r * 65536 + g * 256 + b
     if not a or a == 255 then return ('#%06x'):format(int_color) end
@@ -627,7 +644,7 @@ function SetCustomSnapSize()
     end
 
     user_snap_size = tonumber(input_vals[1])
-    is_redraw = true
+    is_resize = true
 
     SaveThemeSettings(prev_color_theme)
 end
@@ -692,7 +709,17 @@ function SetCustomColors()
     end
 end
 
-function DrawLICERect(color, x, y, w, h, fill, r, a)
+function ClearBitmap(bm, color)
+    -- Note: Clear to transparent avoids artifacts on aliased rect corners
+    if is_windows then
+        reaper.JS_LICE_Clear(bm, 0x00000000)
+    else
+        reaper.JS_LICE_Clear(bm, color & 0x00FFFFFF)
+    end
+end
+
+function DrawLICERect(bm, color, x, y, w, h, fill, r, a)
+    if a == 0 then return end
     fill = fill or 0
     r = r or 0
     a = a or 1
@@ -700,7 +727,7 @@ function DrawLICERect(color, x, y, w, h, fill, r, a)
     if not fill or fill == 0 then
         local LICE_RoundRect = reaper.JS_LICE_RoundRect
         for _ = 1, math.max(1, math.max(1, scale)) do
-            LICE_RoundRect(bitmap, x, y, w - 1, h - 1, r, color, a, 0, true)
+            LICE_RoundRect(bm, x, y, w - 1, h - 1, r, color, a, 0, true)
             x, y, w, h = x + 1, y + 1, w - 2, h - 2
         end
         return
@@ -708,7 +735,7 @@ function DrawLICERect(color, x, y, w, h, fill, r, a)
 
     if not r or r == 0 then
         -- Body
-        reaper.JS_LICE_FillRect(bitmap, x, y, w, h, color, a, 0)
+        reaper.JS_LICE_FillRect(bm, x, y, w, h, color, a, 0)
         return
     end
 
@@ -717,84 +744,106 @@ function DrawLICERect(color, x, y, w, h, fill, r, a)
 
     -- Top left corner
     local LICE_FillCircle = reaper.JS_LICE_FillCircle
-    LICE_FillCircle(bitmap, x + r, y + r, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + r, y + r, r, color, a, 0, 1)
     -- Top right corner
-    LICE_FillCircle(bitmap, x + w - r - 1, y + r, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + w - r - 1, y + r, r, color, a, 0, 1)
     -- Bottom right corner
-    LICE_FillCircle(bitmap, x + w - r - 1, y + h - r - 1, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + w - r - 1, y + h - r - 1, r, color, a, 0, 1)
     -- Bottom left corner
-    LICE_FillCircle(bitmap, x + r, y + h - r - 1, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + r, y + h - r - 1, r, color, a, 0, 1)
     -- Ends
-    reaper.JS_LICE_FillRect(bitmap, x, y + r, r, h - r * 2, color, a, 0)
-    reaper.JS_LICE_FillRect(bitmap, x + w - r, y + r, r, h - r * 2, color, a, 0)
+    reaper.JS_LICE_FillRect(bm, x, y + r, r, h - r * 2, color, a, 0)
+    reaper.JS_LICE_FillRect(bm, x + w - r, y + r, r, h - r * 2, color, a, 0)
     -- Body and sides
-    reaper.JS_LICE_FillRect(bitmap, x + r, y, w - r * 2, h, color, a, 0)
+    reaper.JS_LICE_FillRect(bm, x + r, y, w - r * 2, h, color, a, 0)
 end
 
-function DrawSnapIcon(snap_color, bg_color, x, y, h, a)
-    local w = h // 0.8
-    local r = h // 2
+function DrawBackground(bg_color, corner_r, a)
+    if a == 0 then return end
+    if not bg_bitmap then
+        bg_bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
+        prev_bg_color = nil
+    end
 
-    -- Draw circle for right side of snap icon
-    local LICE_FillCircle = reaper.JS_LICE_FillCircle
-    LICE_FillCircle(bitmap, x + r, y + r, r, snap_color, a, 0, 1)
-    LICE_FillCircle(bitmap, x + r, y + r, r - 0.5, snap_color, a, 0, 1)
+    if bg_color ~= prev_bg_color or corner_r ~= prev_bg_corner_r then
+        prev_bg_color = bg_color
+        prev_bg_corner_r = corner_r
+        ClearBitmap(bg_bitmap, bg_color)
+        DrawLICERect(bg_bitmap, bg_color, 0, 0, bm_w, bm_h, true, corner_r)
+    end
+    reaper.JS_LICE_Blit(bitmap, 0, 0, bg_bitmap, 0, 0, bm_w, bm_h, a, 'COPY')
+end
 
-    -- Draw rectangle for left side of snap icon
-    reaper.JS_LICE_FillRect(bitmap, x, y, r, 2 * r + 1, snap_color, a, 0)
+function DrawSnapIcon(snap_color, x, y, h, a)
+    if a == 0 then return end
+    h = h + 1
+    if not snap_bitmap then
+        snap_bitmap = reaper.JS_LICE_CreateBitmap(true, h, h)
+        prev_snap_color = nil
+    end
 
-    -- Draw inner circle with background color
-    local inner_r = r // 1.6
-    LICE_FillCircle(bitmap, x + r, y + r, inner_r, bg_color, a, 0, 1)
-    -- Draw inner rectangle with background color
-    local diff = r - inner_r
-    reaper.JS_LICE_FillRect(bitmap, x, y + diff, r, 2 * r + 1 - 2 * diff,
-        bg_color, a, 0)
-    -- Draw snap icon cutoff with background color
-    local snap_cut = r // 3
-    reaper.JS_LICE_FillRect(bitmap, x + snap_cut, y, snap_cut, 2 * r + 1,
-        bg_color, a, 0)
+    if snap_color ~= prev_snap_color then
+        prev_snap_color = snap_color
+
+        -- Clear bitmap by substracting color
+        reaper.JS_LICE_FillRect(snap_bitmap, 0, 0, h, h, snap_color, -1, 'ADD')
+
+        local r = (h - 1) // 2
+        -- Draw circle for right side of snap icon
+        local LICE_FillCircle = reaper.JS_LICE_FillCircle
+        LICE_FillCircle(snap_bitmap, r, r, r, snap_color, 1, 0, 1)
+        LICE_FillCircle(snap_bitmap, r, r, r - 0.5, snap_color, 1, 0, 1)
+
+        -- Draw rectangle for left side of snap icon
+        reaper.JS_LICE_FillRect(snap_bitmap, 0, 0, r, 2 * r + 1, snap_color, 1, 0)
+
+        -- Draw inner circle (subtractive)
+        local inner_r = r // 1.6
+        LICE_FillCircle(snap_bitmap, r, r, inner_r, snap_color, -1, 'ADD', 1)
+
+        -- Draw inner rectangle (subtractive)
+        local diff = r - inner_r
+        reaper.JS_LICE_FillRect(snap_bitmap, 0, diff, r, 2 * r + 1 - 2 * diff,
+            snap_color, -1, 'ADD')
+        -- Draw snap icon cutoff (subtractive)
+        local snap_cut = r // 3
+        reaper.JS_LICE_FillRect(snap_bitmap, 0 + snap_cut, 0, snap_cut, 2 * r + 1,
+            snap_color, -1, 'ADD')
+    end
+    reaper.JS_LICE_Blit(bitmap, x, y, snap_bitmap, 0, 0, h, h, a, 'ADD')
 end
 
 function DrawLiceBitmap()
-    -- Determine colors
     local alpha = 0xFF000000
-    local bg_color = tonumber(user_bg_color or '242424', 16) | alpha
-    local text_color = tonumber(user_text_color or 'a9a9a9', 16) | alpha
 
-    local border_color
-    if user_border_color then
-        border_color = tonumber(user_border_color, 16) | alpha
+    -- Determine background color
+    local bg_color = tonumber(user_bg_color or '242424', 16)
+    local bg_alpha = 1
+    if user_bg_color and #user_bg_color > 6 then
+        bg_alpha = (bg_color >> 24) / 255
     end
+    bg_color = bg_color | alpha
 
-    local swing_color
-    if user_swing_color then
-        swing_color = tonumber(user_swing_color, 16) | alpha
-    else
-        swing_color = reaper.GetThemeColor('areasel_outline', 0) | alpha
-    end
+    ClearBitmap(bitmap, bg_color)
 
-    local adaptive_color
-    if user_adaptive_color then
-        adaptive_color = tonumber(user_adaptive_color, 16) | alpha
-    else
-        adaptive_color = text_color
-    end
-
-    -- Note: Clear to transparent avoids artifacts on aliased rect corners
-    if is_windows then
-        reaper.JS_LICE_Clear(bitmap, 0x00000000)
-    else
-        reaper.JS_LICE_Clear(bitmap, bg_color & 0x00FFFFFF)
-    end
-
-    local corner_radius = user_corner_radius or math.floor(6 * scale)
     -- Draw background
-    DrawLICERect(bg_color, 0, 0, bm_w, bm_h, true, corner_radius)
+    local corner_radius = user_corner_radius or math.floor(6 * scale)
+    DrawBackground(bg_color, corner_radius, bg_alpha)
 
+    -- Determine border color
+    local border_color
+    local border_alpha = 1
+    if user_border_color then
+        border_color = tonumber(user_border_color or '242424', 16)
+        if #user_border_color > 6 then
+            border_alpha = (border_color >> 24) / 255
+        end
+        border_color = border_color | alpha
+    end
     -- Draw border
     if border_color then
-        DrawLICERect(border_color, 0, 0, bm_w, bm_h, false, corner_radius)
+        DrawLICERect(bitmap, border_color, 0, 0, bm_w, bm_h, false,
+            corner_radius, border_alpha)
     end
 
     local snap_h = user_snap_size
@@ -807,16 +856,33 @@ function DrawLiceBitmap()
         left_w = 0
         right_w = bm_w
     else
-        -- Determine snap color
         local snap_on_color, snap_off_color, snap_sep_color
+        local snap_on_alpha, snap_off_alpha, snap_sep_alpha = 1, 1, 1
+        -- Determine snap on color
         if user_snap_on_color then
-            snap_on_color = tonumber(user_snap_on_color, 16) | alpha
+            snap_on_color = tonumber(user_snap_on_color, 16)
+            if #user_snap_on_color > 6 then
+                snap_on_alpha = (snap_on_color >> 24) / 255
+            end
+            snap_on_color = snap_on_color | alpha
         else
-            snap_on_color = reaper.GetThemeColor('areasel_outline', 0) | alpha
+            snap_on_color = GetThemeColor('areasel_outline') | alpha
         end
-        snap_off_color = tonumber(user_snap_off_color or '787878', 16) | alpha
-        snap_sep_color = tonumber(user_snap_sep_color or '3a3a3b', 16) |  alpha
+        -- Determine snap off color
+        snap_off_color = tonumber(user_snap_off_color or '787878', 16)
+        if user_snap_off_color and #user_snap_off_color > 6 then
+            snap_off_alpha = (snap_off_color >> 24) / 255
+        end
+        snap_off_color = snap_off_color | alpha
+        -- Determine snap separator color
+        snap_sep_color = tonumber(user_snap_sep_color or '3a3a3b', 16)
+        if user_snap_sep_color and #user_snap_sep_color > 6 then
+            snap_sep_alpha = (snap_sep_color >> 24) / 255
+        end
+        snap_sep_color = snap_sep_color | alpha
 
+        -- Choose snap color based on snap state
+        local snap_alpha = prev_is_snap and snap_on_alpha or snap_off_alpha
         local snap_color = prev_is_snap and snap_on_color or snap_off_color
         if prev_is_snap_hovered then
             -- Slightly brighten snap color when hovered
@@ -825,16 +891,31 @@ function DrawLiceBitmap()
         -- Draw snap icon
         local snap_x = (left_w - snap_h) // 1.78
         local snap_y = (bm_h - snap_h) // 2
-        DrawSnapIcon(snap_color, bg_color, snap_x, snap_y, snap_h, 1)
+        DrawSnapIcon(snap_color, snap_x, snap_y, snap_h, snap_alpha)
+        -- Draw snap separator
         local m = math.max(math.floor(3 * scale), bm_h // 14)
         local sep_w = math.max(1, math.floor(scale + 0.5))
         local sep_x = left_w - sep_w
-        -- Draw snap separator
-        DrawLICERect(snap_sep_color, sep_x, m, sep_w, bm_h - 2 * m, true)
+        local sep_h = bm_h - 2 * m
+        DrawLICERect(bitmap, snap_sep_color, sep_x, m, sep_w, sep_h, true, 0,
+            snap_sep_alpha)
     end
 
     -- Draw swing slider
     if prev_swing_amt ~= 0 then
+        --Determine swing color
+        local swing_color
+        local swing_alpha = 1
+        if user_swing_color then
+            swing_color = tonumber(user_swing_color, 16)
+            if #user_swing_color > 6 then
+                swing_alpha = (swing_color >> 24) / 255
+            end
+            swing_color = swing_color | alpha
+        else
+            swing_color = GetThemeColor('areasel_outline') | alpha
+        end
+        -- Draw swing slider
         local m = math.floor(4 * scale)
         local h = math.floor(3 * scale)
         local y_offs = border_color and math.floor(scale + 0.5) or 0
@@ -848,7 +929,8 @@ function DrawLiceBitmap()
         else
             x_offs = x_offs + math.ceil(right_w / 2) - swing_len
         end
-        DrawLICERect(swing_color, x_offs, bm_h - h - y_offs, swing_len, h, true)
+        DrawLICERect(bitmap, swing_color, x_offs, bm_h - h - y_offs, swing_len, h,
+            true, 0, swing_alpha)
     end
 
     -- Measure Text
@@ -874,6 +956,9 @@ function DrawLiceBitmap()
     end
     text_x = text_x + left_w
 
+    -- Determine text color
+    local text_color = tonumber(user_text_color or 'a9a9a9', 16) | alpha
+
     -- Draw Text
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
     local len = tostring(grid_text):len()
@@ -882,6 +967,13 @@ function DrawLiceBitmap()
 
     -- Draw adaptive icon (A)
     if icon_w > 0 then
+        -- Determine adaptive color
+        local adaptive_color
+        if user_adaptive_color then
+            adaptive_color = tonumber(user_adaptive_color, 16) | alpha
+        else
+            adaptive_color = text_color
+        end
         local x = text_x - icon_w
         reaper.JS_LICE_SetFontColor(lice_font, adaptive_color)
         LICE_DrawText(bitmap, lice_font, 'A', 1, text_x - icon_w, text_y,
@@ -1320,7 +1412,7 @@ function ShowMenu(menu)
 
     local focus_hwnd = reaper.JS_Window_GetFocus()
     -- Open gfx window
-    gfx.clear = reaper.GetThemeColor('col_main_bg2', 0)
+    gfx.clear = GetThemeColor('col_main_bg2')
     local ClientToScreen = reaper.JS_Window_ClientToScreen
     local transport_x, transport_y = ClientToScreen(transport_hwnd, 0, 0)
     transport_x, transport_y = transport_x + 4, transport_y + 4
@@ -1992,7 +2084,11 @@ function Main()
     if is_resize then
         -- Prepare LICE bitmap for drawing
         if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
+        if snap_bitmap then reaper.JS_LICE_DestroyBitmap(snap_bitmap) end
+        if bg_bitmap then reaper.JS_LICE_DestroyBitmap(bg_bitmap) end
         bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
+        snap_bitmap = nil
+        bg_bitmap = nil
 
         -- Determine font size
         font_size = user_font_size
@@ -2058,6 +2154,8 @@ function Exit()
     reaper.RefreshToolbar2(sec, cmd)
 
     if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
+    if snap_bitmap then reaper.JS_LICE_DestroyBitmap(snap_bitmap) end
+    if bg_bitmap then reaper.JS_LICE_DestroyBitmap(bg_bitmap) end
     if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
     if transport_hwnd then
         reaper.JS_Composite_Delay(transport_hwnd, 0, 0, 0)
