@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.1
+  @version 1.6.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Ensure access to menu when setting large snap icon size
+    - Add support for relative snap icon
 ]]
 
 local extname = 'FTC.GridBox'
@@ -58,6 +58,7 @@ local is_right_click = false
 
 local left_w = 0
 local prev_is_snap
+local prev_is_rel_snap
 local prev_is_snap_hovered
 
 local menu_time
@@ -790,17 +791,21 @@ function DrawSnapIcon(snap_color, x, y, h, a)
     if snap_color ~= prev_snap_color then
         prev_snap_color = snap_color
 
-        -- Clear bitmap by substracting color
-        reaper.JS_LICE_FillRect(snap_bitmap, 0, 0, h, h, snap_color, -1, 'ADD')
-
         local r = (h - 1) // 2
-        -- Draw circle for right side of snap icon
+        local d = 2 * r + 1
+
+        local FillRect = reaper.JS_LICE_FillRect
         local LICE_FillCircle = reaper.JS_LICE_FillCircle
+
+        -- Clear bitmap by substracting color
+        FillRect(snap_bitmap, 0, 0, h, h, snap_color, -1, 'ADD')
+
+        -- Draw circle for right side of snap icon
         LICE_FillCircle(snap_bitmap, r, r, r, snap_color, 1, 0, 1)
         LICE_FillCircle(snap_bitmap, r, r, r - 0.5, snap_color, 1, 0, 1)
 
         -- Draw rectangle for left side of snap icon
-        reaper.JS_LICE_FillRect(snap_bitmap, 0, 0, r, 2 * r + 1, snap_color, 1, 0)
+        FillRect(snap_bitmap, 0, 0, r, d, snap_color, 1, 0)
 
         -- Draw inner circle (subtractive)
         local inner_r = r // 1.6
@@ -808,12 +813,15 @@ function DrawSnapIcon(snap_color, x, y, h, a)
 
         -- Draw inner rectangle (subtractive)
         local diff = r - inner_r
-        reaper.JS_LICE_FillRect(snap_bitmap, 0, diff, r, 2 * r + 1 - 2 * diff,
-            snap_color, -1, 'ADD')
+        FillRect(snap_bitmap, 0, diff, r, d - 2 * diff, snap_color, -1, 'ADD')
         -- Draw snap icon cutoff (subtractive)
         local snap_cut = r // 3
-        reaper.JS_LICE_FillRect(snap_bitmap, 0 + snap_cut, 0, snap_cut, 2 * r + 1,
-            snap_color, -1, 'ADD')
+        FillRect(snap_bitmap, snap_cut, 0, snap_cut, d, snap_color, -1, 'ADD')
+
+        -- Change icon when relative snap is enabled
+        if prev_is_rel_snap then
+            FillRect(snap_bitmap, 0, 0, snap_cut, d, snap_color, 1, 0)
+        end
     end
     reaper.JS_LICE_Blit(bitmap, x, y, snap_bitmap, 0, 0, h, h, a, 'ADD')
 end
@@ -2142,8 +2150,10 @@ function Main()
             is_redraw = true
         end
 
-        if is_snap_hovered ~= prev_is_snap_hovered then
-            prev_is_snap_hovered = is_snap_hovered
+        local is_rel_snap = reaper.GetToggleCommandState(41054) == 1
+        if is_rel_snap ~= prev_is_rel_snap then
+            prev_is_rel_snap = is_rel_snap
+            prev_snap_color = nil
             is_redraw = true
         end
     end
