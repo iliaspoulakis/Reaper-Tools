@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="9104319d85b701b4f5136ad115b2276daad61131">
+<index version="1" name="FTC Tools" commit="2f242f31e9a583a8e978e7be7247fe248dc66994">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -533,6 +533,10 @@
         <changelog><![CDATA[- Support setting colors with alpha in AARRGGBB format
 - Fix theme colors on windows]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/9104319d85b701b4f5136ad115b2276daad61131/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.6.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-02-29T10:44:47Z">
+        <changelog><![CDATA[- Ensure access to menu when setting large snap icon size]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/2f242f31e9a583a8e978e7be7247fe248dc66994/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
