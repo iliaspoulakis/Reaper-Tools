@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.0
+  @version 1.6.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Support setting colors with alpha in AARRGGBB format
-    - Fix theme colors on windows
+    - Ensure access to menu when setting large snap icon size
 ]]
 
 local extname = 'FTC.GridBox'
@@ -647,6 +646,12 @@ function SetCustomSnapSize()
     is_resize = true
 
     SaveThemeSettings(prev_color_theme)
+
+    if user_snap_size and user_snap_size // 0.4 > bm_w / 1.3 then
+        local msg = 'You entered a large size. Snap icon will not be \z
+        visible.\n\nReduce the size or expand Gridbox to make it show.'
+        reaper.MB(msg, 'Warning', 0)
+    end
 end
 
 function SetCustomColors()
@@ -852,7 +857,12 @@ function DrawLiceBitmap()
     left_w = snap_h // 0.4
     local right_w = bm_w - left_w
     -- Check if snap icon will be visible
-    if hide_snap or left_w == 0 or (left_w > bm_w / 2.3 and not user_snap_size) then
+    local is_snap_hidden = hide_snap or left_w == 0
+    if not is_snap_hidden then
+        local hide_factor = user_snap_size and 1.3 or 2.3
+        is_snap_hidden = left_w > bm_w / hide_factor
+    end
+    if is_snap_hidden then
         left_w = 0
         right_w = bm_w
     else
