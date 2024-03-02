@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.2
+  @version 1.6.3
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add support for relative snap icon
+    - Alt+Click on snap icon toggles relative snap
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1129,8 +1129,14 @@ function PeekIntercepts(m_x, m_y)
                 if not is_left_click then return end
                 -- Check if left section is pressed
                 if left_w > 0 and m_x - bm_x < left_w then
-                    -- Options: Toggle snapping
-                    reaper.Main_OnCommand(1157, 0)
+                    -- Check if alt is pressed
+                    if reaper.JS_Mouse_GetState(16) == 16 then
+                        -- Item edit: Toggle relative grid snap
+                        reaper.Main_OnCommand(41054, 0)
+                    else
+                        -- Options: Toggle snapping
+                        reaper.Main_OnCommand(1157, 0)
+                    end
                     return
                 end
 
