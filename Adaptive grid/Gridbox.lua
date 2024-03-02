@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.3
+  @version 1.6.4
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Alt+Click on snap icon toggles relative snap
+    - Support setting swing via Alt+Drag
 ]]
 
 local extname = 'FTC.GridBox'
@@ -52,6 +52,8 @@ local is_adaptive
 local drag_x
 local drag_y
 local click_x
+local swing_drag_x
+local is_swing_drag
 
 local is_left_click = false
 local is_right_click = false
@@ -904,7 +906,7 @@ function DrawLiceBitmap()
         local snap_color = prev_is_snap and snap_on_color or snap_off_color
         if prev_is_snap_hovered then
             -- Slightly brighten snap color when hovered
-            snap_color = TintIntColor(snap_color, 1.12)
+            snap_color = TintIntColor(snap_color, 1.145)
         end
         -- Draw snap icon
         local snap_x = (left_w - snap_h) // 1.78
@@ -1119,7 +1121,11 @@ function PeekIntercepts(m_x, m_y)
                     return
                 end
                 is_left_click = true
-                if is_edit_mode then
+                if reaper.JS_Mouse_GetState(16) == 16 then
+                    if left_w == 0 or m_x - bm_x > left_w then
+                        swing_drag_x = m_x
+                    end
+                elseif is_edit_mode then
                     drag_x = m_x
                     drag_y = m_y
                 end
@@ -1127,6 +1133,7 @@ function PeekIntercepts(m_x, m_y)
 
             if msg == 'WM_LBUTTONUP' then
                 if not is_left_click then return end
+                if is_swing_drag then return end
                 -- Check if left section is pressed
                 if left_w > 0 and m_x - bm_x < left_w then
                     -- Check if alt is pressed
@@ -1859,7 +1866,7 @@ function Main()
             m_x < bm_x + bm_w + m and m_y < bm_y + bm_h + m
 
         if is_hovered then
-            if is_edit_mode and not drag_x then
+            if is_edit_mode and not drag_x and not swing_drag_x then
                 local new_resize = 0
                 local cursor = normal_cursor
 
@@ -1917,7 +1924,7 @@ function Main()
                     is_redraw = true
                 end
             end
-            if left_w > 0 and m_x - bm_x < left_w then
+            if not swing_drag_x and left_w > 0 and m_x - bm_x < left_w then
                 is_snap_hovered = true
             end
             StartIntercepts()
@@ -1940,6 +1947,34 @@ function Main()
             drag_x = nil
             drag_y = nil
             is_redraw = true
+        end
+    end
+
+    if swing_drag_x then
+        local m_x, m_y = reaper.JS_Window_ScreenToClient(transport_hwnd, x, y)
+        if reaper.JS_Mouse_GetState(3) == 0 then
+            swing_drag_x = nil
+            is_swing_drag = false
+            is_redraw = true
+        elseif math.abs(m_x - swing_drag_x) > 2 then
+            is_swing_drag = true
+            local swing_x = m_x - (bm_x + left_w)
+            local swing_w = bm_w - left_w
+            local swing_amt = 2 * swing_x / swing_w - 1
+            swing_amt = swing_amt < -1 and -1 or swing_amt
+            swing_amt = swing_amt > 1 and 1 or swing_amt
+
+            -- Make sure menu is loaded
+            menu_env = menu_env or LoadMenuScript()
+
+            local _, grid_div, swing = GetSetGrid(0, 0)
+            if swing == 0 then
+                if menu_env then menu_env.SetStraightGrid() end
+                -- Note: Enable for "Adjust items when changing swing"
+                GetSetGrid(0, 1, nil, 1, swing_amt)
+            end
+            GetSetGrid(0, 1, nil, 1, swing_amt)
+            if menu_env then menu_env.SaveProjectGrid(grid_div, 1, swing_amt) end
         end
     end
 
@@ -1966,7 +2001,8 @@ function Main()
     -- Monitor grid division
     local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
 
-    if is_hovered and not is_snap_hovered and reaper.JS_Mouse_GetState(16) == 16 then
+    if swing_drag_x or is_hovered and not is_snap_hovered and
+        reaper.JS_Mouse_GetState(16) == 16 then
         -- Display swing state when hovered and alt is pressed
         local text = 'Swing: '
         if swing == 1 then
@@ -2160,6 +2196,11 @@ function Main()
         if is_rel_snap ~= prev_is_rel_snap then
             prev_is_rel_snap = is_rel_snap
             prev_snap_color = nil
+            is_redraw = true
+        end
+
+        if is_snap_hovered ~= prev_is_snap_hovered then
+            prev_is_snap_hovered = is_snap_hovered
             is_redraw = true
         end
     end
