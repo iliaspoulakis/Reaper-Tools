@@ -1966,7 +1966,7 @@ function Main()
     -- Monitor grid division
     local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
 
-    if is_hovered and reaper.JS_Mouse_GetState(16) == 16 then
+    if is_hovered and not is_snap_hovered and reaper.JS_Mouse_GetState(16) == 16 then
         -- Display swing state when hovered and alt is pressed
         local text = 'Swing: '
         if swing == 1 then
