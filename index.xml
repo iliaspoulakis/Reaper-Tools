@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="465381e9bc5993922f6279f6c54b874d8dd235ac">
+<index version="1" name="FTC Tools" commit="c9b726637cdf4fab5b97b9c0acfa928556694911">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -545,6 +545,10 @@
       <version name="1.6.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-03-02T13:24:10Z">
         <changelog><![CDATA[- Alt+Click on snap icon toggles relative snap]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/465381e9bc5993922f6279f6c54b874d8dd235ac/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="1.6.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-03-02T14:31:29Z">
+        <changelog><![CDATA[- Support setting swing via Alt+Drag]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/c9b726637cdf4fab5b97b9c0acfa928556694911/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
