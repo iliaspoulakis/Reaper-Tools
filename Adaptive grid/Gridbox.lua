@@ -1963,6 +1963,8 @@ function Main()
             local swing_amt = 2 * swing_x / swing_w - 1
             swing_amt = swing_amt < -1 and -1 or swing_amt
             swing_amt = swing_amt > 1 and 1 or swing_amt
+            -- Round swing to 2 digits
+            swing_amt = math.floor(swing_amt * 100 + 0.5) / 100
 
             -- Make sure menu is loaded
             menu_env = menu_env or LoadMenuScript()
