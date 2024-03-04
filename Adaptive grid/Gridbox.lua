@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.4
+  @version 1.6.5
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Support setting swing via Alt+Drag
+    - Option to run script on startup enables Adaptive grid background service by default
 ]]
 
 local extname = 'FTC.GridBox'
@@ -51,7 +51,6 @@ local is_adaptive
 
 local drag_x
 local drag_y
-local click_x
 local swing_drag_x
 local is_swing_drag
 
@@ -1432,6 +1431,19 @@ function ShowRightClickMenu()
                 local comment = 'Start script: Gridbox'
                 local var_name = 'grid_box_cmd_name'
                 SetStartupHookEnabled(not is_enabled, comment, var_name)
+
+                menu_env = menu_env or LoadMenuScript()
+                if not menu_env then return end
+
+                comment = 'Start script: Adaptive grid (background process)'
+                var_name = 'adaptive_grid_cmd'
+                local is_adapt_enabled = menu_env.IsStartupHookEnabled()
+                if is_enabled and is_adapt_enabled then
+                    menu_env.SetStartupHookEnabled(false, comment, var_name)
+                end
+                if not is_enabled and not is_adapt_enabled then
+                    menu_env.SetStartupHookEnabled(true, comment, var_name)
+                end
             end,
         },
     }
@@ -1660,9 +1672,7 @@ end
 function FindInitialPosition()
     -- Get status window coordinates
     local st_l, st_t, st_r, st_b = GetStatusWindowClientRect()
-    local st_x = st_l
     local st_y = st_t
-    local st_w = st_r - st_l
     local st_h = math.abs(st_b - st_t)
 
     -- Set initial position that matches status window
@@ -1951,7 +1961,7 @@ function Main()
     end
 
     if swing_drag_x then
-        local m_x, m_y = reaper.JS_Window_ScreenToClient(transport_hwnd, x, y)
+        local m_x = reaper.JS_Window_ScreenToClient(transport_hwnd, x, y)
         if reaper.JS_Mouse_GetState(3) == 0 then
             swing_drag_x = nil
             is_swing_drag = false
