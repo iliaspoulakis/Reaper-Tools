@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.5
+  @version 1.6.6
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Option to run script on startup enables Adaptive grid background service by default
+    - Improve UI scaling
 ]]
 
 local extname = 'FTC.GridBox'
@@ -145,22 +145,8 @@ local is_windows = os:match('Win')
 local is_macos = os:match('OSX') or os:match('macOS')
 local is_linux = os:match('Other')
 
--- Detect REAPER UI scale
-function GetWindowScale()
-    local main_hwnd = reaper.GetMainHwnd()
-    local _, main_l, main_r = reaper.JS_Window_GetRect(main_hwnd)
-    reaper.TrackCtl_SetToolTip(' ', main_l, main_r, false)
-    local tt_hwnd = reaper.GetTooltipWindow()
-    local _, _, tt_t, _, tt_b = reaper.JS_Window_GetRect(tt_hwnd)
-    reaper.TrackCtl_SetToolTip('', main_l, main_r, false)
-    reaper.JS_Window_Show(tt_hwnd, 'HIDE')
-    local tt_h = math.abs(tt_b - tt_t)
-    return tt_h / (is_windows and 20 or is_macos and 17 or 19)
-end
-
-local _, ini_scale = reaper.get_config_var_string('uiscale', '')
-ini_scale = tonumber(ini_scale) or 1
-local scale = ini_scale * GetWindowScale()
+local _, dpi = reaper.ThemeLayout_GetLayout('trans', -3)
+local scale = tonumber(dpi) / 256
 
 -- Smallest size the bitmap is allowed to have (width and height in pixels)
 local min_area_size = math.floor(12 * scale)
