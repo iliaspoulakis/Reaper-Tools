@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.1
+  @version 2.0.2
   @about A fully featured adaptive grid tool for REAPER
   @metapackage
   @provides
@@ -12,5 +12,5 @@
     [main=main,midi_editor] Adjust adaptive grid (mousewheel).lua
     [main=main,midi_editor] Adjust fixed grid *.lua
   @changelog
-    - Added scripts to adjust fixed grid size
+    - Prevent task manager prompt for scripts that adapt grid
 ]]

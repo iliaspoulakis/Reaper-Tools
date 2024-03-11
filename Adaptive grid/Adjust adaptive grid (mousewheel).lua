@@ -8,6 +8,10 @@ local extname = 'FTC.AdaptiveGrid'
 local _, file, sec, _, _, _, val = reaper.get_action_context()
 local path = file:match('^(.+)[\\/]')
 
+-- Check REAPER version
+local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
+if version >= 7.03 then reaper.set_action_options(3) end
+
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
 
 function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
