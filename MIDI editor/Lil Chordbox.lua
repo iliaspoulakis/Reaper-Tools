@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.8
+  @version 2.0.9
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added diminished chords m7b5, m7b9, m7b5b9
+    - Added add11 chords
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -242,6 +242,8 @@ chord_names['1 3 4'] = 'm add9 omit5'
 chord_names['1 3 4 8'] = 'm add9'
 chord_names['1 3 5'] = 'maj add9 omit5'
 chord_names['1 3 5 8'] = 'maj add9'
+chord_names['1 4 6 8'] = 'm add11'
+chord_names['1 5 6 8'] = 'maj add11'
 chord_names['1 5 10 11'] = '7 add13'
 
 local degrees = {'I', 'II', 'II', 'III', 'III', 'IV', 'V', 'V', 'VI', 'VI',
