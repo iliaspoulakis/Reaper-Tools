@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="f55f6e197c0ffc89a1ad8015d6d2a6dbacb57005">
+<index version="1" name="FTC Tools" commit="bc43d6446056ec6aeacc8fcf6e02617f618e1a12">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1468,6 +1468,10 @@
       <version name="2.0.8" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-02-19T20:52:57Z">
         <changelog><![CDATA[- Added diminished chords m7b5, m7b9, m7b5b9]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/a0c9b7e93388542f8209ab40b63fc588af1c8fd4/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.0.9" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-03-14T19:15:46Z">
+        <changelog><![CDATA[- Added add11 chords]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/bc43d6446056ec6aeacc8fcf6e02617f618e1a12/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
