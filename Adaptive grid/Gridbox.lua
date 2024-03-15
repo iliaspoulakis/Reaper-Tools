@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.6.6
+  @version 1.7.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Improve UI scaling
+    - Detect and adapt to display scaling changes
 ]]
 
 local extname = 'FTC.GridBox'
@@ -145,12 +145,6 @@ local is_windows = os:match('Win')
 local is_macos = os:match('OSX') or os:match('macOS')
 local is_linux = os:match('Other')
 
-local _, dpi = reaper.ThemeLayout_GetLayout('trans', -3)
-local scale = tonumber(dpi) / 256
-
--- Smallest size the bitmap is allowed to have (width and height in pixels)
-local min_area_size = math.floor(12 * scale)
-
 local scroll_dir = is_macos and -1 or 1
 scroll_dir = tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
 
@@ -158,6 +152,18 @@ local use_vis_grid = reaper.GetExtState(extname, 'use_vis_grid') == '1'
 local hide_snap = reaper.GetExtState(extname, 'hide_snap') == '1'
 
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
+
+local _, dpi = reaper.ThemeLayout_GetLayout('trans', -3)
+local scale = tonumber(dpi) / 256
+
+local function ScaleValue(value, scale_factor)
+    if not tonumber(value) then return value end
+    scale_factor = scale_factor or scale
+    return math.floor(value * scale_factor + 0.5)
+end
+
+-- Smallest size the bitmap is allowed to have (width and height in pixels)
+local min_area_size = ScaleValue(12)
 
 -------------------------------- FUNCTIONS -----------------------------------
 
@@ -447,16 +453,6 @@ function LoadThemeSettings(theme_path)
     local has_settings = settings ~= nil
     settings = settings or {}
 
-    local x = settings.bm_x
-    local y = settings.bm_y
-    local w = settings.bm_w
-    local h = settings.bm_h
-
-    attach_x = settings.attach_x
-    attach_mode = settings.attach_mode
-    if attach_x then x = GetAttachPosition() end
-    SetBitmapCoords(x, y, w, h)
-
     user_bg_color = settings.bg_color
     user_text_color = settings.text_color
     user_border_color = settings.border_color
@@ -469,6 +465,30 @@ function LoadThemeSettings(theme_path)
     user_snap_on_color = settings.snap_on_color
     user_snap_off_color = settings.snap_off_color
     user_snap_sep_color = settings.snap_sep_color
+
+    attach_x = settings.attach_x
+    attach_mode = settings.attach_mode
+
+    local new_bm_x = settings.bm_x
+    local new_bm_y = settings.bm_y
+    local new_bm_w = settings.bm_w
+    local new_bm_h = settings.bm_h
+
+    if settings.scale and settings.scale ~= scale then
+        local scale_factor = scale / settings.scale
+        new_bm_x = ScaleValue(new_bm_x, scale_factor)
+        new_bm_y = ScaleValue(new_bm_y, scale_factor)
+        new_bm_w = ScaleValue(new_bm_w, scale_factor)
+        new_bm_h = ScaleValue(new_bm_h, scale_factor)
+
+        attach_x = ScaleValue(attach_x, scale_factor)
+        user_snap_size = ScaleValue(user_snap_size, scale_factor)
+        user_font_size = ScaleValue(user_font_size, scale_factor)
+        user_corner_radius = ScaleValue(user_corner_radius, scale_factor)
+    end
+
+    if attach_x then new_bm_x = GetAttachPosition() end
+    SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
     return has_settings
 end
 
@@ -492,6 +512,7 @@ function SaveThemeSettings(theme_path)
         snap_on_color = user_snap_on_color,
         snap_off_color = user_snap_off_color,
         snap_sep_color = user_snap_sep_color,
+        scale = scale,
     }
 
     -- If theme inside resource folder, save as relative path
@@ -827,7 +848,7 @@ function DrawLiceBitmap()
     ClearBitmap(bitmap, bg_color)
 
     -- Draw background
-    local corner_radius = user_corner_radius or math.floor(6 * scale)
+    local corner_radius = user_corner_radius or ScaleValue(6)
     DrawBackground(bg_color, corner_radius, bg_alpha)
 
     -- Determine border color
@@ -847,7 +868,7 @@ function DrawLiceBitmap()
     end
 
     local snap_h = user_snap_size
-    snap_h = snap_h or bm_h - 2 * math.max(math.floor(4 * scale), bm_h // 4)
+    snap_h = snap_h or bm_h - 2 * math.max(ScaleValue(4), bm_h // 4)
 
     left_w = snap_h // 0.4
     local right_w = bm_w - left_w
@@ -898,8 +919,8 @@ function DrawLiceBitmap()
         local snap_y = (bm_h - snap_h) // 2
         DrawSnapIcon(snap_color, snap_x, snap_y, snap_h, snap_alpha)
         -- Draw snap separator
-        local m = math.max(math.floor(3 * scale), bm_h // 14)
-        local sep_w = math.max(1, math.floor(scale + 0.5))
+        local m = math.max(ScaleValue(3), bm_h // 14)
+        local sep_w = math.max(1, ScaleValue(1))
         local sep_x = left_w - sep_w
         local sep_h = bm_h - 2 * m
         DrawLICERect(bitmap, snap_sep_color, sep_x, m, sep_w, sep_h, true, 0,
@@ -921,9 +942,9 @@ function DrawLiceBitmap()
             swing_color = GetThemeColor('areasel_outline') | alpha
         end
         -- Draw swing slider
-        local m = math.floor(4 * scale)
-        local h = math.floor(3 * scale)
-        local y_offs = border_color and math.floor(scale + 0.5) or 0
+        local m = ScaleValue(4)
+        local h = ScaleValue(3)
+        local y_offs = border_color and ScaleValue(1) or 0
         local value = prev_swing_amt
 
         local swing_len = math.ceil(math.abs(value) * (right_w - 2 * m) / 2)
@@ -955,7 +976,7 @@ function DrawLiceBitmap()
     local text_y = (bm_h - text_h) // 2
     if is_macos then text_y = text_y + 1 end
 
-    local m = 2 * math.ceil(scale)
+    local m = ScaleValue(2)
     if text_x - icon_w < m then
         text_x = icon_w + m
     end
@@ -1445,7 +1466,7 @@ function ShowMenu(menu)
     local ClientToScreen = reaper.JS_Window_ClientToScreen
     local transport_x, transport_y = ClientToScreen(transport_hwnd, 0, 0)
     transport_x, transport_y = transport_x + 4, transport_y + 4
-    gfx.init('FTC.GB', math.floor(24 * scale), 0, 0, transport_x, transport_y)
+    gfx.init('FTC.GB', ScaleValue(24), 0, 0, transport_x, transport_y)
 
     -- Open menu at bottom left corner
     local menu_x, menu_y = ClientToScreen(transport_hwnd, bm_x, bm_y + bm_h)
@@ -1814,6 +1835,40 @@ function Main()
         is_resize = true
     end
 
+    -- Detect changes to transport window size
+    if transport_w ~= prev_transport_w or transport_h ~= prev_transport_h then
+        local prev_scale = scale
+        local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
+        scale = tonumber(new_dpi) / 256
+
+        if scale ~= prev_scale then
+            min_area_size = ScaleValue(12)
+
+            local scale_factor = scale / prev_scale
+            local new_bm_x = ScaleValue(bm_x, scale_factor)
+            local new_bm_y = ScaleValue(bm_y, scale_factor)
+            local new_bm_w = ScaleValue(bm_w, scale_factor)
+            local new_bm_h = ScaleValue(bm_h, scale_factor)
+
+            attach_x = ScaleValue(attach_x, scale_factor)
+            user_snap_size = ScaleValue(user_snap_size, scale_factor)
+            user_font_size = ScaleValue(user_font_size, scale_factor)
+            user_corner_radius = ScaleValue(user_corner_radius, scale_factor)
+
+            if attach_x then new_bm_x = GetAttachPosition() end
+            SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
+            EnsureBitmapVisible()
+            is_resize = true
+        elseif prev_transport_w then
+            -- Move bitmap based on attached position
+            local new_bm_x = GetAttachPosition()
+            if new_bm_x then SetBitmapCoords(new_bm_x) end
+            EnsureBitmapVisible()
+        end
+        prev_transport_w = transport_w
+        prev_transport_h = transport_h
+    end
+
     local is_snap_hovered = false
     local is_hovered = false
 
@@ -1857,7 +1912,7 @@ function Main()
             is_left_click = false
         end
 
-        local m = math.floor(scale * 4)
+        local m = ScaleValue(4)
         is_hovered = m_x > bm_x - m and m_y > bm_y - m and
             m_x < bm_x + bm_w + m and m_y < bm_y + bm_h + m
 
@@ -1974,18 +2029,6 @@ function Main()
             GetSetGrid(0, 1, nil, 1, swing_amt)
             if menu_env then menu_env.SaveProjectGrid(grid_div, 1, swing_amt) end
         end
-    end
-
-    -- Detect changes to transport window size
-    if transport_w ~= prev_transport_w or transport_h ~= prev_transport_h then
-        if prev_transport_w then
-            -- Move bitmap based on attached position
-            local a_x = GetAttachPosition()
-            if a_x then SetBitmapCoords(a_x) end
-            EnsureBitmapVisible()
-        end
-        prev_transport_w = transport_w
-        prev_transport_h = transport_h
     end
 
     -- Monitor adaptive grid setting
@@ -2154,7 +2197,7 @@ function Main()
         if not font_size then
             font_size = 1
             -- Find optimal font size by incrementing until it doesn't target height
-            local target_h = math.max(math.min(14 * scale, bm_h), bm_h // 2.5)
+            local target_h = math.max(math.min(ScaleValue(14), bm_h), bm_h // 2.5)
             local curr_h
             repeat
                 gfx.setfont(1, font_family, font_size)
