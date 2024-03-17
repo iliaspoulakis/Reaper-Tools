@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.0
+  @version 1.7.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Detect and adapt to display scaling changes
+    - Add customization option to add font Y offset
 ]]
 
 local extname = 'FTC.GridBox'
@@ -24,6 +24,7 @@ local user_swing_color
 local user_corner_radius
 local user_adaptive_color
 local user_font_size
+local user_font_yoffs
 local user_font_family
 
 local user_snap_size
@@ -460,6 +461,7 @@ function LoadThemeSettings(theme_path)
     user_adaptive_color = settings.adaptive_color
     user_font_size = settings.font_size
     user_font_family = settings.font_family
+    user_font_yoffs = settings.font_yoffs
     user_corner_radius = settings.corner_radius
     user_snap_size = settings.snap_size
     user_snap_on_color = settings.snap_on_color
@@ -484,6 +486,7 @@ function LoadThemeSettings(theme_path)
         attach_x = ScaleValue(attach_x, scale_factor)
         user_snap_size = ScaleValue(user_snap_size, scale_factor)
         user_font_size = ScaleValue(user_font_size, scale_factor)
+        user_font_yoffs = ScaleValue(user_font_yoffs, scale_factor)
         user_corner_radius = ScaleValue(user_corner_radius, scale_factor)
     end
 
@@ -507,6 +510,7 @@ function SaveThemeSettings(theme_path)
         adaptive_color = user_adaptive_color,
         font_size = user_font_size,
         font_family = user_font_family,
+        font_yoffs = user_font_yoffs,
         corner_radius = user_corner_radius,
         snap_size = user_snap_size,
         snap_on_color = user_snap_on_color,
@@ -614,13 +618,16 @@ end
 
 function SetCustomFont()
     local title = 'Font'
-    local captions = 'Size: (e.g.42),Family (e.g. Comic Sans),extrawidth=50'
+    local captions = 'Size: (e.g.42),Family (e.g. Comic Sans),\z
+        Y offset:,extrawidth=50'
 
-    local curr_vals_str = ('%s,%s'):format(
+    local curr_vals_str = ('%s,%s,%s'):format(
         user_font_size or '',
-        user_font_family or '')
+        user_font_family or '',
+        user_font_yoffs or ''
+    )
 
-    local ret, inputs = reaper.GetUserInputs(title, 2, captions, curr_vals_str)
+    local ret, inputs = reaper.GetUserInputs(title, 3, captions, curr_vals_str)
     if not ret or inputs == curr_vals_str then return end
 
     local input_vals = {}
@@ -631,6 +638,7 @@ function SetCustomFont()
     user_font_size = tonumber(input_vals[1])
     user_font_family = input_vals[2]
     if user_font_family == '' then user_font_family = nil end
+    user_font_yoffs = tonumber(input_vals[3])
     is_resize = true
 
     SaveThemeSettings(prev_color_theme)
@@ -975,6 +983,7 @@ function DrawLiceBitmap()
     local text_x = (right_w - text_w + icon_w) // 2
     local text_y = (bm_h - text_h) // 2
     if is_macos then text_y = text_y + 1 end
+    text_y = text_y + (user_font_yoffs or 0)
 
     local m = ScaleValue(2)
     if text_x - icon_w < m then
@@ -1000,7 +1009,6 @@ function DrawLiceBitmap()
         else
             adaptive_color = text_color
         end
-        local x = text_x - icon_w
         reaper.JS_LICE_SetFontColor(lice_font, adaptive_color)
         LICE_DrawText(bitmap, lice_font, 'A', 1, text_x - icon_w, text_y,
             bm_w, bm_h)
@@ -1853,6 +1861,7 @@ function Main()
             attach_x = ScaleValue(attach_x, scale_factor)
             user_snap_size = ScaleValue(user_snap_size, scale_factor)
             user_font_size = ScaleValue(user_font_size, scale_factor)
+            user_font_yoffs = ScaleValue(user_font_yoffs, scale_factor)
             user_corner_radius = ScaleValue(user_corner_radius, scale_factor)
 
             if attach_x then new_bm_x = GetAttachPosition() end
