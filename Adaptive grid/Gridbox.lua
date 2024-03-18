@@ -481,7 +481,7 @@ function LoadThemeSettings(theme_path)
     local new_bm_w = settings.bm_w
     local new_bm_h = settings.bm_h
 
-    if settings.scale and settings.scale ~= scale then
+    if not is_macos and settings.scale and settings.scale ~= scale then
         local scale_factor = scale / settings.scale
         new_bm_x = ScaleValue(new_bm_x, scale_factor)
         new_bm_y = ScaleValue(new_bm_y, scale_factor)
