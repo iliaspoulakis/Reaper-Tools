@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.1
+  @version 1.7.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add customization option to add font Y offset
+    - Disable scaling completely on MacOS
 ]]
 
 local extname = 'FTC.GridBox'
@@ -154,8 +154,13 @@ local hide_snap = reaper.GetExtState(extname, 'hide_snap') == '1'
 
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
-local _, dpi = reaper.ThemeLayout_GetLayout('trans', -3)
-local scale = tonumber(dpi) / 256
+local function GetTransportScale()
+    if is_macos then return 1 end
+    local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
+    return tonumber(new_dpi) / 256
+end
+
+local scale = GetTransportScale()
 
 local function ScaleValue(value, scale_factor)
     if not tonumber(value) then return value end
@@ -1846,8 +1851,7 @@ function Main()
     -- Detect changes to transport window size
     if transport_w ~= prev_transport_w or transport_h ~= prev_transport_h then
         local prev_scale = scale
-        local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
-        scale = tonumber(new_dpi) / 256
+        scale = GetTransportScale()
 
         if scale ~= prev_scale then
             min_area_size = ScaleValue(12)
