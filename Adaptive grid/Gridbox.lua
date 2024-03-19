@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.2
+  @version 1.7.3
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Disable scaling completely on MacOS
+    - Avoid decimal values for corner radius
 ]]
 
 local extname = 'FTC.GridBox'
@@ -616,6 +616,7 @@ function SetCustomCornerRadius()
     end
 
     user_corner_radius = tonumber(input_vals[1])
+    user_corner_radius = user_corner_radius and math.floor(user_corner_radius)
     is_redraw = true
 
     SaveThemeSettings(prev_color_theme)
@@ -861,7 +862,12 @@ function DrawLiceBitmap()
     ClearBitmap(bitmap, bg_color)
 
     -- Draw background
-    local corner_radius = user_corner_radius or ScaleValue(6)
+    local corner_radius
+    if user_corner_radius then
+        corner_radius = math.floor(user_corner_radius)
+    else
+        corner_radius = ScaleValue(6)
+    end
     DrawBackground(bg_color, corner_radius, bg_alpha)
 
     -- Determine border color
