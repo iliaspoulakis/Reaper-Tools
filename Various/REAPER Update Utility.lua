@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.9.0
+  @version 1.9.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Remove console messages when loading old versions
+    - Fix paths with spaces not working for .sh hooks on MacOS
 ]]
 
 -- App version & platform architecture
@@ -1190,7 +1190,11 @@ if platform:match('Win') then
         hook_cmd = '& bash -c "sh ' .. scripts_path .. '__update.sh"'
     end
 elseif reaper.file_exists(scripts_path .. '__update.sh') then
-    hook_cmd = '; sh ' .. scripts_path .. '__update.sh'
+    if platform:match('OS') then
+        hook_cmd = '; sh \"' .. scripts_path .. '__update.sh\"'
+    else
+        hook_cmd = '; sh \'' .. scripts_path .. '__update.sh\''
+    end
 end
 
 -- Run lua startup hook
