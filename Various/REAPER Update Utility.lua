@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.9.1
+  @version 1.9.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix paths with spaces not working for .sh hooks on MacOS
+    - Add internal timer to only check for updates once every three minutes
+    - Improve behavior with network drives on Windows to work with multiple languages
 ]]
 
 -- App version & platform architecture
@@ -106,7 +107,7 @@ function ExecProcess(cmd, timeout)
         -- Remove exit code (first line)
         ret = ret:gsub('^.-\n', '')
         -- Remove Windows network drive error (fix by jkooks)
-        ret = ret:gsub('^.-Defaulting to Windows directory%.', '')
+        ret = ret:gsub('.+CMD%.EXE.-UNC.+%.', '')
         -- Remove all newlines
         ret = ret:gsub('[\r\n]', '')
         if ret ~= '' then print('\nReturn value:\n' .. ret) end
@@ -1234,7 +1235,20 @@ if last_proj ~= '' then
     reaper.SetExtState(title, 'last_proj', '', true)
 end
 
-if not startup_mode then ShowGUI() end
+if startup_mode then
+    local prev_time = tonumber(reaper.GetExtState(title, 'prev_start_time')) or 0
+    local curr_time = reaper.time_precise()
+    local time_diff = math.ceil(curr_time - prev_time)
+    print(('Last update check: %s seconds ago'):format(time_diff))
+    -- Check if 3 minutes have passed since last update check
+    if time_diff < 60 * 3 then
+        print('Exiting without checking for updates!')
+        return
+    end
+    reaper.SetExtState(title, 'prev_start_time', curr_time, true)
+else
+    ShowGUI()
+end
 
 -- Trigger the first step (steps are triggered by writing to the step file)
 ExecProcess('echo check_update > ' .. step_path)
