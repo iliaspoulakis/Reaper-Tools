@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="dc377bd22f0cfd4e3cd2f64ce1f11574c24960f2">
+<index version="1" name="FTC Tools" commit="9ac0081cacd03bdcbf992926ac06d4ddb5415dce">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -3320,6 +3320,11 @@
       <version name="1.9.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-03-22T15:56:14Z">
         <changelog><![CDATA[- Fix paths with spaces not working for .sh hooks on MacOS]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/dc377bd22f0cfd4e3cd2f64ce1f11574c24960f2/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.9.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-04-05T10:51:29Z">
+        <changelog><![CDATA[- Add internal timer to only check for updates once every three minutes
+- Improve behavior with network drives on Windows to work with multiple languages]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/9ac0081cacd03bdcbf992926ac06d4ddb5415dce/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
