@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="86cb224cc8a005005a5c63c30d967c1e309cfe4f">
+<index version="1" name="FTC Tools" commit="741f2c5395128227da3811cc0987407960e5abeb">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2941,7 +2941,7 @@
         <changelog><![CDATA[- Allow changing pitch/vol/time selection inside RS5K when link is active
 - Support setting time selection with REAPER v7.13+
 - Various CPU usage improvements]]></changelog>
-        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/86cb224cc8a005005a5c63c30d967c1e309cfe4f/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
+        <source main="main mediaexplorer">https://github.com/iliaspoulakis/Reaper-Tools/raw/741f2c5395128227da3811cc0987407960e5abeb/ReaSamplOmatic5000/Link%20media%20explorer%20to%20active%20sample%20player.lua</source>
       </version>
     </reapack>
   </category>
