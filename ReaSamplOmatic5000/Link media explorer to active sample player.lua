@@ -412,6 +412,7 @@ function Main()
         if math.abs(prev_vol - new_vol) > 0.000001 then
             SetParamNormalized(container, container_idx, 0, new_vol)
             ScheduleUndoBlock(0.6)
+            prev_vol = new_vol
         end
     end
 
