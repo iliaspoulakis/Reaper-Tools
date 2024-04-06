@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.9.2
+  @version 1.9.3
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Add internal timer to only check for updates once every three minutes
-    - Improve behavior with network drives on Windows to work with multiple languages
+    - Fix timer behavior
 ]]
 
 -- App version & platform architecture
@@ -1238,7 +1237,7 @@ end
 if startup_mode then
     local prev_time = tonumber(reaper.GetExtState(title, 'prev_start_time')) or 0
     local curr_time = reaper.time_precise()
-    local time_diff = math.ceil(curr_time - prev_time)
+    local time_diff = math.abs(math.ceil(curr_time - prev_time))
     print(('Last update check: %s seconds ago'):format(time_diff))
     -- Check if 3 minutes have passed since last update check
     if time_diff < 60 * 3 then
