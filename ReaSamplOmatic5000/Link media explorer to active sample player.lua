@@ -1,13 +1,15 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.4.0
+  @version 1.5.0
   @provides [main=main,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Add support for FX containers
+    - Allow changing pitch/vol/time selection inside RS5K when link is active
+    - Support setting time selection with REAPER v7.13+
+    - Various CPU usage improvements
 ]]
 
 -- Comment out the next line to avoid turning off autoplay temporarily
@@ -33,8 +35,14 @@ local mx = reaper.OpenMediaExplorer('', false)
 
 local _, _, sec, cmd = reaper.get_action_context()
 
-local is_first_run = true
 local prev_file
+local prev_vol
+local prev_pitch
+local prev_sel_items
+local prev_sel_start_pos
+local prev_sel_end_pos
+
+local is_first_run = true
 local container, container_idx
 
 local GetNamedConfigParm
@@ -82,6 +90,21 @@ function GetHoveredWindowID()
     local x, y = reaper.GetMousePosition()
     local hwnd = reaper.JS_Window_FromPoint(x, y)
     return reaper.JS_Window_GetLong(hwnd, 'ID', 0)
+end
+
+function MediaExplorer_GetSelectedItems()
+    local items = {}
+
+    local mx_list_view = reaper.JS_Window_FindChildByID(mx, 1001)
+    local _, sel_indexes = reaper.JS_ListView_ListAllSelItems(mx_list_view)
+
+    for sel_index in string.gmatch(sel_indexes, '[^,]+') do
+        local index = tonumber(sel_index)
+        local file_name = reaper.JS_ListView_GetItem(mx_list_view, index, 0)
+        items[#items + 1] = {idx = index, file_name = file_name}
+    end
+
+    return items
 end
 
 function MediaExplorer_GetSelectedAudioFiles()
@@ -174,21 +197,38 @@ function MediaExplorer_GetPitch()
 end
 
 function MediaExplorer_GetTimeSelection(force_readout)
-    if force_readout then
-        -- Simulate mouse event on waveform to read out time selection
-        local wave_hwnd = reaper.JS_Window_FindChildByID(mx, 1046)
-        local x, y = reaper.GetMousePosition()
-        local c_x, c_y = reaper.JS_Window_ScreenToClient(wave_hwnd, x, y)
-        reaper.JS_WindowMessage_Send(wave_hwnd, 'WM_MOUSEFIRST', c_y, 0, c_x, 0)
+    local start_timecode, end_timecode
+    if version >= 7.13 then
+        local sel_start_hwnd = reaper.JS_Window_FindChildByID(mx, 1455)
+        local sel_end_hwnd = reaper.JS_Window_FindChildByID(mx, 1456)
+        start_timecode = reaper.JS_Window_GetTitle(sel_start_hwnd)
+        end_timecode = reaper.JS_Window_GetTitle(sel_end_hwnd)
+        if start_timecode == '' and end_timecode == '' then
+            start_timecode = nil
+            end_timecode = nil
+        elseif start_timecode == '' then
+            start_timecode = '0:00.000'
+        elseif end_timecode == '' then
+            end_timecode = '100000:00.000'
+        end
+    else
+        if force_readout then
+            -- Simulate mouse event on waveform to read out time selection
+            local wave_hwnd = reaper.JS_Window_FindChildByID(mx, 1046)
+            local x, y = reaper.GetMousePosition()
+            local c_x, c_y = reaper.JS_Window_ScreenToClient(wave_hwnd, x, y)
+            reaper.JS_WindowMessage_Send(wave_hwnd, 'WM_MOUSEFIRST', c_y, 0, c_x,
+                0)
+        end
+
+        -- If a time selection exists, it will be shown in the wave info window
+        local wave_info_hwnd = reaper.JS_Window_FindChildByID(mx, 1014)
+        local wave_info = reaper.JS_Window_GetTitle(wave_info_hwnd)
+        local pattern = ': ([^%s]+) .-: ([^%s]+)'
+        start_timecode, end_timecode = wave_info:match(pattern)
     end
 
-    -- If a time selection exists, it will be shown in the wave info window
-    local wave_info_hwnd = reaper.JS_Window_FindChildByID(mx, 1014)
-    local wave_info = reaper.JS_Window_GetTitle(wave_info_hwnd)
-    local pattern = ': ([^%s]+) .-: ([^%s]+)'
-    local start_timecode, end_timecode = wave_info:match(pattern)
-
-    if not start_timecode then return false end
+    if not start_timecode or not end_timecode then return false, 0, 0 end
 
     -- Convert timecode to seconds
     local start_mins, start_secs = start_timecode:match('^(.-):(.-)$')
@@ -285,45 +325,74 @@ function Main()
         if redo == 'Link sample player' then return end
     end
 
-    -- Link files
-    local files = MediaExplorer_GetSelectedAudioFiles()
-    if #files > 0 then
-        -- Check if files have changed (SetNamedConfigParm is CPU intensive)
-        local file_cnt = math.min(64, #files)
-        local have_files_changed = false
+    local sel_items = MediaExplorer_GetSelectedItems()
+    local have_sel_items_changed = false
 
-        local current_files = {}
-        for f = file_cnt - 1, 0, -1 do
-            local id = ('FILE%d'):format(f)
-            local _, file = GetNamedConfigParm(container, container_idx, id)
-            current_files[#current_files + 1] = file
-        end
-
-        for f = 1, file_cnt do
-            if files[f] ~= current_files[f] then
-                have_files_changed = true
+    prev_sel_items = prev_sel_items or {}
+    if #sel_items ~= #prev_sel_items then
+        have_sel_items_changed = true
+    else
+        for i = 1, #sel_items do
+            local sel_item = sel_items[i]
+            local prev_sel_item = prev_sel_items[i]
+            if sel_item.idx ~= prev_sel_item.idx then
+                have_sel_items_changed = true
+                break
+            end
+            if sel_item.file_name ~= prev_sel_item.file_name then
+                have_sel_items_changed = true
                 break
             end
         end
+    end
+    prev_sel_items = sel_items
 
-        -- Check if ReaSamplomatic contains more files
-        local last_id = ('FILE%d'):format(file_cnt)
-        local _, file = GetNamedConfigParm(container, container_idx, last_id)
-        if file ~= '' then have_files_changed = true end
+    local curr_file = prev_file
+    if have_sel_items_changed then
+        -- Link files
+        local files = MediaExplorer_GetSelectedAudioFiles()
+        curr_file = files[1]
+        if #files > 0 then
+            -- Check if files have changed (SetNamedConfigParm is CPU intensive)
+            local file_cnt = math.min(64, #files)
+            local have_files_changed = false
 
-        -- Update files on change
-        if have_files_changed then
-            SetNamedConfigParm(container, container_idx, '-FILE*', '')
-            for f = 1, file_cnt do
-                SetNamedConfigParm(container, container_idx, '+FILE0', files[f])
+            local current_files = {}
+            for f = file_cnt - 1, 0, -1 do
+                local id = ('FILE%d'):format(f)
+                local _, file = GetNamedConfigParm(container, container_idx, id)
+                current_files[#current_files + 1] = file
             end
-            SetNamedConfigParm(container, container_idx, 'DONE', '')
-            ScheduleUndoBlock(1.2)
 
-            local is_mark = reaper.GetToggleCommandStateEx(32063, 42167) == 1
-            if is_mark and not MediaExplorer_GetSelectedFileInfo(files[1], 15) then
-                -- Set temporary mark
-                reaper.JS_Window_OnCommand(mx, 42165)
+            for f = 1, file_cnt do
+                if files[f] ~= current_files[f] then
+                    have_files_changed = true
+                    break
+                end
+            end
+
+            -- Check if ReaSamplomatic contains more files
+            local last_id = ('FILE%d'):format(file_cnt)
+            local _, file = GetNamedConfigParm(container, container_idx, last_id)
+            if file ~= '' then have_files_changed = true end
+
+            -- Update files on change
+            if have_files_changed then
+                SetNamedConfigParm(container, container_idx, '-FILE*', '')
+                for f = 1, file_cnt do
+                    SetNamedConfigParm(container, container_idx, '+FILE0',
+                        files[f])
+                end
+                SetNamedConfigParm(container, container_idx, 'DONE', '')
+                ScheduleUndoBlock(1.2)
+
+                local is_mark = reaper.GetToggleCommandStateEx(32063, 42167) == 1
+                if is_mark and not MediaExplorer_GetSelectedFileInfo(files[1], 15) then
+                    -- Set temporary mark
+                    reaper.JS_Window_OnCommand(mx, 42165)
+                end
+                prev_pitch = nil
+                prev_vol = nil
             end
         end
     end
@@ -334,14 +403,14 @@ function Main()
         -- Normalize preview volume if peak volume has been calculated
         local norm = reaper.GetToggleCommandStateEx(32063, 42182) == 1
         if norm then
-            local peak = MediaExplorer_GetSelectedFileInfo(files[1], 21)
+            local peak = MediaExplorer_GetSelectedFileInfo(curr_file, 21)
             if peak then vol = vol - peak end
         end
-        local new_val = DB2Slider(vol)
-        local curr_val = GetParamNormalized(container, container_idx, 0)
+        local new_vol = DB2Slider(vol)
+        prev_vol = prev_vol or GetParamNormalized(container, container_idx, 0)
 
-        if math.abs(curr_val - new_val) > 0.000001 then
-            SetParamNormalized(container, container_idx, 0, new_val)
+        if math.abs(prev_vol - new_vol) > 0.000001 then
+            SetParamNormalized(container, container_idx, 0, new_vol)
             ScheduleUndoBlock(0.6)
         end
     end
@@ -351,19 +420,37 @@ function Main()
     if pitch then
         -- Note: When only using SetParam if value changed (checking with
         -- GetParam), the script creates undo points (why?)
-        SetParam(container, container_idx, 15, (pitch + 80) / 160)
+        if prev_pitch ~= pitch then
+            SetParam(container, container_idx, 15, (pitch + 80) / 160)
+            prev_pitch = pitch
+        end
     end
 
     -- Link time selection
-    local is_wave_preview_hovered = GetHoveredWindowID() == 1046
+    local is_wave_preview_hovered = true
+    if version < 7.13 then
+        is_wave_preview_hovered = GetHoveredWindowID() == 1046
+    end
     local force_read = is_wave_preview_hovered or is_first_run
     local ret, start_pos, end_pos = MediaExplorer_GetTimeSelection(force_read)
 
-    local is_init = not ret and is_first_run
-    local has_file_changed = not is_first_run and prev_file ~= files[1]
-    local user_removes_sel = not ret and is_wave_preview_hovered
+    local time_sel_changed = false
 
-    if not files[1] or is_init or has_file_changed or user_removes_sel then
+    if ret and (start_pos ~= prev_sel_start_pos or end_pos ~= prev_sel_end_pos) then
+        prev_sel_start_pos = start_pos
+        prev_sel_end_pos = end_pos
+        time_sel_changed = true
+    elseif not ret and prev_sel_start_pos then
+        prev_sel_start_pos = nil
+        prev_sel_end_pos = nil
+        time_sel_changed = true
+    end
+
+    local is_init = not ret and is_first_run
+    local has_file_changed = not is_first_run and prev_file ~= curr_file
+    local user_removes_sel = not ret and time_sel_changed
+
+    if not curr_file or is_init or has_file_changed or user_removes_sel then
         if GetParam(container, container_idx, 13) ~= 0 then
             SetParam(container, container_idx, 13, 0)
             ScheduleUndoBlock(0.6)
@@ -373,8 +460,8 @@ function Main()
             ScheduleUndoBlock(0.6)
         end
     else
-        if ret then
-            local length = GetAudioFileLength(files[1])
+        if time_sel_changed then
+            local length = GetAudioFileLength(curr_file)
             do
                 local new_val = start_pos / length
                 local curr_val = GetParam(container, container_idx, 13)
@@ -385,7 +472,7 @@ function Main()
                 end
             end
             do
-                local new_val = end_pos / length
+                local new_val = math.min(end_pos, length - 0.00001) / length
                 local curr_val = GetParam(container, container_idx, 14)
 
                 if math.abs(curr_val - new_val) > 0.000001 then
@@ -396,7 +483,7 @@ function Main()
         end
     end
 
-    prev_file = files[1]
+    prev_file = curr_file
     is_first_run = false
     AddUndoBlock()
 
