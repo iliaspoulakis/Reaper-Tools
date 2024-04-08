@@ -132,7 +132,7 @@ local function AdaptMIDIEditorGrid()
     prev_take = take
 
     local item = reaper.GetMediaItemTake_Item(take)
-    if not item then return end
+    if not item or not reaper.ValidatePtr(item, 'MediaItem*') then return end
 
     -- Note: Calling GetItemStateChunk repeatedly causes issues on Windows
     -- 1. Makes channel combobox unusable
