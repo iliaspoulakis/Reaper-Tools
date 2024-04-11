@@ -556,6 +556,11 @@ function SetSwingEnabled(is_enabled)
     return grid_div, swing, swing_amt
 end
 
+function HasUserGridDivisor(is_midi)
+    local key = is_midi and 'midi_zoom_div' or 'zoom_div'
+    return tonumber(reaper.GetExtState(extname, key)) ~= 2
+end
+
 function SetUserGridDivisor(is_midi)
     local key = is_midi and 'midi_zoom_div' or 'zoom_div'
     local val = tonumber(reaper.GetExtState(extname, key)) or 2
@@ -573,6 +578,14 @@ function SetUserGridDivisor(is_midi)
     end
     reaper.SetExtState(extname, key, ('%.32f'):format(divisor), true)
     return true
+end
+
+function HasUserGridLimits(is_midi)
+    local min_key = is_midi and 'midi_min_limit' or 'min_limit'
+    local max_key = is_midi and 'midi_max_limit' or 'max_limit'
+    local min_val = reaper.GetExtState(extname, min_key .. '_str')
+    local max_val = reaper.GetExtState(extname, max_key .. '_str')
+    return min_val ~= '' or max_val ~= ''
 end
 
 function SetUserGridLimits(is_midi)
@@ -831,8 +844,18 @@ local options_menu = {
     {title = 'Arrange view', is_grayed = true},
     {separator = true},
     {title = 'Set custom size', OnReturn = SetUserCustomGridSpacing, arg = false},
-    {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = false},
-    {title = 'Set limits', OnReturn = SetUserGridLimits, arg = false},
+    {
+        title = 'Set grid divisor',
+        IsChecked = HasUserGridDivisor,
+        OnReturn = SetUserGridDivisor,
+        arg = false,
+    },
+    {
+        title = 'Set limits',
+        IsChecked = HasUserGridLimits,
+        OnReturn = SetUserGridLimits,
+        arg = false,
+    },
     {separator = true},
     {
         title = 'Show in menu',
@@ -875,8 +898,18 @@ local options_menu = {
     {title = 'MIDI editor', is_grayed = true},
     {separator = true},
     {title = 'Set custom size', OnReturn = SetUserCustomGridSpacing, arg = true},
-    {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = true},
-    {title = 'Set limits', OnReturn = SetUserGridLimits, arg = true},
+    {
+        title = 'Set grid divisor',
+        IsChecked = HasUserGridDivisor,
+        OnReturn = SetUserGridDivisor,
+        arg = true,
+    },
+    {
+        title = 'Set limits',
+        IsChecked = HasUserGridLimits,
+        OnReturn = SetUserGridLimits,
+        arg = true,
+    },
     {separator = true},
     {
         title = 'Run service on startup',
@@ -944,8 +977,18 @@ local midi_menu = {
             OnReturn = SetUserCustomGridSpacing,
             arg = true,
         },
-        {title = 'Set grid divisor', OnReturn = SetUserGridDivisor, arg = true},
-        {title = 'Set limits', OnReturn = SetUserGridLimits, arg = true},
+        {
+            title = 'Set grid divisor',
+            IsChecked = HasUserGridDivisor,
+            OnReturn = SetUserGridDivisor,
+            arg = true,
+        },
+        {
+            title = 'Set limits',
+            IsChecked = HasUserGridLimits,
+            OnReturn = SetUserGridLimits,
+            arg = true,
+        },
         {separator = true},
         {
             title = 'Run service on startup',
