@@ -1,10 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.7.3
+  @version 2.0.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Avoid decimal values for corner radius
+    - Allow placing Gridbox on other windows
+    - Add anti-flickering option (Windows only)
+    - Add failsafe: Quickly restarting script 3 times shows prompt to move
+      Gridbox back to transport
 ]]
 
 local extname = 'FTC.GridBox'
@@ -32,13 +35,13 @@ local user_snap_on_color
 local user_snap_off_color
 local user_snap_sep_color
 
-local transport_hwnd
-local transport_w
-local transport_h
+local window_hwnd
+local window_w
+local window_h
 
 local prev_time
-local prev_transport_w
-local prev_transport_h
+local prev_window_w
+local prev_window_h
 local prev_color_theme
 local prev_main_mult
 local prev_swing_amt
@@ -80,6 +83,12 @@ local prev_snap_color
 local is_redraw = false
 local is_resize = false
 local resize_flags = 0
+
+local prev_attach_hwnd
+local prev_bm_w
+local prev_bm_h
+local prev_bm_x
+local prev_bm_y
 
 local GetSetGrid = reaper.GetSetProjectGrid
 
@@ -152,6 +161,20 @@ scroll_dir = tonumber(reaper.GetExtState(extname, 'scroll_dir')) or scroll_dir
 local use_vis_grid = reaper.GetExtState(extname, 'use_vis_grid') == '1'
 local hide_snap = reaper.GetExtState(extname, 'hide_snap') == '1'
 
+local comp_fps = reaper.GetExtState(extname, 'comp_fps')
+comp_fps = tonumber(comp_fps) or 30
+local comp_delay = comp_fps == 0 and 0 or 1 / comp_fps
+
+local attach_window_title = reaper.GetExtState(extname, 'attach_title')
+if attach_window_title == '' then attach_window_title = nil end
+
+local attach_window_wait = reaper.GetExtState(extname, 'attach_wait')
+if attach_window_wait == '' then attach_window_wait = nil end
+
+local attach_window_child_id = reaper.GetExtState(extname, 'attach_child_id')
+attach_window_child_id = tonumber(attach_window_child_id)
+
+local transport_title = reaper.JS_Localize('Transport', 'common')
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
 local function GetTransportScale()
@@ -496,7 +519,11 @@ function LoadThemeSettings(theme_path)
     end
 
     if attach_x then new_bm_x = GetAttachPosition() end
-    SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
+    if attach_window_title == settings.attach_title and
+        attach_window_child_id == settings.attach_child_id or
+        not bm_x then
+        SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
+    end
     return has_settings
 end
 
@@ -508,6 +535,8 @@ function SaveThemeSettings(theme_path)
         bm_h = bm_h,
         attach_x = attach_x,
         attach_mode = attach_mode,
+        attach_title = attach_window_title,
+        attach_child_id = attach_window_child_id,
         bg_color = user_bg_color,
         text_color = user_text_color,
         border_color = user_border_color,
@@ -1026,7 +1055,7 @@ function DrawLiceBitmap()
     end
 
     -- Refresh window
-    reaper.JS_Window_InvalidateRect(transport_hwnd, bm_x, bm_y, bm_x + bm_w,
+    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y, bm_x + bm_w,
         bm_y + bm_h, false)
 end
 
@@ -1096,7 +1125,7 @@ function StartIntercepts()
     if is_intercept then return end
     is_intercept = true
     for _, intercept in ipairs(intercepts) do
-        Intercept(transport_hwnd, intercept.message, intercept.passthrough)
+        Intercept(window_hwnd, intercept.message, intercept.passthrough)
     end
 end
 
@@ -1104,7 +1133,7 @@ function EndIntercepts()
     if not is_intercept then return end
     is_intercept = false
     for _, intercept in ipairs(intercepts) do
-        Release(transport_hwnd, intercept.message)
+        Release(window_hwnd, intercept.message)
         intercept.timestamp = 0
     end
 
@@ -1135,7 +1164,7 @@ end
 function PeekIntercepts(m_x, m_y)
     for _, intercept in ipairs(intercepts) do
         local msg = intercept.message
-        local ret, _, time, _, wph = Peek(transport_hwnd, msg)
+        local ret, _, time, _, wph = Peek(window_hwnd, msg)
 
         if ret and time ~= intercept.timestamp then
             intercept.timestamp = time
@@ -1268,6 +1297,29 @@ function PeekIntercepts(m_x, m_y)
 end
 
 function ShowRightClickMenu()
+    local curr_attach_mode = GetAttachMode()
+
+    local comp_fps_entry
+    if is_windows then
+        comp_fps_entry = {
+            title = 'Anti-flickering',
+            is_checked = comp_fps ~= 30,
+            OnReturn = function()
+                local title = 'Limit underlying window frame rate (FPS)'
+                local caption = 'FPS: (lower FPS -> less flicker)'
+
+                local GetUserInputs = reaper.GetUserInputs
+                local ret, input = GetUserInputs(title, 1, caption, comp_fps)
+                if not ret then return end
+                comp_fps = tonumber(input) or 30
+                comp_fps = math.max(0, comp_fps)
+                comp_delay = comp_fps == 0 and 0 or 1 / comp_fps
+                reaper.SetExtState(extname, 'comp_fps', comp_fps, 1)
+                is_resize = true
+            end,
+        }
+    end
+
     local menu = {
         {
             title = 'Customize',
@@ -1348,10 +1400,10 @@ function ShowRightClickMenu()
             {separator = true},
             {
                 title = 'Attach to',
-
                 {
                     title = 'Left status edge',
-                    is_checked = attach_mode == 3,
+                    is_checked = curr_attach_mode == 3,
+                    is_grayed = attach_window_title ~= nil,
                     OnReturn = function()
                         attach_mode = 3
                         UpdateAttachPosition()
@@ -1360,7 +1412,8 @@ function ShowRightClickMenu()
                 },
                 {
                     title = 'Right status edge',
-                    is_checked = attach_mode == 4,
+                    is_checked = curr_attach_mode == 4,
+                    is_grayed = attach_window_title ~= nil,
                     OnReturn = function()
                         attach_mode = 4
                         UpdateAttachPosition()
@@ -1368,8 +1421,8 @@ function ShowRightClickMenu()
                     end,
                 },
                 {
-                    title = 'Left transport edge',
-                    is_checked = attach_mode == 1,
+                    title = 'Left window edge',
+                    is_checked = curr_attach_mode == 1,
                     OnReturn = function()
                         attach_mode = 1
                         UpdateAttachPosition()
@@ -1377,8 +1430,8 @@ function ShowRightClickMenu()
                     end,
                 },
                 {
-                    title = 'Right transport edge',
-                    is_checked = attach_mode == 2,
+                    title = 'Right window edge',
+                    is_checked = curr_attach_mode == 2,
                     OnReturn = function()
                         attach_mode = 2
                         UpdateAttachPosition()
@@ -1440,6 +1493,7 @@ function ShowRightClickMenu()
                     prev_vis_grid_div = nil
                 end,
             },
+            comp_fps_entry,
         },
         {
             title = 'Lock position',
@@ -1483,12 +1537,12 @@ function ShowMenu(menu)
     -- Open gfx window
     gfx.clear = GetThemeColor('col_main_bg2')
     local ClientToScreen = reaper.JS_Window_ClientToScreen
-    local transport_x, transport_y = ClientToScreen(transport_hwnd, 0, 0)
-    transport_x, transport_y = transport_x + 4, transport_y + 4
-    gfx.init('FTC.GB', ScaleValue(24), 0, 0, transport_x, transport_y)
+    local window_x, window_y = ClientToScreen(window_hwnd, 0, 0)
+    window_x, window_y = window_x + 4, window_y + 4
+    gfx.init('FTC.GB', ScaleValue(24), 0, 0, window_x, window_y)
 
     -- Open menu at bottom left corner
-    local menu_x, menu_y = ClientToScreen(transport_hwnd, bm_x, bm_y + bm_h)
+    local menu_x, menu_y = ClientToScreen(window_hwnd, bm_x, bm_y + bm_h)
     gfx.x, gfx.y = gfx.screentoclient(menu_x, menu_y)
 
     -- Hide gfx window
@@ -1519,16 +1573,16 @@ end
 
 function GetStatusWindowClientRect()
     -- Get status window coordinates
-    local status_hwnd = reaper.JS_Window_FindChildByID(transport_hwnd, 1010)
+    local status_hwnd = reaper.JS_Window_FindChildByID(window_hwnd, 1010)
     local _, st_l, st_t, st_r, st_b = reaper.JS_Window_GetRect(status_hwnd)
-    st_l, st_t = reaper.JS_Window_ScreenToClient(transport_hwnd, st_l, st_t)
-    st_r, st_b = reaper.JS_Window_ScreenToClient(transport_hwnd, st_r, st_b)
+    st_l, st_t = reaper.JS_Window_ScreenToClient(window_hwnd, st_l, st_t)
+    st_r, st_b = reaper.JS_Window_ScreenToClient(window_hwnd, st_r, st_b)
 
     -- Note: Window can be out of transport bounds
     st_l = math.max(st_l, 0)
     st_t = math.max(st_t, 0)
-    st_r = math.min(st_r, transport_w)
-    st_b = math.min(st_b, transport_h)
+    st_r = math.min(st_r, window_w)
+    st_b = math.min(st_b, window_h)
 
     return st_l, st_t, st_r, st_b
 end
@@ -1543,55 +1597,66 @@ function SetBitmapCoords(x, y, w, h)
 
     if bm_x then
         -- Redraw previous area
-        reaper.JS_Window_InvalidateRect(transport_hwnd, bm_x, bm_y,
+        reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
             bm_x + bm_w, bm_y + bm_h, false)
     end
 
     bm_x, bm_y, bm_w, bm_h = x or bm_x, y or bm_y, w or bm_w, h or bm_h
 
     -- Redraw new area
-    reaper.JS_Window_InvalidateRect(transport_hwnd, bm_x, bm_y,
+    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
         bm_x + bm_w, bm_y + bm_h, false)
 
     if not is_resize then
         -- Change bitmap draw coordinates
-        reaper.JS_Composite_Delay(transport_hwnd, 0.03, 0.03, 2)
-        reaper.JS_Composite(transport_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
+        reaper.JS_Composite_Delay(window_hwnd, comp_delay, comp_delay * 1.5, 2)
+        reaper.JS_Composite(window_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
             bm_w, bm_h)
     end
 end
 
 function UpdateAttachPosition()
-    if attach_mode == 1 then
+    local mode = GetAttachMode()
+    if mode == 1 then
         attach_x = bm_x
     end
-    if attach_mode == 2 then
-        attach_x = bm_x - transport_w
+    if mode == 2 then
+        attach_x = bm_x - window_w
     end
-    if attach_mode == 3 then
+    if mode == 3 then
         local st_l = GetStatusWindowClientRect()
         attach_x = bm_x - st_l
     end
-    if attach_mode == 4 then
+    if mode == 4 then
         local _, _, st_r = GetStatusWindowClientRect()
         attach_x = bm_x - st_r
     end
 end
 
+function GetAttachMode()
+    local mode = attach_mode
+    -- Note: Status window options are only valid when attached to transport
+    if mode and mode > 2 and attach_window_title then
+        mode = mode - 2
+    end
+    return mode
+end
+
 function GetAttachPosition()
     if not attach_x then return end
+    local mode = GetAttachMode()
     local new_bm_x
-    if attach_mode == 1 then
+    if mode == 1 then
         new_bm_x = attach_x
     end
-    if attach_mode == 2 then
-        new_bm_x = attach_x + transport_w
+    if mode == 2 then
+        new_bm_x = attach_x + window_w
     end
-    if attach_mode == 3 or attach_mode == 4 then
+    if mode == 3 or mode == 4 then
         local st_l = GetStatusWindowClientRect()
         new_bm_x = attach_x + st_l
     end
-    if attach_mode == 4 then
+    if mode == 4 then
         local _, _, st_r = GetStatusWindowClientRect()
         new_bm_x = attach_x + st_r
     end
@@ -1600,11 +1665,16 @@ end
 
 function EnsureBitmapVisible()
     -- Ensure position/size is within bounds
-    local w = math.max(min_area_size, math.min(bm_w, transport_w))
-    local h = math.max(min_area_size, math.min(bm_h, transport_h))
+    local w = math.max(min_area_size, math.min(bm_w, window_w))
+    local h = math.max(min_area_size, math.min(bm_h, window_h))
 
-    local x = math.max(0, math.min(transport_w - w, bm_x))
-    local y = math.max(0, math.min(transport_h - h, bm_y))
+    local x = math.max(0, math.min(window_w - w, bm_x))
+    local y = math.max(0, math.min(window_h - h, bm_y))
+
+    if attach_window_title then
+        SetBitmapCoords(x, y, w, h)
+        return
+    end
 
     -- Get status window coordinates
     local st_l, st_t, st_r, st_b = GetStatusWindowClientRect()
@@ -1626,9 +1696,9 @@ function EnsureBitmapVisible()
     if is_overlap or is_contained then
         -- Move bitmap to not overlap with status window
         local space_l = st_l
-        local space_r = transport_w - st_r
+        local space_r = window_w - st_r
         local space_t = st_t
-        local space_b = transport_h - st_b
+        local space_b = window_h - st_b
 
         local new_l_x = st_l - w
         local new_r_x = st_r
@@ -1685,11 +1755,11 @@ function EnsureBitmapVisible()
         end
 
         -- Ensure position/size is within bounds after move
-        w = math.max(min_area_size, math.min(w, transport_w))
-        h = math.max(min_area_size, math.min(h, transport_h))
+        w = math.max(min_area_size, math.min(w, window_w))
+        h = math.max(min_area_size, math.min(h, window_h))
 
-        x = math.max(0, math.min(transport_w - w, x))
-        y = math.max(0, math.min(transport_h - h, y))
+        x = math.max(0, math.min(window_w - w, x))
+        y = math.max(0, math.min(window_h - h, y))
     end
 
     SetBitmapCoords(x, y, w, h)
@@ -1708,7 +1778,7 @@ function FindInitialPosition()
     bm_h = st_h
 
     -- Add small vertical margin if status window takes up full transport height
-    if st_h >= transport_h - 4 then
+    if st_h >= window_h - 4 then
         bm_y = bm_y + 2
         bm_h = bm_h - 4
     end
@@ -1748,16 +1818,16 @@ function FindInitialPosition()
     end
 
     local ClientToScreen = reaper.JS_Window_ClientToScreen
-    local x_start, y = ClientToScreen(transport_hwnd, 0, st_mid_y)
-    local x_end = ClientToScreen(transport_hwnd, st_l, st_mid_y)
+    local x_start, y = ClientToScreen(window_hwnd, 0, st_mid_y)
+    local x_end = ClientToScreen(window_hwnd, st_l, st_mid_y)
 
     for x = x_start, x_end do
         AddEmptyArea(x, y, 1)
     end
     AddEmptyArea(x_end, -1, 1)
 
-    x_start = ClientToScreen(transport_hwnd, st_r, st_mid_y)
-    x_end = ClientToScreen(transport_hwnd, transport_w, st_mid_y)
+    x_start = ClientToScreen(window_hwnd, st_r, st_mid_y)
+    x_end = ClientToScreen(window_hwnd, window_w, st_mid_y)
 
     for x = x_start, x_end do
         AddEmptyArea(x, y, -1)
@@ -1805,7 +1875,7 @@ function FindInitialPosition()
 
         -- Convert back to client coordinates
         local r = target_area.r
-        r = reaper.JS_Window_ScreenToClient(transport_hwnd, r, st_mid_y)
+        r = reaper.JS_Window_ScreenToClient(window_hwnd, r, st_mid_y)
 
         -- Place bitmap (x pos) in empty target area (based on alignment)
         if target_area.align > 0 then
@@ -1819,18 +1889,54 @@ function FindInitialPosition()
     UpdateAttachPosition()
 end
 
+function WaitForAttachedWindow()
+    if attach_window_title == 'REAPER Main Window' then return true end
+    if attach_window_title == 'Active MIDI editor' then return true end
+    return attach_window_wait == attach_window_title
+end
+
+function FindAttachedWindow()
+    local hwnd
+    local window_cnt = 0
+    if attach_window_title == 'REAPER Main Window' then
+        hwnd = reaper.GetMainHwnd()
+    elseif attach_window_title == 'Active MIDI editor' then
+        hwnd = reaper.MIDIEditor_GetActive()
+    else
+        local cnt, list = reaper.JS_Window_ListFind(attach_window_title, 1)
+        window_cnt = cnt
+        if window_cnt > 0 then
+            local first_addr = (list .. ','):match('(.-),')
+            hwnd = reaper.JS_Window_HandleFromAddress(first_addr)
+        end
+        if hwnd then
+            reaper.SetExtState(extname, 'attach_wait', attach_window_title, 1)
+        end
+    end
+    if attach_window_child_id then
+        hwnd = reaper.JS_Window_FindChildByID(hwnd, attach_window_child_id)
+    end
+    return hwnd, window_cnt
+end
+
 function Main()
-    -- Find transport window
-    if not transport_hwnd or not reaper.ValidatePtr(transport_hwnd, 'HWND*') then
+    -- Find window
+    if not window_hwnd or not reaper.ValidatePtr(window_hwnd, 'HWND*') then
         local time = reaper.time_precise()
         if not prev_time or time > prev_time + 0.5 then
-            local transport_title = reaper.JS_Localize('Transport', 'common')
-            transport_hwnd = reaper.JS_Window_Find(transport_title, true)
+            prev_time = time
+            if attach_window_title then
+                window_hwnd = FindAttachedWindow()
+            else
+                window_hwnd = reaper.JS_Window_Find(transport_title, true)
+            end
+            is_resize = true
         end
     end
 
-    -- Go idle if transport window is not found/visible
-    if not transport_hwnd or not reaper.JS_Window_IsVisible(transport_hwnd) then
+    -- Go idle if window is not found/visible
+    if not window_hwnd or not reaper.JS_Window_IsVisible(window_hwnd) then
+        if attach_window_title then window_hwnd = nil end
         reaper.defer(Main)
         return
     end
@@ -1839,23 +1945,23 @@ function Main()
     local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
 
     do
-        local _, w, h = reaper.JS_Window_GetClientSize(transport_hwnd)
-        transport_w, transport_h = w, h
+        local _, w, h = reaper.JS_Window_GetClientSize(window_hwnd)
+        window_w, window_h = w, h
     end
 
     -- Monitor color theme changes
     local color_theme = reaper.GetLastColorThemeFile()
     if color_theme ~= prev_color_theme then
         prev_color_theme = color_theme
-        if not LoadThemeSettings(color_theme) then
+        if not LoadThemeSettings(color_theme) and not attach_window_title then
             FindInitialPosition()
         end
         EnsureBitmapVisible()
         is_resize = true
     end
 
-    -- Detect changes to transport window size
-    if transport_w ~= prev_transport_w or transport_h ~= prev_transport_h then
+    -- Detect changes to window size
+    if window_w ~= prev_window_w or window_h ~= prev_window_h then
         local prev_scale = scale
         scale = GetTransportScale()
 
@@ -1878,21 +1984,22 @@ function Main()
             SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
             EnsureBitmapVisible()
             is_resize = true
-        elseif prev_transport_w then
+        elseif prev_window_w then
             -- Move bitmap based on attached position
             local new_bm_x = GetAttachPosition()
             if new_bm_x then SetBitmapCoords(new_bm_x) end
             EnsureBitmapVisible()
         end
-        prev_transport_w = transport_w
-        prev_transport_h = transport_h
+        prev_window_w = window_w
+        prev_window_h = window_h
     end
 
     local is_snap_hovered = false
     local is_hovered = false
 
-    if hover_hwnd == transport_hwnd or drag_x then
-        local m_x, m_y = reaper.JS_Window_ScreenToClient(transport_hwnd, x, y)
+    if hover_hwnd == window_hwnd or drag_x then
+        local ScreenToClient = reaper.JS_Window_ScreenToClient
+        local m_x, m_y = ScreenToClient(window_hwnd, x, y)
         -- Handle drag move/resize
         if drag_x and (drag_x ~= m_x or drag_y ~= m_y) then
             if resize_flags > 0 then
@@ -1918,11 +2025,53 @@ function Main()
                 end
                 is_resize = true
             else
-                -- Move window
-                local new_bm_x = bm_x + m_x - drag_x
-                local new_bm_y = bm_y + m_y - drag_y
-                SetBitmapCoords(new_bm_x, new_bm_y)
-                if m_x > 0 and m_y > 0 and m_x < transport_w and m_y < transport_h then
+                prev_bm_w = prev_bm_w or bm_w
+                prev_bm_h = prev_bm_h or bm_h
+                prev_bm_x = prev_bm_x or bm_x
+                prev_bm_y = prev_bm_y or bm_y
+
+                -- Move Gridbox to hovered window
+                if hover_hwnd ~= window_hwnd then
+                    prev_attach_hwnd = prev_attach_hwnd or window_hwnd
+                    EndIntercepts()
+                    reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
+                    -- Redraw previous area
+                    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
+                        bm_x + bm_w, bm_y + bm_h, false)
+                    window_hwnd = hover_hwnd
+                    reaper.JS_Window_SetFocus(hover_hwnd)
+
+                    -- Get relative position to bitmap top left corner
+                    local drag_x_diff = drag_x - bm_x
+                    local drag_y_diff = drag_y - bm_y
+
+                    -- Get new mouse window position
+                    m_x, m_y = ScreenToClient(window_hwnd, x, y)
+
+                    -- Set bitmap coordinates with relative position
+                    -- Note: Avoid SetBitmapCoords as it doesn't allow going out
+                    -- of bounds
+                    bm_x = m_x - drag_x_diff
+                    bm_y = m_y - drag_y_diff
+                    drag_x = bm_x + drag_x_diff
+                    drag_y = bm_y + drag_y_diff
+
+                    StartIntercepts()
+
+                    -- Remeasure window size
+                    local _, w, h = reaper.JS_Window_GetClientSize(window_hwnd)
+                    window_w, window_h = w, h
+
+                    -- Avoid edge attachment
+                    prev_window_w = nil
+                    is_resize = true
+                else
+                    -- Move Gridbox inside window
+                    local new_bm_x = bm_x + m_x - drag_x
+                    local new_bm_y = bm_y + m_y - drag_y
+                    SetBitmapCoords(new_bm_x, new_bm_y)
+                end
+                if m_x > 0 and m_y > 0 and m_x < window_w and m_y < window_h then
                     SetCursor(move_cursor)
                 end
             end
@@ -2011,17 +2160,153 @@ function Main()
 
         -- Release drags / left clicks / right clicks
         if drag_x and reaper.JS_Mouse_GetState(3) == 0 then
+            -- Check if new attached window is valid
+            if drag_x and prev_attach_hwnd and window_hwnd ~= prev_attach_hwnd then
+                local is_reset = false
+                local target_hwnd = window_hwnd
+                local title = reaper.JS_Window_GetTitle(target_hwnd)
+
+                local child_id = nil
+                -- If window has no title, check if window has ID and parent has title
+                if title == '' then
+                    local parent_hwnd = reaper.JS_Window_GetParent(target_hwnd)
+                    if reaper.ValidatePtr(parent_hwnd, 'HWND*') then
+                        local id = reaper.JS_Window_GetLong(target_hwnd, 'ID')
+                        id = tonumber(id)
+                        if id and id > 0 then
+                            child_id = id
+                            title = reaper.JS_Window_GetTitle(parent_hwnd)
+                            target_hwnd = parent_hwnd
+                        end
+                    end
+                end
+
+                -- Do not allow windows with empty titles
+                if title == '' then
+                    local msg = 'Can not attach Gridbox to this window.\n\n\z
+                        Window does not have a title.'
+                    reaper.MB(msg, 'Notice', 0)
+                    is_reset = true
+                end
+
+                -- Do not allow titles with newline characters
+                if not is_reset and title:match('\n') then
+                    local msg = 'Can not attach Gridbox to this window.\n\n\z
+                        Invalid window title:\n\nTITLE: %s'
+                    reaper.MB(msg:format(title), 'Notice', 0)
+                end
+
+                local found_hwnd
+                if not is_reset then
+                    -- Check if new attached window can be found via Window_Find
+                    local window_cnt, list = reaper.JS_Window_ListFind(title, 1)
+                    if window_cnt > 1 then
+                        local msg = 'Can not attach Gridbox to this window. \z
+                            %d windows have the same title!\n\n\z
+                            TITLE: %s\n\nIf this window is a toolbar, make sure \z
+                            that it is only open once (not in toolbar docker) and \z
+                            consider giving it a unique title.'
+                        reaper.MB(msg:format(window_cnt, title), 'Notice', 0)
+                        is_reset = true
+                    elseif window_cnt == 0 then
+                        local msg = 'Can not attach Gridbox to this window.\n\n\z
+                            Could not find window by title.\n\nTITLE: %s'
+                        reaper.MB(msg:format(title), 'Notice', 0)
+                        is_reset = true
+                    else
+                        found_hwnd = reaper.JS_Window_HandleFromAddress(list)
+                        if found_hwnd ~= target_hwnd then
+                            local msg = 'Can not attach Gridbox to this window.\z
+                                \n\nHandle missmatch'
+                            reaper.MB(msg, 'Notice', 0)
+                            is_reset = true
+                        end
+                    end
+                end
+
+                if not is_reset then
+                    is_reset = true
+                    -- Save accessible windows by custom ID instead of title
+                    if target_hwnd == reaper.GetMainHwnd() then
+                        title = 'REAPER Main Window'
+                    end
+                    if target_hwnd == reaper.MIDIEditor_GetActive() then
+                        title = 'Active MIDI editor'
+                    end
+
+                    -- Prompt user to confirm new attachment
+                    local msg = 'Gridbox will be attached to this window:\z
+                            \n\nTITLE: %s%s\n\nProceed?'
+                    local id_text = ''
+                    if child_id then id_text = ('\nID: %d'):format(child_id) end
+                    msg = msg:format(title, id_text)
+
+                    local ret = reaper.MB(msg, 'Notice', 4)
+                    if ret == 6 then
+                        is_reset = false
+                        -- Save info on new attachment for next script startup
+                        local ext_title = 'attach_title'
+                        local ext_id = 'attach_child_id'
+                        local ext_wait = 'attach_wait'
+                        if title == transport_title and not child_id then
+                            attach_window_title = nil
+                            attach_window_child_id = nil
+                            reaper.SetExtState(extname, ext_title, '', 1)
+                            reaper.SetExtState(extname, ext_id, '', 1)
+                            reaper.SetExtState(extname, ext_wait, '', 1)
+                        else
+                            attach_window_title = title
+                            attach_window_child_id = child_id
+                            reaper.SetExtState(extname, ext_title, title, 1)
+                            reaper.SetExtState(extname, ext_id, child_id or '', 1)
+                            reaper.SetExtState(extname, ext_wait, '', 1)
+                        end
+                    end
+                end
+
+                if is_reset then
+                    -- Move Gridbox back to previous window (pre-drag)
+                    EndIntercepts()
+                    reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
+                    -- Redraw previous area
+                    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
+                        bm_x + bm_w, bm_y + bm_h, false)
+
+                    window_hwnd = prev_attach_hwnd
+                    reaper.JS_Window_SetFocus(prev_attach_hwnd)
+
+                    bm_w = prev_bm_w
+                    bm_h = prev_bm_h
+                    bm_x = prev_bm_x
+                    bm_y = prev_bm_y
+
+                    StartIntercepts()
+
+                    -- Remeasure window size
+                    local _, w, h = reaper.JS_Window_GetClientSize(window_hwnd)
+                    window_w, window_h = w, h
+
+                    -- Avoid edge attachment
+                    prev_window_w = nil
+                    is_resize = true
+                end
+            end
             EnsureBitmapVisible()
             UpdateAttachPosition()
             SaveThemeSettings(color_theme)
             drag_x = nil
             drag_y = nil
             is_redraw = true
+            prev_attach_hwnd = nil
+            prev_bm_w = nil
+            prev_bm_h = nil
+            prev_bm_x = nil
+            prev_bm_y = nil
         end
     end
 
     if swing_drag_x then
-        local m_x = reaper.JS_Window_ScreenToClient(transport_hwnd, x, y)
+        local m_x = reaper.JS_Window_ScreenToClient(window_hwnd, x, y)
         if reaper.JS_Mouse_GetState(3) == 0 then
             swing_drag_x = nil
             is_swing_drag = false
@@ -2060,6 +2345,8 @@ function Main()
 
     -- Monitor grid division
     local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
+    -- Handle undefined grid (-inf)
+    if grid_div ~= grid_div then grid_div = 1 end
 
     if swing_drag_x or is_hovered and not is_snap_hovered and
         reaper.JS_Mouse_GetState(16) == 16 then
@@ -2238,8 +2525,8 @@ function Main()
         reaper.JS_GDI_DeleteObject(gdi)
 
         -- Set bitmap draw coordinates
-        reaper.JS_Composite_Delay(transport_hwnd, 0.03, 0.03, 2)
-        reaper.JS_Composite(transport_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap,
+        reaper.JS_Composite_Delay(window_hwnd, comp_delay, comp_delay * 1.5, 2)
+        reaper.JS_Composite(window_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap,
             0, 0, bm_w, bm_h)
         is_resize = false
         is_redraw = true
@@ -2284,10 +2571,10 @@ function Exit()
     if snap_bitmap then reaper.JS_LICE_DestroyBitmap(snap_bitmap) end
     if bg_bitmap then reaper.JS_LICE_DestroyBitmap(bg_bitmap) end
     if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
-    if transport_hwnd then
-        reaper.JS_Composite_Delay(transport_hwnd, 0, 0, 0)
+    if window_hwnd then
+        reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
         if bm_x then
-            reaper.JS_Window_InvalidateRect(transport_hwnd, bm_x, bm_y,
+            reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
                 bm_x + bm_w, bm_y + bm_h, false)
         end
     end
@@ -2309,6 +2596,69 @@ if not has_run then
             reaper.SetExtState(ext, 'main_mult', 0, true)
             reaper.SetExtState(ext, 'midi_mult', 0, true)
         end
+    end
+end
+
+if attach_window_title then
+    local is_reset = false
+    -- Give option to move Gridbox back to transport when attached window
+    -- is not found upon script startup (or when multiple windows are found)
+    local window_cnt = 0
+    window_hwnd, window_cnt = FindAttachedWindow()
+
+    if window_cnt > 1 then
+        local msg = 'Found %d windows with the same title.\n\n\z
+            Move Gridbox back to transport?'
+        local ret = reaper.MB(msg:format(window_cnt), 'Gridbox', 4)
+        is_reset = ret == 6
+        ExtSave('start_cnt', nil)
+    end
+
+    if not window_hwnd and not WaitForAttachedWindow() then
+        local msg = 'Could not find window.\n\nTITLE: %s\n\nWait for \z
+            window to open?'
+        local ret = reaper.MB(msg:format(attach_window_title), 'Gridbox', 4)
+        is_reset = ret ~= 6
+        if is_reset then
+            reaper.MB('Moved Gridbox back to transport', 'Gridbox', 4)
+        end
+        ExtSave('start_cnt', nil)
+    end
+
+    -- Give option to move Gridbox back to transport when user quickly toggles
+    -- the script 3 times in a row (in 3 seconds)
+    local curr_time = reaper.time_precise()
+    local start_cnt = ExtLoad('start_cnt', 1)
+    local start_time = ExtLoad('start_time', curr_time)
+
+    -- Check if more than 3 seconds have passed
+    if math.abs(start_time - curr_time) > 3 then
+        start_cnt = 1
+        ExtSave('start_cnt', nil)
+        ExtSave('start_time', nil)
+    else
+        start_cnt = start_cnt + 1
+        -- Check if script has started 3 times
+        if start_cnt > 3 then
+            start_cnt = nil
+            curr_time = nil
+            local msg = 'Move Gridbox back to transport?'
+            local ret = reaper.MB(msg, 'Gridbox', 4)
+            is_reset = ret == 6
+        end
+        ExtSave('start_cnt', start_cnt)
+        ExtSave('start_time', curr_time)
+    end
+
+    -- Move Gridbox window back to transport
+    if is_reset then
+        window_hwnd = nil
+        attach_window_title = nil
+        attach_window_child_id = nil
+        attach_window_wait = nil
+        reaper.SetExtState(extname, 'attach_title', '', 1)
+        reaper.SetExtState(extname, 'attach_child_id', '', 1)
+        reaper.SetExtState(extname, 'attach_wait', '', 1)
     end
 end
 
