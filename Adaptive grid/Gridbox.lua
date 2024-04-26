@@ -1,13 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.0
+  @version 2.0.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Allow placing Gridbox on other windows
-    - Add anti-flickering option (Windows only)
-    - Add failsafe: Quickly restarting script 3 times shows prompt to move
-      Gridbox back to transport
+    - Make theme customizations cross-platform
 ]]
 
 local extname = 'FTC.GridBox'
@@ -471,7 +468,18 @@ function LoadThemeSettings(theme_path)
     local settings
     -- If theme inside resource folder, try and load from relative path
     local rel_theme_path = GetRelativeThemePath(theme_path)
-    if rel_theme_path then settings = ExtLoad(rel_theme_path) end
+    if rel_theme_path then
+        settings = ExtLoad(rel_theme_path)
+        -- Check for saved settings from other OS
+        if not settings and rel_theme_path:match('[/\\]') then
+            if is_windows then
+                rel_theme_path = rel_theme_path:gsub('\\', '/')
+            else
+                rel_theme_path = rel_theme_path:gsub('/', '\\')
+            end
+            settings = ExtLoad(rel_theme_path)
+        end
+    end
     -- Note: Theme path can be empty in new REAPER installations?
     if theme_path == '' then theme_path = 'default' end
     -- Fallback to full path
