@@ -1,14 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.9
+  @version 1.1.0
   @provides [main=main,midi_editor,mediaexplorer] .
   @about Inserts selected media explorer items into a new sample player on the
     next played note. Insertion target is either the selected track, or the track
     open in the MIDI editor (when clicking directly on the piano roll).
   @changelog
-    - Treat note-ons with velocity 0 as note-offs
-    - Set pitch offset correctly when adding range of notes
+    - Fix window closing on mouse hover in newer REAPER versions
 ]]
 
 -- Avoid creating undo points
@@ -345,7 +344,7 @@ function Main()
     if char == -1 or char == 27 then return end
 
     -- Exit script when window loses focus
-    local has_focus = gfx.getchar(65536) == 7
+    local has_focus = gfx.getchar(65536) & 7 == 7
     if not has_focus and note_on < 0 then exit_cnt = exit_cnt + 1 end
     if exit_cnt > min_exit_cnt and note_on < 0 then return end
 
