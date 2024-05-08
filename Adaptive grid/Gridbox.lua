@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.1
+  @version 2.0.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Make theme customizations cross-platform
+    - Improve detecting whether JS_ReaScriptAPI is up to date
+    - Fix cross-platform customizations
 ]]
 
 local extname = 'FTC.GridBox'
@@ -100,7 +101,7 @@ function print(...)
 end
 
 -- Check if js_ReaScriptAPI extension is installed
-if not reaper.JS_Window_SetPosition then
+if not reaper.JS_Composite_Delay then
     if has_reapack then
         table.insert(missing_dependencies, 'js_ReaScriptAPI')
     else
@@ -473,9 +474,9 @@ function LoadThemeSettings(theme_path)
         -- Check for saved settings from other OS
         if not settings and rel_theme_path:match('[/\\]') then
             if is_windows then
-                rel_theme_path = rel_theme_path:gsub('\\', '/')
-            else
                 rel_theme_path = rel_theme_path:gsub('/', '\\')
+            else
+                rel_theme_path = rel_theme_path:gsub('\\', '/')
             end
             settings = ExtLoad(rel_theme_path)
         end
@@ -528,8 +529,7 @@ function LoadThemeSettings(theme_path)
 
     if attach_x then new_bm_x = GetAttachPosition() end
     if attach_window_title == settings.attach_title and
-        attach_window_child_id == settings.attach_child_id or
-        not bm_x then
+        attach_window_child_id == settings.attach_child_id or not bm_x then
         SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
     end
     return has_settings
