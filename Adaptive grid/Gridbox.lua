@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.2
+  @version 2.1.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Improve detecting whether JS_ReaScriptAPI is up to date
-    - Fix cross-platform customizations
+    - Add option to move Gridbox back to transport when resetting customizations
+    - Fix crash on start when placed on toolbar and switching theme
 ]]
 
 local extname = 'FTC.GridBox'
@@ -105,7 +105,7 @@ if not reaper.JS_Composite_Delay then
     if has_reapack then
         table.insert(missing_dependencies, 'js_ReaScriptAPI')
     else
-        reaper.MB('Please install js_ReaScriptAPI extension', 'Error', 0)
+        reaper.MB('Please install js_ReaScriptAPI extension', 'GridBox', 0)
         return
     end
 end
@@ -122,7 +122,7 @@ if not reaper.file_exists(menu_script) then
     if has_reapack then
         table.insert(missing_dependencies, 'Adaptive Grid')
     else
-        reaper.MB('Please install Adaptive Grid', 'Error', 0)
+        reaper.MB('Please install Adaptive Grid', 'GridBox', 0)
         return
     end
 end
@@ -132,7 +132,7 @@ if #missing_dependencies > 0 then
     for _, dependency in ipairs(missing_dependencies) do
         msg = msg .. ' • ' .. dependency .. '\n'
     end
-    reaper.MB(msg, 'Error', 0)
+    reaper.MB(msg, 'GridBox', 0)
 
     for i = 1, #missing_dependencies do
         if missing_dependencies[i]:match(' ') then
@@ -488,6 +488,24 @@ function LoadThemeSettings(theme_path)
         settings = ExtLoad(theme_path)
     end
 
+    -- When attached to another window, try to load position saved for
+    -- previously used theme
+    if not settings and attach_window_title then
+        local prev_theme_path = ExtLoad('prev_theme_path')
+        local prev_settings = prev_theme_path and ExtLoad(prev_theme_path)
+        if prev_settings then
+            settings = {}
+            settings.attach_x = prev_settings.attach_x
+            settings.attach_mode = prev_settings.attach_mode
+
+            settings.bm_x = prev_settings.bm_x
+            settings.bm_y = prev_settings.bm_y
+            settings.bm_w = prev_settings.bm_w
+            settings.bm_h = prev_settings.bm_h
+            settings.scale = prev_settings.scale
+        end
+    end
+
     local has_settings = settings ~= nil
     settings = settings or {}
 
@@ -528,8 +546,9 @@ function LoadThemeSettings(theme_path)
     end
 
     if attach_x then new_bm_x = GetAttachPosition() end
-    if attach_window_title == settings.attach_title and
-        attach_window_child_id == settings.attach_child_id or not bm_x then
+    if attach_window_title == settings.attach_title
+        and attach_window_child_id == settings.attach_child_id
+        or not bm_x then
         SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
     end
     return has_settings
@@ -565,6 +584,7 @@ function SaveThemeSettings(theme_path)
     theme_path = GetRelativeThemePath(theme_path) or theme_path
     if theme_path == '' then theme_path = 'default' end
     ExtSave(theme_path, settings)
+    ExtSave('prev_theme_path', theme_path)
 end
 
 function GetThemeColor(key, flag)
@@ -1160,13 +1180,13 @@ function LoadMenuScript()
         menu_chunk()
         if type(env._G.menu) ~= 'table' then
             local err_msg = 'Please update Adaptive Grid to latest version'
-            reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
+            reaper.MB(err_msg:format(menu_script, err), 'GridBox', 0)
             return
         end
         return env
     end
     local err_msg = 'Could not load script: %s:\n%s'
-    reaper.MB(err_msg:format(menu_script, err), 'Error', 0)
+    reaper.MB(err_msg:format(menu_script, err), 'GridBox', 0)
 end
 
 function PeekIntercepts(m_x, m_y)
@@ -1461,6 +1481,15 @@ function ShowRightClickMenu()
                     if theme_path == '' then theme_path = 'default' end
                     ExtSave(theme_path, nil)
                     prev_color_theme = nil
+
+                    if attach_window_title then
+                        msg = 'Move Gridbox back to transport?'
+                        ret = reaper.MB(msg, 'Gridbox', 4)
+                        if ret == 6 then
+                            SaveAttachedWindow(nil)
+                            window_hwnd = nil
+                        end
+                    end
                 end,
             },
         },
@@ -1927,6 +1956,22 @@ function FindAttachedWindow()
     return hwnd, window_cnt
 end
 
+function SaveAttachedWindow(title, child_id)
+    if not title or title == transport_title and not child_id then
+        attach_window_title = nil
+        attach_window_child_id = nil
+        reaper.SetExtState(extname, 'attach_title', '', 1)
+        reaper.SetExtState(extname, 'attach_child_id', '', 1)
+        reaper.SetExtState(extname, 'attach_wait', '', 1)
+    else
+        attach_window_title = title
+        attach_window_child_id = child_id
+        reaper.SetExtState(extname, 'attach_title', title, 1)
+        reaper.SetExtState(extname, 'attach_child_id', child_id or '', 1)
+        reaper.SetExtState(extname, 'attach_wait', '', 1)
+    end
+end
+
 function Main()
     -- Find window
     if not window_hwnd or not reaper.ValidatePtr(window_hwnd, 'HWND*') then
@@ -1961,7 +2006,7 @@ function Main()
     local color_theme = reaper.GetLastColorThemeFile()
     if color_theme ~= prev_color_theme then
         prev_color_theme = color_theme
-        if not LoadThemeSettings(color_theme) and not attach_window_title then
+        if not LoadThemeSettings(color_theme) then
             FindInitialPosition()
         end
         EnsureBitmapVisible()
@@ -2251,24 +2296,9 @@ function Main()
 
                     local ret = reaper.MB(msg, 'Notice', 4)
                     if ret == 6 then
-                        is_reset = false
                         -- Save info on new attachment for next script startup
-                        local ext_title = 'attach_title'
-                        local ext_id = 'attach_child_id'
-                        local ext_wait = 'attach_wait'
-                        if title == transport_title and not child_id then
-                            attach_window_title = nil
-                            attach_window_child_id = nil
-                            reaper.SetExtState(extname, ext_title, '', 1)
-                            reaper.SetExtState(extname, ext_id, '', 1)
-                            reaper.SetExtState(extname, ext_wait, '', 1)
-                        else
-                            attach_window_title = title
-                            attach_window_child_id = child_id
-                            reaper.SetExtState(extname, ext_title, title, 1)
-                            reaper.SetExtState(extname, ext_id, child_id or '', 1)
-                            reaper.SetExtState(extname, ext_wait, '', 1)
-                        end
+                        SaveAttachedWindow(title, child_id)
+                        is_reset = false
                     end
                 end
 
@@ -2660,13 +2690,8 @@ if attach_window_title then
 
     -- Move Gridbox window back to transport
     if is_reset then
+        SaveAttachedWindow(nil)
         window_hwnd = nil
-        attach_window_title = nil
-        attach_window_child_id = nil
-        attach_window_wait = nil
-        reaper.SetExtState(extname, 'attach_title', '', 1)
-        reaper.SetExtState(extname, 'attach_child_id', '', 1)
-        reaper.SetExtState(extname, 'attach_wait', '', 1)
     end
 end
 
