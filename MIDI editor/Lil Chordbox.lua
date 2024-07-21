@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.9
+  @version 2.1.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added add11 chords
+    - Avoid opening menu when mouse drag starts outside of window
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -591,6 +591,7 @@ function GetMIDIInputChord(track)
     if idx > prev_input_idx then
         local new_idx = idx
         local i = 0
+        --TODO Reverse
         repeat
             if prev_input_idx ~= 0 and #buf == 3 then
                 if filter_dev_id == 63 or filter_dev_id == dev_id then
@@ -1811,7 +1812,7 @@ function Main()
     if hover_hwnd == piano_pane and IsBitmapHovered(x, y, piano_pane) then
         -- Open options menu when user clicks on the box
         local mouse_state = reaper.JS_Mouse_GetState(7)
-        if mouse_state ~= prev_mouse_state then
+        if prev_mouse_state and mouse_state ~= prev_mouse_state then
             prev_mouse_state = mouse_state
             local is_lclick = mouse_state & 1 == 1
             local is_rclick = mouse_state & 2 == 2
@@ -1839,6 +1840,9 @@ function Main()
                 input_note_map = {}
             end
         end
+        prev_mouse_state = mouse_state
+    else
+        prev_mouse_state = nil
     end
 
     -- Detect MIDI scale changes
