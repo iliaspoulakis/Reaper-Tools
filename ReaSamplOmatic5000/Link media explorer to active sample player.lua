@@ -1,15 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.0
+  @version 1.5.1
   @provides [main=main,mediaexplorer] .
   @about Links the media explorer file selection, time selection, pitch and
     volume to the focused sample player. The link is automatically broken when
     closing either the FX window or the media explorer.
   @changelog
-    - Allow changing pitch/vol/time selection inside RS5K when link is active
-    - Support setting time selection with REAPER v7.13+
-    - Various CPU usage improvements
+    - Support MX setting "Display preview position in beats for audio files"
 ]]
 
 -- Comment out the next line to avoid turning off autoplay temporarily
@@ -79,9 +77,14 @@ function IsAudioFile(file)
     end
 end
 
-function GetAudioFileLength(file)
+function GetAudioFileLength(file, is_beats)
     local source = reaper.PCM_Source_CreateFromFile(file)
-    local length = reaper.GetMediaSourceLength(source)
+    local length
+    if is_beats then
+        length = select(3, reaper.GetTempoMatchPlayRate(source, 1, 0, 0))
+    else
+        length = reaper.GetMediaSourceLength(source)
+    end
     reaper.PCM_Source_Destroy(source)
     return length
 end
@@ -231,14 +234,27 @@ function MediaExplorer_GetTimeSelection(force_readout)
     if not start_timecode or not end_timecode then return false, 0, 0 end
 
     -- Convert timecode to seconds
+    local is_beats = false
     local start_mins, start_secs = start_timecode:match('^(.-):(.-)$')
-    start_secs = tonumber(start_secs) + tonumber(start_mins) * 60
+    if start_secs then
+        start_secs = tonumber(start_secs) + tonumber(start_mins) * 60
+    else
+        start_secs = tonumber(start_timecode) or 0
+        start_secs = reaper.TimeMap2_beatsToTime(0, start_secs, 0)
+        is_beats = true
+    end
 
     local end_mins, end_secs = end_timecode:match('^(.-):(.-)$')
-    end_secs = tonumber(end_secs) + tonumber(end_mins) * 60
+    if end_secs then
+        end_secs = tonumber(end_secs) + tonumber(end_mins) * 60
+    else
+        end_secs = tonumber(end_timecode) or 0
+        end_secs = reaper.TimeMap2_beatsToTime(0, end_secs, 0)
+        is_beats = true
+    end
 
     -- Note: When no media file is loaded, start and end are both 0
-    return start_secs ~= end_secs, start_secs, end_secs
+    return start_secs ~= end_secs, start_secs, end_secs, is_beats
 end
 
 function ScheduleUndoBlock(delay)
@@ -433,7 +449,8 @@ function Main()
         is_wave_preview_hovered = GetHoveredWindowID() == 1046
     end
     local force_read = is_wave_preview_hovered or is_first_run
-    local ret, start_pos, end_pos = MediaExplorer_GetTimeSelection(force_read)
+    local ret, start_pos, end_pos, is_beats = MediaExplorer_GetTimeSelection(
+        force_read)
 
     local time_sel_changed = false
 
@@ -462,7 +479,7 @@ function Main()
         end
     else
         if time_sel_changed then
-            local length = GetAudioFileLength(curr_file)
+            local length = GetAudioFileLength(curr_file, is_beats)
             do
                 local new_val = start_pos / length
                 local curr_val = GetParam(container, container_idx, 13)
