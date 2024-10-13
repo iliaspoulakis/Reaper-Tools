@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="4ea87370159a33566b47d1030669c75c09f1b63f">
+<index version="1" name="FTC Tools" commit="e38cb834906505d653395bafca06a200cff5c414">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -662,6 +662,10 @@
         <changelog><![CDATA[- Add option to move Gridbox back to transport when resetting customizations
 - Fix crash on start when placed on toolbar and switching theme]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/e05a1f07dad4902cf776cb68f754c612cd92b2d8/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.1.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-10-13T10:46:42Z">
+        <changelog><![CDATA[- Fix lag on Windows when Gridbox is not visible (and OpenGL is used on Nvidia GPUs)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/e38cb834906505d653395bafca06a200cff5c414/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
