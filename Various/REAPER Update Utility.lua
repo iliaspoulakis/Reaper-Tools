@@ -44,6 +44,7 @@ local rc_changelog = 'https://www.landoleet.org/whatsnew-rc.txt'
 local separator = platform:match('Win') and '\\' or '/'
 local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
+local ini_file = reaper.get_ini_file()
 local scripts_path = res_path .. separator .. 'Scripts' .. separator
 local tmp_path, step_path, main_path, dev_path, cmd_log_path
 local user_log_path = res_path .. separator .. 'update-utility.log'
@@ -897,7 +898,8 @@ function Main()
             cmd = cmd .. ' & del %s >> %s 2>&1'
             cmd = cmd:format(dfile_path, log_path)
             -- Restart reaper
-            cmd = cmd .. ' & start reaper.exe'
+            cmd = cmd .. ' & start reaper.exe -cfgfile \"%s\"'
+            cmd = cmd:format(ini_file)
             ExecInstall(cmd)
             return
         end
@@ -935,8 +937,8 @@ function Main()
             end
             -- Restart REAPER
             cmd = cmd .. ' ; echo \"Starting: %s/$app_name\" >> \"%s\" 2>&1'
-            cmd = cmd .. ' && open \"%s/$app_name\"'
-            cmd = cmd:format(install_path, log_path, install_path)
+            cmd = cmd .. ' && open \"%s/$app_name\" -cfgfile \"%s\"'
+            cmd = cmd:format(install_path, log_path, install_path, ini_file)
             ExecInstall(cmd)
             return
         end
