@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="4196c77139ca2a90246c7222c1406dd718f9a868">
+<index version="1" name="FTC Tools" commit="4ea87370159a33566b47d1030669c75c09f1b63f">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -3402,6 +3402,10 @@
       <version name="1.9.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-04-06T08:49:18Z">
         <changelog><![CDATA[- Fix timer behavior]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/46b726a5879dd837d9f6cd37d1d64a642b199a9c/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="1.9.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-10-13T10:27:00Z">
+        <changelog><![CDATA[- Correctly update REAPER when a custom ini file was specified on launch]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/4ea87370159a33566b47d1030669c75c09f1b63f/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
