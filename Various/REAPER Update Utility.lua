@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.9.3
+  @version 1.9.4
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix timer behavior
+    - Correctly update REAPER when a custom ini file was specified on launch
 ]]
 
 -- App version & platform architecture
