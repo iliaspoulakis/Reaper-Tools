@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.0
+  @version 2.1.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add option to move Gridbox back to transport when resetting customizations
-    - Fix crash on start when placed on toolbar and switching theme
+    - Fix lag on Windows when Gridbox is not visible (and OpenGL is used on Nvidia GPUs)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -44,6 +43,8 @@ local prev_color_theme
 local prev_main_mult
 local prev_swing_amt
 local prev_grid_div
+local prev_top_window_cnt
+local top_window_array = reaper.new_array(4096)
 
 local prev_hzoom_lvl
 local prev_vis_grid_div
@@ -1978,12 +1979,16 @@ function Main()
         local time = reaper.time_precise()
         if not prev_time or time > prev_time + 0.5 then
             prev_time = time
-            if attach_window_title then
-                window_hwnd = FindAttachedWindow()
-            else
-                window_hwnd = reaper.JS_Window_Find(transport_title, true)
+            local top_window_cnt = reaper.JS_Window_ArrayAllTop(top_window_array)
+            if top_window_cnt ~= prev_top_window_cnt then
+                prev_top_window_cnt = top_window_cnt
+                if attach_window_title then
+                    window_hwnd = FindAttachedWindow()
+                else
+                    window_hwnd = reaper.JS_Window_Find(transport_title, true)
+                end
+                is_resize = true
             end
-            is_resize = true
         end
     end
 
