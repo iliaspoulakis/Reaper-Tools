@@ -1,8 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Temporarily show only tracks with receives in mixer
+  @changelog
+    - Restore mixer scroll position
 ]]
 
 local extname = 'FTC.ToggleShowOnlyReceiveTracksMCP'
@@ -13,6 +15,8 @@ if version >= 7.03 then reaper.set_action_options(3) end
 
 local GetTrackInfo = reaper.GetMediaTrackInfo_Value
 local SetTrackInfo = reaper.SetMediaTrackInfo_Value
+
+local scroll_track
 
 function SaveTracksVisibilityState()
     local states = {}
@@ -39,9 +43,14 @@ function SaveTracksVisibilityState()
     end
     local states_str = table.concat(states, ';')
     reaper.SetProjExtState(0, extname, 'track_states', states_str)
+
+    local track = reaper.GetMixerScroll()
+    local scroll_guid = track and reaper.GetTrackGUID(track) or ''
+    reaper.SetProjExtState(0, extname, 'mixer_scroll_guid', scroll_guid)
 end
 
 function RestoreTracksVisibilityState(states_str)
+    local _, scroll_guid = reaper.GetProjExtState(0, extname, 'mixer_scroll_guid')
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local guid = reaper.GetTrackGUID(track)
@@ -56,6 +65,8 @@ function RestoreTracksVisibilityState(states_str)
             chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 1', 1)
             reaper.SetTrackStateChunk(track, chunk)
         end
+
+        if guid == scroll_guid then scroll_track = track end
     end
 end
 
@@ -65,7 +76,10 @@ if states_str ~= '' then
     reaper.Undo_BeginBlock()
     RestoreTracksVisibilityState(states_str)
     reaper.SetProjExtState(0, extname, 'track_states', '')
+    reaper.SetProjExtState(0, extname, 'mixer_scroll_guid', '')
     reaper.TrackList_AdjustWindows(false)
+
+    if scroll_track then reaper.SetMixerScroll(scroll_track) end
 
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.Undo_EndBlock('Toggle show only tracks with receives', -1)
