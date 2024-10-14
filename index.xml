@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="0afa8aed09dc7f69b6788ec7a5774e837b34438d">
+<index version="1" name="FTC Tools" commit="05381ee19f0b10f238cbd55122d0c1631cdec47a">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -838,6 +838,11 @@
       <version name="1.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-10-13T11:28:17Z">
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/cf0dcc5ef85a0852c362a8f57acf7d7362e8672e/Auto-Hide/Toggle%20show%20only%20selected%20tracks.lua</source>
       </version>
+      <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-10-14T13:06:16Z">
+        <changelog><![CDATA[- Improve scroll to track behavior when exiting enabled state
+- Do not set tracks visible that were created and hidden in enabled state]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/05381ee19f0b10f238cbd55122d0c1631cdec47a/Auto-Hide/Toggle%20show%20only%20selected%20tracks.lua</source>
+      </version>
     </reapack>
     <reapack name="Toggle show only tracks with receives in mixer.lua" type="script">
       <metadata>
@@ -855,6 +860,10 @@
       <version name="1.0.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-10-13T12:10:05Z">
         <changelog><![CDATA[- Restore mixer scroll position]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/0afa8aed09dc7f69b6788ec7a5774e837b34438d/Auto-Hide/Toggle%20show%20only%20tracks%20with%20receives%20in%20mixer.lua</source>
+      </version>
+      <version name="1.0.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-10-14T13:06:16Z">
+        <changelog><![CDATA[- Do not set tracks visible that were created and hidden in enabled state]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/05381ee19f0b10f238cbd55122d0c1631cdec47a/Auto-Hide/Toggle%20show%20only%20tracks%20with%20receives%20in%20mixer.lua</source>
       </version>
     </reapack>
   </category>
