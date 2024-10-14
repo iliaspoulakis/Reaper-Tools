@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Temporarily show only tracks with receives in mixer
   @changelog
-    - Restore mixer scroll position
+    - Do not set tracks visible that were created and hidden in enabled state
 ]]
 
 local extname = 'FTC.ToggleShowOnlyReceiveTracksMCP'
@@ -54,16 +54,17 @@ function RestoreTracksVisibilityState(states_str)
     for t = 0, reaper.CountTracks(0) - 1 do
         local track = reaper.GetTrack(0, t)
         local guid = reaper.GetTrackGUID(track)
-        local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d):(%d)'
+        local pattern = guid:gsub('%-', '%%-') .. ':(%d):(%d)'
 
         local show_mcp, comp = states_str:match(pattern)
-        show_mcp = tonumber(show_mcp) or 1
-        SetTrackInfo(track, 'B_SHOWINMIXER', show_mcp)
+        if show_mcp then
+            SetTrackInfo(track, 'B_SHOWINMIXER', tonumber(show_mcp) or 1)
 
-        if comp == '1' then
-            local _, chunk = reaper.GetTrackStateChunk(track, '')
-            chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 1', 1)
-            reaper.SetTrackStateChunk(track, chunk)
+            if comp == '1' then
+                local _, chunk = reaper.GetTrackStateChunk(track, '')
+                chunk = chunk:gsub('(\nBUSCOMP %d) %d', '%1 1', 1)
+                reaper.SetTrackStateChunk(track, chunk)
+            end
         end
 
         if guid == scroll_guid then scroll_track = track end
