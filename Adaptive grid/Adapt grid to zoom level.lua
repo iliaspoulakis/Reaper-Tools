@@ -146,7 +146,7 @@ function GetMIDIEditorView(hwnd)
     local start_time, end_time
 
     if reaper.JS_Window_FindChildByID then
-        local midiview = reaper.JS_Window_FindChildByID(hwnd, 0x3E9)
+        local midiview = reaper.JS_Window_FindChildByID(hwnd, 1001)
         local _, width_in_pixels = reaper.JS_Window_GetClientSize(midiview)
 
         if timebase == 0 or timebase == 4 then

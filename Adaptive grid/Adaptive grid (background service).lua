@@ -61,6 +61,9 @@ local prev_time
 local prev_mouse_x
 local prev_mouse_y
 
+local prev_page_epos
+local prev_page_size
+
 local has_js_api = reaper.JS_Window_FromPoint
 local is_windows = reaper.GetOS():match('Win')
 
@@ -133,6 +136,14 @@ local function AdaptMIDIEditorGrid()
 
     local item = reaper.GetMediaItemTake_Item(take)
     if not item or not reaper.ValidatePtr(item, 'MediaItem*') then return end
+
+    if has_js_api then
+        local note_view = reaper.JS_Window_FindChildByID(editor_hwnd, 1001)
+        local _, _, size, _, epos = reaper.JS_Window_GetScrollInfo(note_view, 'h')
+        if epos == prev_page_epos and size == prev_page_size then return end
+        prev_page_epos = epos
+        prev_page_size = size
+    end
 
     -- Note: Calling GetItemStateChunk repeatedly causes issues on Windows
     -- 1. Makes channel combobox unusable

@@ -216,12 +216,14 @@ function RunAdaptScript(is_midi)
     if is_midi then
         local hwnd = reaper.MIDIEditor_GetActive()
         if hwnd then
-            _G.mode = 2
-            dofile(script_path)
+            local env = setmetatable({_G = {mode = 2}}, {__index = _G})
+            local chunk = loadfile(script_path, 'bt', env)
+            if chunk then chunk() end
         end
     else
-        _G.mode = 1
-        dofile(script_path)
+        local env = setmetatable({_G = {mode = 1}}, {__index = _G})
+        local chunk = loadfile(script_path, 'bt', env)
+        if chunk then chunk() end
     end
 end
 

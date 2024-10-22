@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.1
+  @version 2.1.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix lag on Windows when Gridbox is not visible (and OpenGL is used on Nvidia GPUs)
+    - Fix MIDI editor options not applying new grid size immediately
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1173,9 +1173,8 @@ function EndIntercepts()
 end
 
 function LoadMenuScript()
-    local env = {}
-    for key, val in pairs(_G) do env[key] = val end
-    env._G = {menu = true, cmd = menu_cmd}
+    local env = setmetatable({menu = true, cmd = menu_cmd}, {__index = _G})
+    env._G = env
     local menu_chunk, err = loadfile(menu_script, 'bt', env)
     if menu_chunk then
         menu_chunk()
