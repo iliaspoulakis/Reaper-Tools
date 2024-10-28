@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.9.4
+  @version 1.9.5
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Correctly update REAPER when a custom ini file was specified on launch
+    - Fix REAPER restart on MacOS (1.9.4 regression)
 ]]
 
 -- App version & platform architecture
@@ -937,7 +937,7 @@ function Main()
             end
             -- Restart REAPER
             cmd = cmd .. ' ; echo \"Starting: %s/$app_name\" >> \"%s\" 2>&1'
-            cmd = cmd .. ' && open \"%s/$app_name\" -cfgfile \"%s\"'
+            cmd = cmd .. ' && open \"%s/$app_name\" --args -cfgfile \"%s\"'
             cmd = cmd:format(install_path, log_path, install_path, ini_file)
             ExecInstall(cmd)
             return
