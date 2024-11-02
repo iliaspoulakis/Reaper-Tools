@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.2.0
+  @version 2.2.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Add option to display chord inversions
+    - Display inversions on chord degrees
+    - Fix option to display chord inversions
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -465,6 +466,14 @@ function GetChordDegree(chord)
     if third == 3 then degree = degree:lower() end
     if fifth == 6 then degree = degree .. 'o' end
     if fifth == 8 then degree = degree .. '+' end
+
+    if use_inversions and chord.inversion_root then
+        if (chord.root - chord.inversion_root) % 12 >= 8 then
+            degree = degree .. '6'
+        else
+            degree = degree .. '64'
+        end
+    end
     return degree
 end
 
@@ -472,7 +481,7 @@ function BuildChordName(chord)
     if not chord then return '' end
     if chord.name then return chord.name end
     local name = PitchToName(chord.root) .. chord_names[chord.key]
-    if chord.inversion_root then
+    if use_inversions and chord.inversion_root then
         name = name .. '/' .. PitchToName(chord.inversion_root)
     end
     if prev_is_key_snap and degree_mode > 1 then
