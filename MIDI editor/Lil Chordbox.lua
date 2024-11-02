@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.0
+  @version 2.2.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Avoid opening menu when mouse drag starts outside of window
+    - Add option to display chord inversions
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -264,6 +264,7 @@ local note_names_solfege_flat = {'Do ', 'Reb ', 'Re ', 'Mib ', 'Mi ', 'Fa ',
 local use_input = reaper.GetExtState(extname, 'input') ~= '0'
 local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_only')) or 3
 
+local use_inversions = reaper.GetExtState(extname, 'inversions') == '1'
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
 local use_sharps_autodetect = reaper.GetExtState(extname, 'sharps_auto') ~= '0'
@@ -314,6 +315,11 @@ function AutoDetectSharps(root, midi_scale)
     else
         is_sharp_autodetect = root ~= 'F'
     end
+end
+
+function ToggleInversionMode()
+    use_inversions = not use_inversions
+    reaper.SetExtState(extname, 'inversions', use_inversions and '1' or '0', 1)
 end
 
 function ToggleSolfegeMode()
@@ -407,14 +413,19 @@ function IdentifyChord(notes)
             if intervals[i] then inv_key = inv_key .. ' ' .. i end
         end
         -- Check if chord name exists for inversion key
-        if chord_names[inv_key] then return inv_key, root + diff end
+        if chord_names[inv_key] then return inv_key, root + diff, root end
     end
 end
 
 function BuildChord(notes)
-    local chord_key, chord_root = IdentifyChord(notes)
+    local chord_key, chord_root, inversion_root = IdentifyChord(notes)
     if chord_key then
-        local chord = {notes = notes, root = chord_root, key = chord_key}
+        local chord = {
+            notes = notes,
+            root = chord_root,
+            key = chord_key,
+            inversion_root = inversion_root,
+        }
         if notes[1].sppq then
             -- Determine chord start and end ppq position
             local min_eppq = math.maxinteger
@@ -461,6 +472,9 @@ function BuildChordName(chord)
     if not chord then return '' end
     if chord.name then return chord.name end
     local name = PitchToName(chord.root) .. chord_names[chord.key]
+    if chord.inversion_root then
+        name = name .. '/' .. PitchToName(chord.inversion_root)
+    end
     if prev_is_key_snap and degree_mode > 1 then
         local degree = GetChordDegree(chord)
         if degree_mode == 2 then
@@ -1503,6 +1517,11 @@ function ShowChordBoxMenu()
                 },
                 {separator = true},
                 {
+                    title = 'Show inversions',
+                    OnReturn = ToggleInversionMode,
+                    is_checked = use_inversions,
+                },
+                {
                     title = 'Solfège (do, re, mi)',
                     OnReturn = ToggleSolfegeMode,
                     is_checked = use_solfege,
@@ -1887,7 +1906,7 @@ function Main()
         input_chord = GetMIDIInputChord(track)
     end
     if input_chord then
-        input_timer = reaper.time_precise()
+        input_timer = time
         local input_chord_name = BuildChordName(input_chord)
         -- Only redraw LICE bitmap when chord name has changed
         if input_chord_name ~= prev_input_chord_name then
@@ -1901,7 +1920,7 @@ function Main()
     -- Show input chords a bit longer than they are played (linger)
     if input_timer then
         local linger_duration = 0.6
-        if reaper.time_precise() < input_timer + linger_duration then
+        if time < input_timer + linger_duration then
             reaper.defer(Main)
             return
         else
