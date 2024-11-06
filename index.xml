@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="5a9a046f9fbb83430c45988bc9d2556a8e99419c">
+<index version="1" name="FTC Tools" commit="dc92413b80a8110b8c781bf848f2a8c6170e353c">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2654,6 +2654,10 @@
         <changelog><![CDATA[- Added smart note color switching]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/9d7ef36e598eebf6213984318f4c0f2fe9c40974/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
+      <version name="1.5.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-11-06T20:35:39Z">
+        <changelog><![CDATA[- Double click on click source items opens source properties]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/dc92413b80a8110b8c781bf848f2a8c6170e353c/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+      </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
       <metadata>
@@ -2713,6 +2717,10 @@
       <version name="1.5.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-02-19T21:36:46Z">
         <changelog><![CDATA[- Added smart note color switching]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/9d7ef36e598eebf6213984318f4c0f2fe9c40974/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
+      </version>
+      <version name="1.5.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2024-11-06T20:35:39Z">
+        <changelog><![CDATA[- Double click on click source items opens source properties]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/dc92413b80a8110b8c781bf848f2a8c6170e353c/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
       </version>
     </reapack>
   </category>
