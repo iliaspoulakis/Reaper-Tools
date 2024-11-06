@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.1
+  @version 1.5.2
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Added smart note color switching
+    - Double click on click source items opens source properties
 ]]
 
 ------------------------------- GENERAL SETTINGS --------------------------------
@@ -450,6 +450,12 @@ if sec == 0 and mouse_context == 'arrange' and rel + res + val == -3 then
 
         local src = reaper.GetMediaItemTake_Source(take)
         local src_type = reaper.GetMediaSourceType(src, '')
+
+        if src_type == 'CLICK' then
+            -- Item properties: Show media item source properties
+            reaper.Main_OnCommand(40011, 0)
+            return
+        end
 
         -- Open video window if not already open (else item properties)
         if src_type == 'VIDEO' and reaper.GetToggleCommandState(50125) == 0 then
