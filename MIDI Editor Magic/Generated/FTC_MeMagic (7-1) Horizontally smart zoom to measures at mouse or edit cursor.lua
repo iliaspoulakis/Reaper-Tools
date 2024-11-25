@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @noindex
   @about Automatically generated configuration of MeMagic
   @changelog
-    - Support using selected notes for vertical zoom/scroll functions
+    - Correctly handle click source items
+    - Made configuration variables global for wrapper scripts
 ]]
 ------------------------------ ZOOM MODES -----------------------------
 
@@ -39,81 +40,81 @@
 -- { Beats (project), Beats (source), Time (project), Sync to arrange }
 
 -- Context: Toolbar button
-local TBB_horizontal_zoom_mode = 7
-local TBB_vertical_zoom_mode = 1
+_G.TBB_horizontal_zoom_mode = 7
+_G.TBB_vertical_zoom_mode = 1
 
 -- Context: MIDI editor note area
-local MEN_horizontal_zoom_mode = {7, 1, 7, 7}
-local MEN_vertical_zoom_mode = {6, 3, 3, 6}
+_G.MEN_horizontal_zoom_mode = {7, 1, 7, 7}
+_G.MEN_vertical_zoom_mode = {6, 3, 3, 6}
 
 -- Context: MIDI editor piano pane
-local MEP_horizontal_zoom_mode = 2
-local MEP_vertical_zoom_mode = 2
+_G.MEP_horizontal_zoom_mode = 2
+_G.MEP_vertical_zoom_mode = 2
 
 -- Context: MIDI editor ruler
-local MER_horizontal_zoom_mode = {1, 1, 5, 1}
-local MER_vertical_zoom_mode = {11, 11, 11, 11}
+_G.MER_horizontal_zoom_mode = {1, 1, 5, 1}
+_G.MER_vertical_zoom_mode = {11, 11, 11, 11}
 
 -- Context: MIDI editor CC lanes
-local MEC_horizontal_zoom_mode = {1, 1, 5, 1}
-local MEC_vertical_zoom_mode = {9, 9, 9, 9}
+_G.MEC_horizontal_zoom_mode = {1, 1, 5, 1}
+_G.MEC_vertical_zoom_mode = {9, 9, 9, 9}
 
 -- Context: Arrange view area
-local AVA_horizontal_zoom_mode = 5
-local AVA_vertical_zoom_mode = 3
+_G.AVA_horizontal_zoom_mode = 5
+_G.AVA_vertical_zoom_mode = 3
 
 -- Context: Arrange view item single click (mouse modifier)
-local AIS_horizontal_zoom_mode = 5
-local AIS_vertical_zoom_mode = 3
+_G.AIS_horizontal_zoom_mode = 5
+_G.AIS_vertical_zoom_mode = 3
 
 -- Context: Arrange view item double click (mouse modifier)
-local AID_horizontal_zoom_mode = 2
-local AID_vertical_zoom_mode = 2
+_G.AID_horizontal_zoom_mode = 2
+_G.AID_vertical_zoom_mode = 2
 
 ------------------------------ GENERAL SETTINGS -----------------------------
 
 -- Make this action non-contextual and always use modes from context: Toolbar button
-local use_toolbar_context_only = true
+_G.use_toolbar_context_only = true
 
 -- Follow play cursor instead of edit cursor when playing
-local use_play_cursor = true
+_G.use_play_cursor = true
 
 -- Move edit cursor to mouse cursor
-local set_edit_cursor = false
+_G.set_edit_cursor = false
 
 ------------------------------ ZOOM SETTINGS -----------------------------
 
 -- Number of measures to zoom to (for horizontal modes 3 and 4)
-local number_of_measures = 4
+_G.number_of_measures = 4
 
 -- Number of (approximate) notes to zoom to (for horizontal modes 5 and 6)
-local number_of_notes = 20
+_G.number_of_notes = 20
 
 -- Determines how influential the cursor position is on smart zoom levels
 -- No influence: 0,  High influence: >1,  Default: 0.75
-local smoothing = 0.75
+_G.smoothing = 0.75
 
 -- Which note to zoom to when item/visible area contains no notes
-local base_note = 60
+_G.base_note = 60
 
 -- Minimum number of vertical notes when zooming (not exact)
-local min_vertical_notes = 8
+_G.min_vertical_notes = 8
 
 -- Maximum vertical size for notes in pixels (smaller values increase performance)
-local max_vertical_note_pixels = 32
+_G.max_vertical_note_pixels = 32
 
 -- Use selected notes only
-local use_note_sel = false
+_G.use_note_sel = false
 
 ------------------------------ FUNCTIONS ------------------------------------
 
-local debug = false
+_G.debug = false
 local mb_title = 'MIDI Editor Magic'
 local undo_name = 'Change media item selection (MeMagic)'
-undo_name = use_toolbar_context_only and 'MeMagic zoom/scroll' or undo_name
+undo_name = _G.use_toolbar_context_only and 'MeMagic zoom/scroll' or undo_name
 
 function print(msg)
-    if debug then
+    if _G.debug then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
 end
@@ -171,10 +172,10 @@ end
 
 function GetCursorPosition(play_state)
     local cursor_pos = reaper.BR_GetMouseCursorContext_Position()
-    if not cursor_pos or cursor_pos < 0 or set_edit_cursor then
+    if not cursor_pos or cursor_pos < 0 or _G.set_edit_cursor then
         cursor_pos = reaper.GetCursorPosition()
     end
-    if play_state > 0 and use_play_cursor then
+    if play_state > 0 and _G.use_play_cursor then
         cursor_pos = reaper.GetPlayPosition()
     end
     return cursor_pos
@@ -185,43 +186,43 @@ function GetZoomMode(context, timebase)
 
     modes[0] = {}
     modes[0].name = 'Toolbar button'
-    modes[0].hzoom = TBB_horizontal_zoom_mode
-    modes[0].vzoom = TBB_vertical_zoom_mode
+    modes[0].hzoom = _G.TBB_horizontal_zoom_mode
+    modes[0].vzoom = _G.TBB_vertical_zoom_mode
 
     modes[10] = {}
     modes[10].name = 'Arrange view area'
-    modes[10].hzoom = AVA_horizontal_zoom_mode
-    modes[10].vzoom = AVA_vertical_zoom_mode
+    modes[10].hzoom = _G.AVA_horizontal_zoom_mode
+    modes[10].vzoom = _G.AVA_vertical_zoom_mode
 
     modes[20] = {}
     modes[20].name = 'MIDI editor note area'
-    modes[20].hzoom = MEN_horizontal_zoom_mode
-    modes[20].vzoom = MEN_vertical_zoom_mode
+    modes[20].hzoom = _G.MEN_horizontal_zoom_mode
+    modes[20].vzoom = _G.MEN_vertical_zoom_mode
 
     modes[21] = {}
     modes[21].name = 'MIDI editor piano pane'
-    modes[21].hzoom = MEP_horizontal_zoom_mode
-    modes[21].vzoom = MEP_vertical_zoom_mode
+    modes[21].hzoom = _G.MEP_horizontal_zoom_mode
+    modes[21].vzoom = _G.MEP_vertical_zoom_mode
 
     modes[22] = {}
     modes[22].name = 'MIDI editor ruler'
-    modes[22].hzoom = MER_horizontal_zoom_mode
-    modes[22].vzoom = MER_vertical_zoom_mode
+    modes[22].hzoom = _G.MER_horizontal_zoom_mode
+    modes[22].vzoom = _G.MER_vertical_zoom_mode
 
     modes[23] = {}
     modes[23].name = 'MIDI editor CC lanes'
-    modes[23].hzoom = MEC_horizontal_zoom_mode
-    modes[23].vzoom = MEC_vertical_zoom_mode
+    modes[23].hzoom = _G.MEC_horizontal_zoom_mode
+    modes[23].vzoom = _G.MEC_vertical_zoom_mode
 
     modes[30] = {}
     modes[30].name = 'Arrange view item single click'
-    modes[30].hzoom = AIS_horizontal_zoom_mode
-    modes[30].vzoom = AIS_vertical_zoom_mode
+    modes[30].hzoom = _G.AIS_horizontal_zoom_mode
+    modes[30].vzoom = _G.AIS_vertical_zoom_mode
 
     modes[31] = {}
     modes[31].name = 'Arrange view item double click'
-    modes[31].hzoom = AID_horizontal_zoom_mode
-    modes[31].vzoom = AID_vertical_zoom_mode
+    modes[31].hzoom = _G.AID_horizontal_zoom_mode
+    modes[31].vzoom = _G.AID_vertical_zoom_mode
 
     local hzoom_mode, vzoom_mode
     local mode = modes[context]
@@ -493,7 +494,7 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
             -- Add gap between notes to note length
             if sppq >= prev_eppq then
                 -- Limit gap length to something reasonable
-                local min_gap_length = note_length * number_of_notes
+                local min_gap_length = note_length * _G.number_of_notes
                 gap_length = math.min(min_gap_length, sppq - prev_eppq)
             end
             if eppq > prev_eppq then
@@ -509,7 +510,7 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
                     note_distance = math.max(note_distance, note_length)
                     min_note_distance = math.min(min_note_distance, note_distance)
 
-                    local note_weight = 1 / note_distance ^ smoothing
+                    local note_weight = 1 / note_distance ^ _G.smoothing
                     local gap_note_length = note_length + gap_length
                     local weighted_gap_length = note_weight * gap_note_length
                     note_length_sum = note_length_sum + weighted_gap_length
@@ -526,7 +527,7 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
 
     local avg_note_length = note_length_sum / note_weight_sum
     print('Avg note length: ' .. math.floor(avg_note_length))
-    local zoom_ppq_length = avg_note_length * number_of_notes
+    local zoom_ppq_length = avg_note_length * _G.number_of_notes
 
     -- If the area is empty, keep at least one note visible
     if min_note_distance ~= math.huge and zoom_ppq_length / 2.5 < min_note_distance then
@@ -641,7 +642,7 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
         reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
         row_string = row_string .. ' -> ' .. curr_row
 
-        if pitch_range > target_range and size < max_vertical_note_pixels then
+        if pitch_range > target_range and size < _G.max_vertical_note_pixels then
             -- Cmd: Zoom in vertically
             reaper.MIDIEditor_OnCommand(hwnd, 40111)
             zoom_string = zoom_string .. ' -> in'
@@ -658,7 +659,7 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
     repeat
         local row, size = GetItemVZoom(item)
         local pitch_range = math.abs(curr_row - row)
-        if size > max_vertical_note_pixels then
+        if size > _G.max_vertical_note_pixels then
             print('Reached max zoom size!')
             break
         end
@@ -679,7 +680,7 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
         reaper.MIDIEditor_OnCommand(hwnd, 40112)
         zoom_string = zoom_string .. ' -> out'
         i = i + 1
-    until i == 50 or pitch_range >= target_range and size <= max_vertical_note_pixels
+    until i == 50 or pitch_range >= target_range and size <= _G.max_vertical_note_pixels
 
     print('Target row:' .. target_row)
     print(row_string)
@@ -815,7 +816,7 @@ local editor_type = config % 4
 local has_js_api = reaper.JS_MIDIEditor_ListAll ~= nil
 
 -- Force setting: One MIDI editor per project
-if not use_toolbar_context_only and editor_type ~= 1 and not has_js_api then
+if not _G.use_toolbar_context_only and editor_type ~= 1 and not has_js_api then
     local msg = 'This script requires the mode: One MIDI editor per project\z
         \n\n(You can also install JS_ReaScriptAPI to use it with other modes)\z
         \n\nChange mode now?'
@@ -876,11 +877,11 @@ if is_hotkey and timestamp then
 end
 reaper.SetExtState(extname, 'timestamp', start_time, false)
 
-if debug then
+if _G.debug then
     reaper.ClearConsole()
 end
 
-if not use_toolbar_context_only and window == 'midi_editor' then
+if not _G.use_toolbar_context_only and window == 'midi_editor' then
     -- Context: MIDI editor note area
     if segment == 'notes' then
         context = 20
@@ -922,7 +923,7 @@ if not is_hotkey then
 end
 
 -- Non-Contextual mode
-if use_toolbar_context_only then
+if _G.use_toolbar_context_only then
     context = 0
 end
 
@@ -933,7 +934,7 @@ if context == -1 then
 end
 
 if window == 'arrange' and (context > 0 or click_mode > 0) then
-    if set_edit_cursor and (play_state == 0 or not use_play_cursor) then
+    if _G.set_edit_cursor and (play_state == 0 or not _G.use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.Main_OnCommand(40513, 0)
     end
@@ -964,15 +965,18 @@ if window == 'arrange' and (context > 0 or click_mode > 0) then
             if click_mode == 2 then
                 local src = reaper.GetMediaItemTake_Source(take)
                 local src_type = reaper.GetMediaSourceType(src, '')
-                -- Open video window if not already open (else item properties)
-                if src_type == 'VIDEO' then
-                    if reaper.GetToggleCommandState(50125) == 0 then
-                        -- Video: Show/hide video window
-                        reaper.Main_OnCommand(50125, 0)
-                        undo_name = 'Show/hide video window'
-                        reaper.Undo_EndBlock(undo_name, -1)
-                        return
-                    end
+                if src_type == 'CLICK' then
+                    -- Item properties: Show media item source properties
+                    reaper.Main_OnCommand(40011, 0)
+                    return
+                end
+                -- Open video window if not already open
+                if src_type == 'VIDEO' and reaper.GetToggleCommandState(50125) == 0 then
+                    -- Video: Show/hide video window
+                    reaper.Main_OnCommand(50125, 0)
+                    undo_name = 'Show/hide video window'
+                    reaper.Undo_EndBlock(undo_name, -1)
+                    return
                 end
                 if src_type == 'RPP_PROJECT' then
                     -- Cmd: Open associated project in new tab
@@ -998,7 +1002,7 @@ if context == 30 and not hwnd then
 end
 
 if context == 20 or context == 22 or context == 23 then
-    if set_edit_cursor and (play_state == 0 or not use_play_cursor) then
+    if _G.set_edit_cursor and (play_state == 0 or not _G.use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.MIDIEditor_OnCommand(hwnd, 40443)
     end
@@ -1195,8 +1199,10 @@ if hzoom_mode == 3 or hzoom_mode == 4 then
     local convQNToTime = reaper.TimeMap2_QNToTime
     local sig_num = reaper.TimeMap_GetTimeSigAtTime(0, cursor_pos)
     local cursor_qn = reaper.TimeMap2_timeToQN(0, cursor_pos)
-    zoom_start_pos = convQNToTime(0, cursor_qn - sig_num * number_of_measures / 2)
-    zoom_end_pos = convQNToTime(0, cursor_qn + sig_num * number_of_measures / 2)
+    zoom_start_pos = convQNToTime(0,
+        cursor_qn - sig_num * _G.number_of_measures / 2)
+    zoom_end_pos = convQNToTime(0,
+        cursor_qn + sig_num * _G.number_of_measures / 2)
 end
 
 -- Set zoom to number of notes
@@ -1300,9 +1306,9 @@ if vzoom_mode > 0 and not is_notation then
         print('Notes are hidden. Zooming to content')
         -- Cmd: Zoom to content
         reaper.MIDIEditor_OnCommand(hwnd, 40466)
-    elseif not use_note_sel or sel_note_lo then
+    elseif not _G.use_note_sel or sel_note_lo then
         if vzoom_mode >= 2 and vzoom_mode <= 3 then
-            if use_note_sel then
+            if _G.use_note_sel then
                 note_lo = sel_note_lo or note_lo
                 note_hi = sel_note_hi or note_hi
                 note_avg = sel_note_avg or note_avg
@@ -1310,15 +1316,18 @@ if vzoom_mode > 0 and not is_notation then
 
             if note_hi == -1 then
                 print('No note in area/take: Setting base note')
-                note_lo, note_hi = base_note, base_note
+                note_lo, note_hi = _G.base_note, _G.base_note
             end
 
-            if note_hi - note_lo < min_vertical_notes then
+            if note_hi - note_lo < _G.min_vertical_notes then
                 print('Using minimum pitch range')
-                note_hi = math.ceil((note_lo + note_hi + min_vertical_notes) / 2)
-                note_lo = math.floor((note_lo + note_hi - min_vertical_notes) / 2)
+                note_hi = math.ceil((note_lo + note_hi + _G.min_vertical_notes) /
+                    2)
+                note_lo = math.floor((note_lo + note_hi - _G.min_vertical_notes) /
+                    2)
                 note_lo = note_hi < 127 and note_lo or 127
-                note_hi = note_hi < 127 and note_hi or 127 - min_vertical_notes
+                note_hi = note_hi < 127 and note_hi or
+                    127 - _G.min_vertical_notes
             end
 
             if prev_note_lo ~= note_lo or prev_note_hi ~= note_hi then
@@ -1337,19 +1346,19 @@ if vzoom_mode > 0 and not is_notation then
             end
 
             if vzoom_mode >= 7 and vzoom_mode <= 8 then
-                if use_note_sel then note_avg = sel_note_avg or note_avg end
+                if _G.use_note_sel then note_avg = sel_note_avg or note_avg end
                 note_avg = note_avg or (note_lo + note_hi) / 2
                 note_row = math.floor(note_avg)
             end
 
             if vzoom_mode >= 9 and vzoom_mode <= 10 then
                 note_row = 0
-                if use_note_sel then note_row = sel_note_lo or note_row end
+                if _G.use_note_sel then note_row = sel_note_lo or note_row end
             end
 
             if vzoom_mode >= 11 and vzoom_mode <= 12 then
                 note_row = 127
-                if use_note_sel then note_row = sel_note_hi or note_row end
+                if _G.use_note_sel then note_row = sel_note_hi or note_row end
             end
 
             if note_row and note_row >= 0 then
@@ -1383,7 +1392,7 @@ reaper.MIDIEditor_OnCommand(hwnd, 40726)
 -- Reset previous time selection
 local sel_start_pos = sel and sel.start_pos or 0
 local sel_end_pos = sel and sel.end_pos or 0
-if not debug then
+if not _G.debug then
     SetSelection(sel_start_pos, sel_end_pos)
 end
 

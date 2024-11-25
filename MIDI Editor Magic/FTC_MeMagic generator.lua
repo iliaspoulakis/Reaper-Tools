@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.0
+  @version 1.2.1
   @noindex
   @about Generates non-contextual configurations of MeMagic
 ]]
@@ -136,23 +136,23 @@ function WriteFile(new_file_path, h, v, is_standalone, use_note_sel)
             if is_standalone and line:match('@noindex') then
                 line = '  @provides [main=main,midi_editor] .'
             end
-            if use_note_sel and line:match('local use_note_sel =') then
-                line = 'local use_note_sel = true'
+            if use_note_sel and line:match('_G.use_note_sel =') then
+                line = '_G.use_note_sel = true'
             end
-            if line:match('local TBB_horizontal_zoom_mode = ') then
-                line = 'local TBB_horizontal_zoom_mode = ' .. h
+            if line:match('_G.TBB_horizontal_zoom_mode = ') then
+                line = '_G.TBB_horizontal_zoom_mode = ' .. h
             end
-            if line:match('local TBB_vertical_zoom_mode = ') then
-                line = 'local TBB_vertical_zoom_mode = ' .. v
+            if line:match('_G.TBB_vertical_zoom_mode = ') then
+                line = '_G.TBB_vertical_zoom_mode = ' .. v
             end
-            if line:match('local use_toolbar_context_only = ') then
-                line = 'local use_toolbar_context_only = true'
+            if line:match('_G.use_toolbar_context_only = ') then
+                line = '_G.use_toolbar_context_only = true'
             end
-            if line:match('local set_edit_cursor = ') then
-                line = 'local set_edit_cursor = false'
+            if line:match('_G.set_edit_cursor = ') then
+                line = '_G.set_edit_cursor = false'
             end
-            if line:match('local debug = ') then
-                line = 'local debug = false'
+            if line:match('_G.debug = ') then
+                line = '_G.debug = false'
             end
             new_file:write(line, '\n')
         end
