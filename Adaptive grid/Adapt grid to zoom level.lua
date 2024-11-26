@@ -262,13 +262,13 @@ function AdaptMIDIGrid(spacing)
     min_grid_div = tonumber(min_grid_div) or 0
     if min_grid_div == 0 then min_grid_div = 1 / 4096 * 2 / 3 end
     if new_grid_div < min_grid_div then
-        if new_grid_div < grid_div then return end
+        if new_grid_div < grid_div / 4 then return end
     end
     local max_grid_div = reaper.GetExtState(extname, 'midi_max_limit')
     max_grid_div = tonumber(max_grid_div) or 0
     if max_grid_div == 0 then max_grid_div = 4096 * 3 / 2 end
     if new_grid_div > max_grid_div then
-        if new_grid_div > grid_div then return end
+        if new_grid_div > grid_div / 4 then return end
     end
 
     reaper.SetMIDIEditorGrid(0, new_grid_div)

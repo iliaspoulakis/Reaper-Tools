@@ -140,7 +140,9 @@ local function AdaptMIDIEditorGrid()
     if has_js_api then
         local note_view = reaper.JS_Window_FindChildByID(editor_hwnd, 1001)
         local _, _, size, _, epos = reaper.JS_Window_GetScrollInfo(note_view, 'h')
-        if epos == prev_page_epos and size == prev_page_size then return end
+        -- Note: When epos == size the scrollbar is full-size and doesn't change
+        -- its size at various zoom levels
+        if epos == prev_page_epos and size == prev_page_size and epos ~= size then return end
         prev_page_epos = epos
         prev_page_size = size
     end
