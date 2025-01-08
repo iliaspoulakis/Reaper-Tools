@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="4fe67dfc1a3cadf81cf37471e7d7d54685f252c2">
+<index version="1" name="FTC Tools" commit="ddcc7839566848346c5a19918316b4f432caf831">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1641,6 +1641,12 @@
         <changelog><![CDATA[- Display inversions on chord degrees
 - Fix option to display chord inversions]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5a9a046f9fbb83430c45988bc9d2556a8e99419c/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.3.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2025-01-08T14:12:05Z">
+        <changelog><![CDATA[- Show selected chords only when notes overlap
+- Show inversions by default
+- Fix certain chords being incorrectly displayed as octaves]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/ddcc7839566848346c5a19918316b4f432caf831/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
