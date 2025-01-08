@@ -265,6 +265,7 @@ local note_names_solfege_flat = {'Do ', 'Reb ', 'Re ', 'Mib ', 'Mi ', 'Fa ',
 local use_input = reaper.GetExtState(extname, 'input') ~= '0'
 local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_only')) or 3
 
+local sel_mode = tonumber(reaper.GetExtState(extname, 'sel_mode')) or 2
 local use_inversions = reaper.GetExtState(extname, 'inversions') == '1'
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
@@ -337,6 +338,12 @@ function SetSharpMode(is_sharp)
             long as auto-detection during key snap is enabled!'
         reaper.MB(msg, 'Warning', 0)
     end
+end
+
+function ToggleSelectionMode()
+    sel_mode = sel_mode == 2 and 1 or 2
+    reaper.SetExtState(extname, 'sel_mode', sel_mode, 1)
+    prev_hash = nil
 end
 
 function ToggleSharpsAutoDetect()
@@ -570,7 +577,25 @@ function GetChords(take)
 
     local sel_chord
     if #sel_notes >= 2 then
-        sel_chord = BuildChord(sel_notes) or {name = 'none'}
+        if sel_mode == 1 then
+            sel_chord = BuildChord(sel_notes) or {name = 'none'}
+        end
+        if sel_mode == 2 then
+            -- Check for gaps in selected notes
+            local has_gaps = false
+            local max_eppq = sel_notes[1].eppq
+            for i = 2, #sel_notes do
+                local note = sel_notes[i]
+                if note.sppq > max_eppq then
+                    has_gaps = true
+                    break
+                end
+                if note.eppq > max_eppq then max_eppq = note.eppq end
+            end
+            if not has_gaps then
+                sel_chord = BuildChord(sel_notes) or {name = 'none'}
+            end
+        end
     end
     if #notes >= 2 then
         local chord = BuildChord(notes)
@@ -1484,10 +1509,6 @@ function ShowChordBoxMenu()
         {
             title = 'Export chords as',
             {
-                title = 'Chord track',
-                OnReturn = CreateChordTrack,
-            },
-            {
                 title = 'Project regions',
                 OnReturn = CreateChordProjectRegions,
             },
@@ -1506,6 +1527,10 @@ function ShowChordBoxMenu()
             {
                 title = 'Notation events',
                 OnReturn = CreateChordNotationEvents,
+            },
+            {
+                title = 'Chord track',
+                OnReturn = CreateChordTrack,
             },
         },
         {
@@ -1574,6 +1599,11 @@ function ShowChordBoxMenu()
                     OnReturn = ToggleReuseChordTrack,
                     is_checked = reuse_chord_track,
                 },
+            },
+            {
+                title = 'Show selected chord only when notes overlap',
+                OnReturn = ToggleSelectionMode,
+                is_checked = sel_mode == 2,
             },
             {
                 title = 'Analyze incoming MIDI (live input)',
