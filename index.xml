@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="ddcc7839566848346c5a19918316b4f432caf831">
+<index version="1" name="FTC Tools" commit="ffbbbda89ac0a0d9e6133cbd612da423ab5dffe2">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1647,6 +1647,10 @@
 - Show inversions by default
 - Fix certain chords being incorrectly displayed as octaves]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/ddcc7839566848346c5a19918316b4f432caf831/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.3.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2025-01-24T17:00:10Z">
+        <changelog><![CDATA[- Do no display selected chord for legato notes]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/ffbbbda89ac0a0d9e6133cbd612da423ab5dffe2/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
