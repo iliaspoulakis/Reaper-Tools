@@ -1,13 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.3.0
+  @version 2.3.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Show selected chords only when notes overlap
-    - Show inversions by default
-    - Fix certain chords being incorrectly displayed as octaves
+    - Do no display selected chord for legato notes
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -592,7 +590,7 @@ function GetChords(take)
             local max_eppq = sel_notes[1].eppq
             for i = 2, #sel_notes do
                 local note = sel_notes[i]
-                if note.sppq > max_eppq then
+                if note.sppq > max_eppq - 60 then
                     has_gaps = true
                     break
                 end
