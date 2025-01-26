@@ -1,11 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.3.1
+  @version 2.4.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Do no display selected chord for legato notes
+    - Added option "compact notation" mode
+    - Added option to show omitted notes (now disabled by default)
+    - Improved live input detection in certain edge cases
+    - Set focus back to MIDI editor after chosing a menu option
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -113,138 +116,132 @@ if is_windows then
     tooltip_delay = 2 * (tonumber(tooltip_delay) or 200) / 1000
 end
 
+local curr_chord_names
 local chord_names = {}
--- Dyads
-chord_names['1 2'] = ' minor 2nd'
-chord_names['1 3'] = ' major 2nd'
-chord_names['1 4'] = ' minor 3rd'
-chord_names['1 5'] = ' major 3rd'
-chord_names['1 6'] = ' perfect 4th'
-chord_names['1 7'] = '5-'
-chord_names['1 8'] = '5'
-chord_names['1 9'] = ' minor 6th'
-chord_names['1 10'] = ' major 6th'
-chord_names['1 11'] = ' minor 7th'
-chord_names['1 12'] = ' major 7th'
-chord_names['1 13'] = ' octave'
 
+-- Dyads
+chord_names['1 2'] = {expanded = ' minor 2nd', compact = 'm2'}
+chord_names['1 3'] = {expanded = ' major 2nd', compact = 'M2'}
+chord_names['1 4'] = {expanded = ' minor 3rd', compact = 'm3'}
+chord_names['1 5'] = {expanded = ' major 3rd', compact = 'M3'}
+chord_names['1 6'] = {expanded = ' perfect 4th', compact = 'P4'}
+chord_names['1 7'] = {expanded = '5-', compact = '5-'}
+chord_names['1 8'] = {expanded = '5', compact = '5'}
+chord_names['1 9'] = {expanded = ' minor 6th', compact = 'm6'}
+chord_names['1 10'] = {expanded = ' major 6th', compact = 'M6'}
+chord_names['1 11'] = {expanded = ' minor 7th', compact = 'm7'}
+chord_names['1 12'] = {expanded = ' major 7th', compact = 'M7'}
+chord_names['1 13'] = {expanded = ' octave', compact = 'P8'}
 -- Compound intervals
-chord_names['1 14'] = ' minor 9th'
-chord_names['1 15'] = ' major 9th'
-chord_names['1 16'] = ' minor 10th'
-chord_names['1 17'] = ' major 10th'
-chord_names['1 18'] = ' perfect 11th'
-chord_names['1 19'] = ' minor 12th'
-chord_names['1 20'] = ' perfect 12th'
-chord_names['1 21'] = ' minor 13th'
-chord_names['1 22'] = ' major 13th'
-chord_names['1 23'] = ' minor 14th'
-chord_names['1 24'] = ' major 14th'
+chord_names['1 14'] = {expanded = ' minor 9th', compact = 'm9'}
+chord_names['1 15'] = {expanded = ' major 9th', compact = 'M9'}
+chord_names['1 16'] = {expanded = ' minor 10th', compact = 'm10'}
+chord_names['1 17'] = {expanded = ' major 10th', compact = 'M10'}
+chord_names['1 18'] = {expanded = ' perfect 11th', compact = 'P11'}
+chord_names['1 19'] = {expanded = ' minor 12th', compact = 'm12'}
+chord_names['1 20'] = {expanded = ' perfect 12th', compact = 'P12'}
+chord_names['1 21'] = {expanded = ' minor 13th', compact = 'm13'}
+chord_names['1 22'] = {expanded = ' major 13th', compact = 'M13'}
+chord_names['1 23'] = {expanded = ' minor 14th', compact = 'm14'}
+chord_names['1 24'] = {expanded = ' major 14th', compact = 'M14'}
 
 -- Major chords
-chord_names['1 5 8'] = 'maj'
-chord_names['1 8 12'] = 'maj7 omit3'
-chord_names['1 5 12'] = 'maj7 omit5'
-chord_names['1 5 8 12'] = 'maj7'
-chord_names['1 3 5 12'] = 'maj9 omit5'
-chord_names['1 3 5 8 12'] = 'maj9'
-chord_names['1 3 5 6 12'] = 'maj11 omit5'
-chord_names['1 5 6 8 12'] = 'maj11 omit9'
-chord_names['1 3 5 6 8 12'] = 'maj11'
-chord_names['1 3 5 6 10 12'] = 'maj13 omit5'
-chord_names['1 5 6 8 10 12'] = 'maj13 omit9'
-chord_names['1 3 5 6 8 10 12'] = 'maj13'
-chord_names['1 8 10'] = '6 omit3'
-chord_names['1 5 8 10'] = '6'
-chord_names['1 3 5 10'] = '6/9 omit5'
-chord_names['1 3 5 8 10'] = '6/9'
+chord_names['1 5 8'] = {expanded = 'maj', compact = 'M'}
+chord_names['1 8 12'] = {expanded = 'maj7 omit3', compact = 'M7(no3)'}
+chord_names['1 5 12'] = {expanded = 'maj7 omit5', compact = 'M7(no5)'}
+chord_names['1 5 8 12'] = {expanded = 'maj7', compact = 'M7'}
+chord_names['1 3 5 12'] = {expanded = 'maj9 omit5', compact = 'M9(no5)'}
+chord_names['1 3 5 8 12'] = {expanded = 'maj9', compact = 'M9'}
+chord_names['1 3 5 6 12'] = {expanded = 'maj11 omit5', compact = 'M11(no5)'}
+chord_names['1 5 6 8 12'] = {expanded = 'maj11 omit9', compact = 'M11(no9)'}
+chord_names['1 3 5 6 8 12'] = {expanded = 'maj11', compact = 'M11'}
+chord_names['1 3 5 6 10 12'] = {expanded = 'maj13 omit5', compact = 'M13(no5)'}
+chord_names['1 5 6 8 10 12'] = {expanded = 'maj13 omit9', compact = 'M13(no9)'}
+chord_names['1 3 5 6 8 10 12'] = {expanded = 'maj13', compact = 'M13'}
+chord_names['1 8 10'] = {expanded = '6 omit3', compact = '6(no3)'}
+chord_names['1 5 8 10'] = {expanded = '6', compact = '6'}
+chord_names['1 3 5 10'] = {expanded = '6/9 omit5', compact = '6/9(no5)'}
+chord_names['1 3 5 8 10'] = {expanded = '6/9', compact = '6/9'}
 
 -- Dominant/Seventh
-chord_names['1 8 11'] = '7 omit3'
-chord_names['1 5 11'] = '7 omit5'
-chord_names['1 5 8 11'] = '7'
-chord_names['1 3 8 11'] = '9 omit3'
-chord_names['1 3 5 11'] = '9 omit5'
-chord_names['1 3 5 8 11'] = '9'
-chord_names['1 3 5 10 11'] = '13 omit5'
-chord_names['1 5 8 10 11'] = '13 omit9'
-chord_names['1 3 5 8 10 11'] = '13'
-chord_names['1 5 7 11'] = '7#11 omit5'
-chord_names['1 5 7 8 11'] = '7#11'
-chord_names['1 3 5 7 11'] = '9#11 omit5'
-chord_names['1 3 5 7 8 11'] = '9#11'
+chord_names['1 8 11'] = {expanded = '7 omit3', compact = '7(no3)'}
+chord_names['1 5 11'] = {expanded = '7 omit5', compact = '7(no5)'}
+chord_names['1 5 8 11'] = {expanded = '7', compact = '7'}
+chord_names['1 3 8 11'] = {expanded = '9 omit3', compact = '9(no3)'}
+chord_names['1 3 5 11'] = {expanded = '9 omit5', compact = '9(no5)'}
+chord_names['1 3 5 8 11'] = {expanded = '9', compact = '9'}
+chord_names['1 3 5 10 11'] = {expanded = '13 omit5', compact = '13(no5)'}
+chord_names['1 5 8 10 11'] = {expanded = '13 omit9', compact = '13(no9)'}
+chord_names['1 3 5 8 10 11'] = {expanded = '13', compact = '13'}
+chord_names['1 5 7 11'] = {expanded = '7#11 omit5', compact = '7#11(no5)'}
+chord_names['1 5 7 8 11'] = {expanded = '7#11', compact = '7#11'}
+chord_names['1 3 5 7 11'] = {expanded = '9#11 omit5', compact = '9#11(no5)'}
+chord_names['1 3 5 7 8 11'] = {expanded = '9#11', compact = '9#11'}
 
 -- Altered
-chord_names['1 2 5 11'] = '7b9 omit5'
-chord_names['1 2 5 8 11'] = '7b9'
-chord_names['1 2 5 7 8 11'] = '7b9#11'
-chord_names['1 4 5 11'] = '7#9 omit5'
-chord_names['1 4 5 8 11'] = '7#9'
-chord_names['1 4 5 9 11'] = '7#5#9'
-chord_names['1 4 5 7 8 11'] = '7#9#11'
-chord_names['1 2 5 8 10 11'] = '13b9'
-chord_names['1 3 5 7 8 10 11'] = '13#11'
-chord_names['1 5 7 12'] = 'maj7#11 omit5'
-chord_names['1 5 7 8 12'] = 'maj7#11'
-chord_names['1 3 5 7 12'] = 'maj9#11 omit5'
-chord_names['1 3 5 7 8 12'] = 'maj9#11'
-chord_names['1 3 5 7 10 12'] = 'maj13#11 omit5'
-chord_names['1 5 7 8 10 12'] = 'maj13#11 omit9'
-chord_names['1 3 5 7 8 10 12'] = 'maj13#11'
+chord_names['1 2 5 11'] = {expanded = '7b9 omit5', compact = '7b9(no5)'}
+chord_names['1 2 5 8 11'] = {expanded = '7b9', compact = '7b9'}
+chord_names['1 2 5 7 8 11'] = {expanded = '7b9#11', compact = '7b9#11'}
+chord_names['1 4 5 11'] = {expanded = '7#9 omit5', compact = '7#9(no5)'}
+chord_names['1 4 5 8 11'] = {expanded = '7#9', compact = '7#9'}
+chord_names['1 4 5 9 11'] = {expanded = '7#5#9', compact = '7#5#9'}
+chord_names['1 4 5 7 8 11'] = {expanded = '7#9#11', compact = '7#9#11'}
+chord_names['1 2 5 8 10 11'] = {expanded = '13b9', compact = '13b9'}
+chord_names['1 3 5 7 8 10 11'] = {expanded = '13#11', compact = '13#11'}
 
 -- Suspended
-chord_names['1 6 8'] = 'sus4'
-chord_names['1 3 8'] = 'sus2'
-chord_names['1 6 11'] = '7sus4 omit5'
-chord_names['1 6 8 11'] = '7sus4'
-chord_names['1 3 6 11'] = '11 omit5'
-chord_names['1 6 8 11'] = '11 omit9'
-chord_names['1 3 6 8 11'] = '11'
+chord_names['1 6 8'] = {expanded = 'sus4', compact = 'sus4'}
+chord_names['1 3 8'] = {expanded = 'sus2', compact = 'sus2'}
+chord_names['1 6 11'] = {expanded = '7sus4 omit5', compact = '7sus4(no5)'}
+chord_names['1 6 8 11'] = {expanded = '7sus4', compact = '7sus4'}
+chord_names['1 3 6 11'] = {expanded = '11 omit5', compact = '11(no5)'}
+chord_names['1 6 8 11'] = {expanded = '11 omit9', compact = '11(no9)'}
+chord_names['1 3 6 8 11'] = {expanded = '11', compact = '11'}
 
 -- Minor
-chord_names['1 4 8'] = 'm'
-chord_names['1 4 11'] = 'm7 omit5'
-chord_names['1 4 8 11'] = 'm7'
-chord_names['1 4 12'] = 'm/maj7 omit5'
-chord_names['1 4 8 12'] = 'm/maj7'
-chord_names['1 3 4 12'] = 'm/maj9 omit5'
-chord_names['1 3 4 8 12'] = 'm/maj9'
-chord_names['1 3 4 11'] = 'm9 omit5'
-chord_names['1 3 4 8 11'] = 'm9'
-chord_names['1 3 4 6 11'] = 'm11 omit5'
-chord_names['1 4 6 8 11'] = 'm11 omit9'
-chord_names['1 3 4 6 8 11'] = 'm11'
-chord_names['1 3 4 6 10 11'] = 'm13 omit5'
-chord_names['1 4 6 8 10 11'] = 'm13 omit9'
-chord_names['1 3 4 6 8 10 11'] = 'm13'
-chord_names['1 4 8 10'] = 'm6'
-chord_names['1 3 4 10'] = 'm6/9 omit5'
-chord_names['1 3 4 8 10'] = 'm6/9'
+chord_names['1 4 8'] = {expanded = 'm', compact = 'm'}
+chord_names['1 4 11'] = {expanded = 'm7 omit5', compact = 'm7(no5)'}
+chord_names['1 4 8 11'] = {expanded = 'm7', compact = 'm7'}
+chord_names['1 4 12'] = {expanded = 'm/maj7 omit5', compact = 'm/M7(no5)'}
+chord_names['1 4 8 12'] = {expanded = 'm/maj7', compact = 'm/M7'}
+chord_names['1 3 4 12'] = {expanded = 'm/maj9 omit5', compact = 'm/M9(no5)'}
+chord_names['1 3 4 8 12'] = {expanded = 'm/maj9', compact = 'm/M9'}
+chord_names['1 3 4 11'] = {expanded = 'm9 omit5', compact = 'm9(no5)'}
+chord_names['1 3 4 8 11'] = {expanded = 'm9', compact = 'm9'}
+chord_names['1 3 4 6 11'] = {expanded = 'm11 omit5', compact = 'm11(no5)'}
+chord_names['1 4 6 8 11'] = {expanded = 'm11 omit9', compact = 'm11(no9)'}
+chord_names['1 3 4 6 8 11'] = {expanded = 'm11', compact = 'm11'}
+chord_names['1 3 4 6 10 11'] = {expanded = 'm13 omit5', compact = 'm13(no5)'}
+chord_names['1 4 6 8 10 11'] = {expanded = 'm13 omit9', compact = 'm13(no9)'}
+chord_names['1 3 4 6 8 10 11'] = {expanded = 'm13', compact = 'm13'}
+chord_names['1 4 8 10'] = {expanded = 'm6', compact = 'm6'}
+chord_names['1 3 4 10'] = {expanded = 'm6/9 omit5', compact = 'm6/9(no5)'}
+chord_names['1 3 4 8 10'] = {expanded = 'm6/9', compact = 'm6/9'}
 
 -- Diminished
-chord_names['1 4 7'] = 'dim'
-chord_names['1 4 7 10'] = 'dim7'
-chord_names['1 4 7 11'] = 'm7b5'
-chord_names['1 2 4 8 11'] = 'm7b9'
-chord_names['1 2 4 7 11'] = 'm7b5b9'
-chord_names['1 2 4 11'] = 'm7b9 omit5'
-chord_names['1 3 4 7 11'] = 'm9b5'
-chord_names['1 3 4 6 7 11'] = 'm11b5'
-chord_names['1 3 5 7 10 11'] = '13b5'
+chord_names['1 4 7'] = {expanded = 'dim', compact = 'dim'}
+chord_names['1 4 7 10'] = {expanded = 'dim7', compact = 'dim7'}
+chord_names['1 4 7 11'] = {expanded = 'm7b5', compact = 'm7b5'}
+chord_names['1 2 4 8 11'] = {expanded = 'm7b9', compact = 'm7b9'}
+chord_names['1 2 4 7 11'] = {expanded = 'm7b5b9', compact = 'm7b5b9'}
+chord_names['1 2 4 11'] = {expanded = 'm7b9 omit5', compact = 'm7b9(no5)'}
+chord_names['1 3 4 7 11'] = {expanded = 'm9b5', compact = 'm9b5'}
+chord_names['1 3 4 6 7 11'] = {expanded = 'm11b5', compact = 'm11b5'}
+chord_names['1 3 5 7 10 11'] = {expanded = '13b5', compact = '13b5'}
 
 -- Augmented
-chord_names['1 5 9'] = 'aug'
-chord_names['1 5 9 11'] = 'aug7'
-chord_names['1 5 9 12'] = 'aug/maj7'
+chord_names['1 5 9'] = {expanded = 'aug', compact = 'aug'}
+chord_names['1 5 9 11'] = {expanded = 'aug7', compact = 'aug7'}
+chord_names['1 5 9 12'] = {expanded = 'aug/maj7', compact = 'aug/M7'}
 
 -- Additions
-chord_names['1 3 4'] = 'm add9 omit5'
-chord_names['1 3 4 8'] = 'm add9'
-chord_names['1 3 5'] = 'maj add9 omit5'
-chord_names['1 3 5 8'] = 'maj add9'
-chord_names['1 4 6 8'] = 'm add11'
-chord_names['1 5 6 8'] = 'maj add11'
-chord_names['1 5 10 11'] = '7 add13'
+chord_names['1 3 4'] = {expanded = 'm add9 omit5', compact = 'm add9(no5)'}
+chord_names['1 3 4 8'] = {expanded = 'm add9', compact = 'm add9'}
+chord_names['1 3 5'] = {expanded = 'maj add9 omit5', compact = 'M add9(no5)'}
+chord_names['1 3 5 8'] = {expanded = 'maj add9', compact = 'M add9'}
+chord_names['1 4 6 8'] = {expanded = 'm add11', compact = 'm add11'}
+chord_names['1 5 6 8'] = {expanded = 'maj add11', compact = 'M add11'}
+chord_names['1 5 10 11'] = {expanded = '7 add13', compact = '7 add13'}
 
 local degrees = {'I', 'II', 'II', 'III', 'III', 'IV', 'V', 'V', 'VI', 'VI',
     'VII', 'VII'}
@@ -265,7 +262,9 @@ local use_input = reaper.GetExtState(extname, 'input') ~= '0'
 local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_only')) or 3
 
 local sel_mode = tonumber(reaper.GetExtState(extname, 'sel_mode')) or 2
+local use_compact = reaper.GetExtState(extname, 'compact') == '1'
 local use_inversions = reaper.GetExtState(extname, 'inversions') ~= '0'
+local use_omissions = reaper.GetExtState(extname, 'omissions') == '1'
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
 local use_sharps_autodetect = reaper.GetExtState(extname, 'sharps_auto') ~= '0'
@@ -276,6 +275,15 @@ if chord_track_name == '' then chord_track_name = 'Chords' end
 local reuse_chord_track = reaper.GetExtState(extname, 'reuse_chord_track') == '1'
 
 function print(msg) reaper.ShowConsoleMsg(tostring(msg) .. '\n') end
+
+function LoadChordNames()
+    curr_chord_names = {}
+    local key = use_compact and 'compact' or 'expanded'
+    for inverval, names in pairs(chord_names) do
+        curr_chord_names[inverval] = names[key]
+    end
+end
+LoadChordNames()
 
 function PitchToName(pitch)
     local note_names
@@ -318,9 +326,21 @@ function AutoDetectSharps(root, midi_scale)
     end
 end
 
+function ToggleCompactMode()
+    use_compact = not use_compact
+    reaper.SetExtState(extname, 'compact', use_compact and '1' or '0', 1)
+    LoadChordNames()
+    prev_hash = nil
+end
+
 function ToggleInversionMode()
     use_inversions = not use_inversions
     reaper.SetExtState(extname, 'inversions', use_inversions and '1' or '0', 1)
+end
+
+function ToggleOmissionMode()
+    use_omissions = not use_omissions
+    reaper.SetExtState(extname, 'omissions', use_omissions and '1' or '0', 1)
 end
 
 function ToggleSolfegeMode()
@@ -353,8 +373,7 @@ end
 
 function ToggleInputMode()
     use_input = not use_input
-    input_note_map = {}
-    prev_input_idx = reaper.MIDI_GetRecentInputEvent(0)
+    FlushMIDIInputChord()
     reaper.SetExtState(extname, 'input', use_input and '1' or '0', true)
 end
 
@@ -366,12 +385,14 @@ end
 function IdentifyChord(notes)
     -- Get chord root
     local root = math.maxinteger
-    for _, note in ipairs(notes) do
+    for i = 1, #notes do
+        local note = notes[i]
         root = note.pitch < root and note.pitch or root
     end
     -- Remove duplicates and move notes closer
     local intervals = {}
-    for _, note in ipairs(notes) do
+    for i = 1, #notes do
+        local note = notes[i]
         intervals[(note.pitch - root) % 12 + 1] = 1
     end
 
@@ -388,7 +409,8 @@ function IdentifyChord(notes)
     -- Check for compound chords / octaves
     if interval_cnt <= 1 then
         intervals = {}
-        for _, note in ipairs(notes) do
+        for i = 1, #notes do
+            local note = notes[i]
             local diff = note.pitch - root
             if diff >= 12 then
                 intervals[diff % 12 + 13] = 1
@@ -404,11 +426,11 @@ function IdentifyChord(notes)
         end
 
         -- Check if compound chord name exists for key
-        if chord_names[comp_key] then return comp_key, root end
+        if curr_chord_names[comp_key] then return comp_key, root end
     end
 
     -- Check if chord name exists for key
-    if chord_names[key] then return key, root end
+    if curr_chord_names[key] then return key, root end
 
     local key_nums = {}
     for key_num in key:gmatch('%d+') do key_nums[#key_nums + 1] = key_num end
@@ -425,7 +447,7 @@ function IdentifyChord(notes)
             if intervals[i] then inv_key = inv_key .. ' ' .. i end
         end
         -- Check if chord name exists for inversion key
-        if chord_names[inv_key] then return inv_key, root + diff, root end
+        if curr_chord_names[inv_key] then return inv_key, root + diff, root end
     end
 end
 
@@ -442,7 +464,8 @@ function BuildChord(notes)
             -- Determine chord start and end ppq position
             local min_eppq = math.maxinteger
             local max_sppq = math.mininteger
-            for _, note in ipairs(notes) do
+            for i = 1, #notes do
+                local note = notes[i]
                 min_eppq = note.eppq < min_eppq and note.eppq or min_eppq
                 max_sppq = note.sppq > max_sppq and note.sppq or max_sppq
             end
@@ -456,7 +479,9 @@ end
 function GetChordDegree(chord)
     local scale_root = prev_midi_scale_root
     -- Return without degree if a note of the chord is not included in scale
-    for _, note in ipairs(chord.notes) do
+    local notes = chord.notes
+    for i = 1, #notes do
+        local note = notes[i]
         if not curr_scale_intervals[(note.pitch - scale_root) % 12 + 1] then
             return
         end
@@ -491,7 +516,11 @@ end
 function BuildChordName(chord)
     if not chord then return '' end
     if chord.name then return chord.name end
-    local name = PitchToName(chord.root) .. chord_names[chord.key]
+    local add = curr_chord_names[chord.key]
+    if not use_omissions then
+        add = add:gsub(use_compact and '%(no%d+%)' or ' omit%d+', '')
+    end
+    local name = PitchToName(chord.root) .. add
     if use_inversions and chord.inversion_root then
         name = name .. '/' .. PitchToName(chord.inversion_root)
     end
@@ -529,9 +558,10 @@ function GetChords(take)
                 if #notes >= 2 then
                     local chord = BuildChord(notes)
                     if chord then chords[#chords + 1] = chord end
-                    for n = 3, #notes do
+                    for _ = 3, #notes do
                         -- Remove notes that end prior to chord_min_eppq
-                        for _, note in ipairs(notes) do
+                        for n = 1, #notes do
+                            local note = notes[n]
                             if note.eppq > chord_min_eppq then
                                 new_notes[#new_notes + 1] = note
                             end
@@ -551,7 +581,8 @@ function GetChords(take)
                     end
                     -- Remove notes that end prior to the start of current note
                     chord_min_eppq = eppq
-                    for _, note in ipairs(notes) do
+                    for n = 1, #notes do
+                        local note = notes[n]
                         if note.eppq > sppq then
                             new_notes[#new_notes + 1] = note
                             if note.eppq < chord_min_eppq then
@@ -604,10 +635,11 @@ function GetChords(take)
     if #notes >= 2 then
         local chord = BuildChord(notes)
         if chord then chords[#chords + 1] = chord end
-        for n = 3, #notes do
+        for _ = 3, #notes do
             local new_notes = {}
             -- Remove notes that end prior to chord_min_eppq
-            for _, note in ipairs(notes) do
+            for n = 1, #notes do
+                local note = notes[n]
                 if note.eppq > chord_min_eppq then
                     new_notes[#new_notes + 1] = note
                 end
@@ -628,6 +660,12 @@ function GetChords(take)
     return chords, sel_chord
 end
 
+function FlushMIDIInputChord()
+    prev_input_idx = nil
+    input_note_map = {}
+    input_note_cnt = 0
+end
+
 function GetMIDIInputChord(track)
     local rec_in = reaper.GetMediaTrackInfo_Value(track, 'I_RECINPUT')
     local rec_arm = reaper.GetMediaTrackInfo_Value(track, 'I_RECARM')
@@ -637,15 +675,16 @@ function GetMIDIInputChord(track)
     local filter_channel = rec_in & 31
     local filter_dev_id = (rec_in >> 5) & 127
 
-    prev_input_idx = prev_input_idx or 0
-
+    local input_notes
     local idx, buf, _, dev_id = reaper.MIDI_GetRecentInputEvent(0)
+    prev_input_idx = prev_input_idx or idx
+
     if idx > prev_input_idx then
         local new_idx = idx
         local i = 0
-        --TODO Reverse
+        input_notes = {}
         repeat
-            if prev_input_idx ~= 0 and #buf == 3 then
+            if #buf == 3 then
                 if filter_dev_id == 63 or filter_dev_id == dev_id then
                     local msg1 = buf:byte(1)
                     local channel = (msg1 & 0x0F) + 1
@@ -659,13 +698,13 @@ function GetMIDIInputChord(track)
                             is_note_on = false
                             is_note_off = true
                         end
-                        if is_note_on and not input_note_map[msg2] then
-                            input_note_map[msg2] = 1
-                            input_note_cnt = input_note_cnt + 1
+                        if is_note_on then
+                            local note = {pitch = msg2, is_note_on = true}
+                            input_notes[#input_notes + 1] = note
                         end
-                        if is_note_off and input_note_map[msg2] == 1 then
-                            input_note_map[msg2] = nil
-                            input_note_cnt = input_note_cnt - 1
+                        if is_note_off then
+                            local note = {pitch = msg2, is_note_on = false}
+                            input_notes[#input_notes + 1] = note
                         end
                     end
                 end
@@ -675,6 +714,24 @@ function GetMIDIInputChord(track)
         until idx == prev_input_idx
 
         prev_input_idx = new_idx
+    end
+
+    if input_notes then
+        for i = #input_notes, 1, -1 do
+            local note = input_notes[i]
+            local pitch = note.pitch
+            if note.is_note_on then
+                if not input_note_map[pitch] then
+                    input_note_map[pitch] = 1
+                    input_note_cnt = input_note_cnt + 1
+                end
+            else
+                if input_note_map[pitch] == 1 then
+                    input_note_map[pitch] = nil
+                    input_note_cnt = input_note_cnt - 1
+                end
+            end
+        end
     end
 
     if input_note_cnt >= 2 then
@@ -1540,7 +1597,7 @@ function ShowChordBoxMenu()
         {
             title = 'Options',
             {
-                title = 'Display chords as',
+                title = 'Chord display',
                 {
                     title = 'Flat',
                     OnReturn = SetSharpMode,
@@ -1555,9 +1612,19 @@ function ShowChordBoxMenu()
                 },
                 {separator = true},
                 {
+                    title = 'Compact notation',
+                    OnReturn = ToggleCompactMode,
+                    is_checked = use_compact,
+                },
+                {
                     title = 'Show inversions',
                     OnReturn = ToggleInversionMode,
                     is_checked = use_inversions,
+                },
+                {
+                    title = 'Show omissions',
+                    OnReturn = ToggleOmissionMode,
+                    is_checked = use_omissions,
                 },
                 {
                     title = 'Solfège (do, re, mi)',
@@ -1860,13 +1927,7 @@ function Main()
         reaper.defer(Main)
         return
     end
-
-    -- Flush input events when take changes
-    if take ~= prev_take then
-        prev_take = take
-        prev_input_idx = reaper.MIDI_GetRecentInputEvent(0)
-        input_note_map = {}
-    end
+    prev_take = take
 
     local x, y = reaper.GetMousePosition()
     local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
@@ -1896,10 +1957,10 @@ function Main()
                     end
                 else
                     ShowChordBoxMenu()
+                    reaper.JS_Window_SetFocus(prev_editor_hwnd)
                 end
                 is_forced_redraw = true
-                -- Flush input chords on click
-                input_note_map = {}
+                FlushMIDIInputChord()
             end
         end
         prev_mouse_state = mouse_state
@@ -2067,7 +2128,8 @@ function Main()
         if mode == 1 then
             local cursor_ppq = GetCursorPPQPosition(take, cursor_pos)
             if cursor_ppq then
-                for _, chord in ipairs(curr_chords) do
+                for i = 1, #curr_chords do
+                    local chord = curr_chords[i]
                     if chord.sppq > cursor_ppq then break end
                     curr_chord = chord
                 end
@@ -2077,7 +2139,8 @@ function Main()
         if mode == 0 and cursor_pos then
             local cursor_ppq = GetCursorPPQPosition(take, cursor_pos)
             if cursor_ppq then
-                for _, chord in ipairs(curr_chords) do
+                for i = 1, #curr_chords do
+                    local chord = curr_chords[i]
                     if chord.sppq > cursor_ppq then break end
                     if cursor_ppq >= chord.sppq and cursor_ppq <= chord.eppq then
                         curr_chord = chord
