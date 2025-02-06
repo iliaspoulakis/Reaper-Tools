@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="3bc4a0c8a0726b9f0a721fdcd099c23c434ea6e9">
+<index version="1" name="FTC Tools" commit="8653c5b376857ee4490d1767f09d91f31b78dcc2">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1658,6 +1658,10 @@
 - Improved live input detection in certain edge cases
 - Set focus back to MIDI editor after chosing a menu option]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/3bc4a0c8a0726b9f0a721fdcd099c23c434ea6e9/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.4.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2025-02-06T13:30:34Z">
+        <changelog><![CDATA[- Flush input chords when editor is closed]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/8653c5b376857ee4490d1767f09d91f31b78dcc2/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
