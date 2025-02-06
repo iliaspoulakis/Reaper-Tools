@@ -1,14 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.4.0
+  @version 2.4.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added option "compact notation" mode
-    - Added option to show omitted notes (now disabled by default)
-    - Improved live input detection in certain edge cases
-    - Set focus back to MIDI editor after chosing a menu option
+    - Flush input chords when editor is closed
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -1823,6 +1820,7 @@ function Main()
         reaper.defer(Main)
         prev_editor_hwnd = nil
         prev_take = nil
+        if prev_input_idx then FlushMIDIInputChord() end
         return
     end
 
@@ -1919,6 +1917,7 @@ function Main()
     if not take then
         reaper.defer(Main)
         prev_take = nil
+        if prev_input_idx then FlushMIDIInputChord() end
         return
     end
 
