@@ -537,7 +537,55 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
     return zoom_ppq_length
 end
 
-function GetPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
+function GetVisibleNoteRows(hwnd)
+    local mode
+    local visible_rows = {}
+
+    if reaper.GetToggleCommandStateEx(32060, 40452) == 1 then
+        mode = 'all'
+        for n = 0, 127 do visible_rows[n + 1] = n end
+    elseif reaper.GetToggleCommandStateEx(32060, 40143) == 1 then
+        mode = 'custom'
+        local take = reaper.MIDIEditor_GetTake(hwnd)
+        local track = take and reaper.GetMediaItemTake_Track(take)
+
+        local note_order
+        if track then
+            local _, chunk = reaper.GetTrackStateChunk(track, '', false)
+            note_order = chunk:match('CUSTOM_NOTE_ORDER (.-)\n')
+        end
+        if note_order then
+            for value in (note_order .. ' '):gmatch('(.-) ') do
+                visible_rows[#visible_rows + 1] = tonumber(value)
+            end
+        else
+            for n = 0, 127 do visible_rows[n + 1] = n end
+        end
+    else
+        mode = 'unused'
+        local GetSetting = reaper.MIDIEditor_GetSetting_int
+        local SetSetting = reaper.MIDIEditor_SetSetting_int
+        local setting = 'active_note_row'
+
+        local prev_row = GetSetting(hwnd, setting)
+
+        local highest_row = -1
+        for i = 0, 127 do
+            SetSetting(hwnd, setting, i)
+            local row = GetSetting(hwnd, setting)
+            if row > highest_row then
+                highest_row = row
+                visible_rows[#visible_rows + 1] = row
+            end
+        end
+
+        SetSetting(hwnd, setting, prev_row)
+    end
+    return visible_rows, mode
+end
+
+function GetPitchRange(take, vis_row_map,
+                       start_pos, end_pos, item_start_pos, item_end_pos)
     local item = reaper.GetMediaItemTake_Item(take)
     local item_start_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_start_pos)
     local item_end_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, item_end_pos)
@@ -582,7 +630,8 @@ function GetPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     local i = 0
     repeat
         local ret, sel, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
-        if ret and IsNoteVisible(sppq, eppq) then
+        pitch = ret and vis_row_map[pitch]
+        if pitch and IsNoteVisible(sppq, eppq) then
             note_lo = math.min(note_lo, pitch)
             note_hi = math.max(note_hi, pitch)
             note_avg = note_avg + pitch
@@ -604,32 +653,38 @@ function GetPitchRange(take, start_pos, end_pos, item_start_pos, item_end_pos)
     return note_lo, note_hi, note_avg, sel_note_lo, sel_note_hi, sel_note_avg
 end
 
-function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
+function ZoomToPitchRange(hwnd, item, vis_rows, note_lo, note_hi)
     -- Get previous active note row
     local setting = 'active_note_row'
     local active_row = reaper.MIDIEditor_GetSetting_int(hwnd, setting)
 
-    note_lo = math.max(note_lo, 0)
-    note_hi = math.min(note_hi, 127)
+    local vis_row_cnt = #vis_rows
+
+    note_lo = math.max(note_lo, 1)
+    note_hi = math.min(note_hi, vis_row_cnt)
+
     local target_row = math.floor((note_lo + note_hi) / 2)
     local curr_row = GetItemVZoom(item)
+    curr_row = curr_row + vis_row_cnt - 127
 
     local target_range = math.ceil((note_hi - note_lo) / 2)
 
     -- Set active note row to set center of vertical zoom
-    reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
+    local pitch = vis_rows[curr_row]
+    reaper.MIDIEditor_SetSetting_int(hwnd, setting, pitch)
 
     -- Note: Zooming when row is visible centers the note row
     -- Cmd: Zoom out vertically
     reaper.MIDIEditor_OnCommand(hwnd, 40112)
 
     -- Debugging output
-    local row_string = ' -> ' .. curr_row
+    local row_string = ' -> ' .. curr_row .. ':' .. pitch
     local zoom_string = ' -> out'
 
     local i = 0
     repeat
         local row, size = GetItemVZoom(item)
+        curr_row = curr_row + vis_row_cnt - 127
         local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
         if curr_row > target_row then
@@ -638,8 +693,9 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
             curr_row = math.min(target_row, curr_row + pitch_range)
         end
         -- Set active note row to set center of vertical zoom
-        reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
-        row_string = row_string .. ' -> ' .. curr_row
+        pitch = vis_rows[curr_row]
+        reaper.MIDIEditor_SetSetting_int(hwnd, setting, pitch)
+        row_string = row_string .. ' -> ' .. row .. ':' .. pitch
 
         if pitch_range > target_range and size < _G.max_vertical_note_pixels then
             -- Cmd: Zoom in vertically
@@ -651,12 +707,13 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
             zoom_string = zoom_string .. ' -> out'
         end
         i = i + 1
-    until i == 50 or curr_row == target_row
+    until i == 100 or curr_row == target_row
 
     zoom_string = zoom_string .. ' |'
 
     repeat
         local row, size = GetItemVZoom(item)
+        row = row + vis_row_cnt - 127
         local pitch_range = math.abs(curr_row - row)
         if size > _G.max_vertical_note_pixels then
             print('Reached max zoom size!')
@@ -666,10 +723,11 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
         reaper.MIDIEditor_OnCommand(hwnd, 40111)
         zoom_string = zoom_string .. ' -> in'
         i = i + 1
-    until i == 50 or pitch_range < target_range
+    until i == 100 or pitch_range < target_range
 
     repeat
         local row, size = GetItemVZoom(item)
+        row = row + vis_row_cnt - 127
         local pitch_range = math.abs(curr_row - row)
         if size == 4 then
             print('Reached min zoom size!')
@@ -679,7 +737,7 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
         reaper.MIDIEditor_OnCommand(hwnd, 40112)
         zoom_string = zoom_string .. ' -> out'
         i = i + 1
-    until i == 50 or pitch_range >= target_range and size <= _G.max_vertical_note_pixels
+    until i == 100 or pitch_range >= target_range and size <= _G.max_vertical_note_pixels
 
     print('Target row:' .. target_row)
     print(row_string)
@@ -693,18 +751,21 @@ function ZoomToPitchRange(hwnd, item, note_lo, note_hi)
     end
 end
 
-function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
+function ScrollToNoteRow(hwnd, item, vis_rows, target_row, note_lo, note_hi)
     -- Get previous active note row
     local setting = 'active_note_row'
     local active_row = reaper.MIDIEditor_GetSetting_int(hwnd, setting)
 
+    local vis_row_cnt = #vis_rows
     local curr_row = GetItemVZoom(item)
-    -- Set active note row to set center of vertical zoom
-    reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
+    curr_row = curr_row + vis_row_cnt - 127
+
+    local pitch = vis_rows[curr_row]
+    reaper.MIDIEditor_SetSetting_int(hwnd, setting, pitch)
 
     if note_lo and note_hi then
-        note_lo = math.max(note_lo, 0)
-        note_hi = math.min(note_hi, 127)
+        note_lo = math.max(note_lo, 1)
+        note_hi = math.min(note_hi, vis_row_cnt)
         target_row = math.max(target_row, note_lo)
         target_row = math.min(target_row, note_hi)
     end
@@ -717,22 +778,23 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     local target_range
 
     -- Debugging output
-    local row_string = ' -> ' .. curr_row
+    local row_string = ' -> ' .. curr_row .. ':' .. pitch
     local zoom_string = ' -> in'
 
     local i = 0
     repeat
-        local row, size = GetItemVZoom(item)
+        local row = GetItemVZoom(item)
+        row = row - 127 + vis_row_cnt
         local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
-        if row == 127 and i == 0 and not backup_target_row then
+        if row == vis_row_cnt and i == 0 and not backup_target_row then
             -- When row 127 is visible it's not possible to get the target range.
             -- Scroll down until it isn't and keep target row as backup
             backup_target_row = target_row
-            target_row = 0
+            target_row = 1
         end
 
-        if row < 127 and zoom_in_cnt == 0 and not target_range then
+        if row < vis_row_cnt and zoom_in_cnt == 0 and not target_range then
             target_range = pitch_range
             target_row = backup_target_row or target_row
 
@@ -764,8 +826,9 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
         end
 
         -- Set active note row to set center of vertical zoom
-        reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
-        row_string = row_string .. ' -> ' .. curr_row
+        pitch = vis_rows[curr_row]
+        reaper.MIDIEditor_SetSetting_int(hwnd, setting, pitch)
+        row_string = row_string .. ' -> ' .. curr_row .. ':' .. pitch
 
         if zoom_in_cnt > 0 then
             -- Cmd: Zoom out vertically
@@ -779,12 +842,10 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
             zoom_in_cnt = zoom_in_cnt + 1
         end
         i = i + 1
-    until i == 50 or curr_row == target_row and zoom_in_cnt == 0 and i > 2
+    until i == 100 or curr_row == target_row and zoom_in_cnt == 0 and i > 2
 
     print('Target row:' .. target_row)
     print('Target range:' .. tostring(target_range))
-    print(row_string)
-    print(zoom_string)
     local _, zoom_cnt = zoom_string:gsub(' %-', '')
     print('Vertically zooming ' .. zoom_cnt .. ' times')
 
@@ -834,7 +895,7 @@ local hwnd = reaper.MIDIEditor_GetActive()
 local editor_take = reaper.MIDIEditor_GetTake(hwnd)
 local is_valid_take = reaper.ValidatePtr(editor_take, 'MediaItem_Take*')
 local editor_item = is_valid_take and reaper.GetMediaItemTake_Item(editor_take)
-local window, segment, details = reaper.BR_GetMouseCursorContext()
+local window, segment = reaper.BR_GetMouseCursorContext()
 local _, _, note_row = reaper.BR_GetMouseCursorContext_MIDI()
 local is_hotkey = not (rel == -1 and res == -1 and val == -1)
 
@@ -1100,7 +1161,6 @@ if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode > 0
     end
 end
 
-local track = reaper.GetMediaItem_Track(editor_item)
 local item_length = reaper.GetMediaItemInfo_Value(editor_item, 'D_LENGTH')
 local item_start_pos = reaper.GetMediaItemInfo_Value(editor_item, 'D_POSITION')
 local item_end_pos = item_start_pos + item_length
@@ -1122,6 +1182,23 @@ local is_cursor_inside_item = cursor_pos >= item_start_pos and
 ----------------------------------- ZOOM MODES ---------------------------------------
 
 local hzoom_mode, vzoom_mode = GetZoomMode(context, timebase)
+
+local is_notation = reaper.GetToggleCommandStateEx(32060, 40954) == 1
+if is_notation then vzoom_mode = 0 end
+
+local vis_rows, vis_row_map, vis_mode
+
+if vzoom_mode > 0 then
+    vis_rows, vis_mode = GetVisibleNoteRows(hwnd)
+    vis_row_map = {}
+    for i = 1, #vis_rows do vis_row_map[vis_rows[i]] = i end
+
+    if vis_mode == 'unused' then
+        note_row = vis_row_map[vis_rows[note_row - 127 + #vis_rows]]
+    else
+        note_row = vis_row_map[note_row]
+    end
+end
 
 local prev_note_row, prev_note_lo, prev_note_hi
 local timespan = tonumber(reaper.GetExtState(extname, 'timespan'))
@@ -1145,7 +1222,7 @@ if is_hotkey and timespan and timespan < 0.25 then
     end
 
     -- Make vertical movements smoother
-    if prev_note_row and prev_note_row >= 0 then
+    if note_row and prev_note_row and prev_note_row >= 0 then
         local row_diff = note_row - prev_note_row
         local row_diff_abs = math.abs(row_diff)
         if row_diff_abs > 1 then
@@ -1282,11 +1359,8 @@ end
 
 ----------------------------------- VERTICAL ZOOM -----------------------------------
 
-local are_notes_hidden = reaper.GetToggleCommandStateEx(32060, 40452) ~= 1
-local is_notation = reaper.GetToggleCommandStateEx(32060, 40954) == 1
-
 -- Analyze take pitch in the given area. Find highest and lowest pitch
-if vzoom_mode > 0 and not is_notation then
+if vzoom_mode > 0 then
     -- Note: Visible zoom area is larger than project loop selection by a certain factor
     local factor = timebase == 2 and 0.015 or 0.03
     local start_pos = zoom_start_pos - zoom_length * factor
@@ -1298,14 +1372,10 @@ if vzoom_mode > 0 and not is_notation then
     end
 
     local note_lo, note_hi, note_avg, sel_note_lo, sel_note_hi, sel_note_avg =
-        GetPitchRange(editor_take, start_pos, end_pos, item_start_pos,
-            item_end_pos)
+        GetPitchRange(editor_take, vis_row_map,
+            start_pos, end_pos, item_start_pos, item_end_pos)
 
-    if are_notes_hidden then
-        print('Notes are hidden. Zooming to content')
-        -- Cmd: Zoom to content
-        reaper.MIDIEditor_OnCommand(hwnd, 40466)
-    elseif not _G.use_note_sel or sel_note_lo then
+    if not _G.use_note_sel or sel_note_lo then
         if vzoom_mode >= 2 and vzoom_mode <= 3 then
             if _G.use_note_sel then
                 note_lo = sel_note_lo or note_lo
@@ -1315,33 +1385,33 @@ if vzoom_mode > 0 and not is_notation then
 
             if note_hi == -1 then
                 print('No note in area/take: Setting base note')
-                note_lo, note_hi = _G.base_note, _G.base_note
+                note_lo, note_hi = _G.base_note, _G.base_note -- TODO
             end
 
-            if note_hi - note_lo < _G.min_vertical_notes then
+            local min_range = _G.min_vertical_notes
+            if note_hi - note_lo < min_range then
                 print('Using minimum pitch range')
-                note_hi = math.ceil((note_lo + note_hi + _G.min_vertical_notes) /
-                    2)
-                note_lo = math.floor((note_lo + note_hi - _G.min_vertical_notes) /
-                    2)
+                note_hi = math.ceil((note_lo + note_hi + min_range) / 2)
+                note_lo = math.floor((note_lo + note_hi - min_range) / 2)
                 note_lo = note_hi < 127 and note_lo or 127
-                note_hi = note_hi < 127 and note_hi or
-                    127 - _G.min_vertical_notes
+                note_hi = note_hi < 127 and note_hi or 127 - min_range
             end
 
             if prev_note_lo ~= note_lo or prev_note_hi ~= note_hi then
                 local msg = 'Vertically zooming to notes %s - %s'
                 print(msg:format(note_lo, note_hi))
                 if note_hi - note_lo < 28 then
-                    ZoomToPitchRange(hwnd, editor_item, note_lo - 1, note_hi + 1)
+                    ZoomToPitchRange(hwnd, editor_item, vis_rows,
+                        note_lo - 1, note_hi + 1)
                 else
-                    ZoomToPitchRange(hwnd, editor_item, note_lo, note_hi)
+                    ZoomToPitchRange(hwnd, editor_item, vis_rows,
+                        note_lo, note_hi)
                 end
             end
         end
         if vzoom_mode >= 4 and vzoom_mode <= 12 then
             if vzoom_mode == 4 or note_hi == -1 then
-                note_lo, note_hi = 0, 127
+                note_lo, note_hi = 1, #vis_rows
             end
 
             if vzoom_mode >= 7 and vzoom_mode <= 8 then
@@ -1351,12 +1421,12 @@ if vzoom_mode > 0 and not is_notation then
             end
 
             if vzoom_mode >= 9 and vzoom_mode <= 10 then
-                note_row = 0
+                note_row = 1
                 if _G.use_note_sel then note_row = sel_note_lo or note_row end
             end
 
             if vzoom_mode >= 11 and vzoom_mode <= 12 then
-                note_row = 127
+                note_row = #vis_rows
                 if _G.use_note_sel then note_row = sel_note_hi or note_row end
             end
 
@@ -1367,15 +1437,15 @@ if vzoom_mode > 0 and not is_notation then
                 if scroll_changed then
                     print('Vertically scrolling to note ' .. note_row)
                     print('Scroll lo/hi limit: ' .. note_lo .. '/' .. note_hi)
-                    ScrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1,
-                        note_hi + 1)
+                    ScrollToNoteRow(hwnd, editor_item, vis_rows, note_row,
+                        note_lo - 1, note_hi + 1)
                 end
             end
         end
     end
-    reaper.SetExtState(extname, 'note_row', note_row, false)
-    reaper.SetExtState(extname, 'note_lo', note_lo, false)
-    reaper.SetExtState(extname, 'note_hi', note_hi, false)
+    reaper.SetExtState(extname, 'note_row', note_row or '', false)
+    reaper.SetExtState(extname, 'note_lo', note_lo or '', false)
+    reaper.SetExtState(extname, 'note_hi', note_hi or '', false)
 end
 
 ---------------------------------- HORIZONTAL ZOOM ----------------------------------
