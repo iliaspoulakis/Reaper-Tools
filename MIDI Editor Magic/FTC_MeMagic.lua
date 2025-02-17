@@ -684,7 +684,7 @@ function ZoomToPitchRange(hwnd, item, vis_rows, note_lo, note_hi)
     local i = 0
     repeat
         local row, size = GetItemVZoom(item)
-        curr_row = curr_row + vis_row_cnt - 127
+        row = row + vis_row_cnt - 127
         local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
         if curr_row > target_row then
@@ -1385,7 +1385,9 @@ if vzoom_mode > 0 then
 
             if note_hi == -1 then
                 print('No note in area/take: Setting base note')
-                note_lo, note_hi = _G.base_note, _G.base_note -- TODO
+                local base_note = vis_row_map[_G.base_note]
+                if not base_note then base_note = #vis_rows // 2 end
+                note_lo, note_hi = base_note, base_note
             end
 
             local min_range = _G.min_vertical_notes
