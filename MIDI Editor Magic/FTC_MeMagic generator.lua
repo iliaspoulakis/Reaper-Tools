@@ -11,14 +11,22 @@ local file_path = file_name:match('(.*' .. sep .. ')')
 local file = io.open(file_path .. 'FTC_MeMagic.lua', 'r')
 
 -- Load MeMagic script content
+local changelog = ''
+local read_changelog = false
 local content = {}
 if file then
     for line in file:lines() do
         if line:match('@about') then
-            line =
-            '  @noindex\n  @about Automatically generated configuration of MeMagic'
+            line = '  @noindex\n  \z
+                      @about Automatically generated configuration of MeMagic'
         end
-        content[#content + 1] = line
+        if line:match('@changelog') then read_changelog = true end
+        if line:match('%]%]') then read_changelog = false end
+        if read_changelog then
+            changelog = changelog .. line .. '\n'
+        end
+        if line:match('--- FUNCTIONS ---') then break end
+        if not read_changelog then content[#content + 1] = line end
     end
     file:close()
 end
@@ -29,9 +37,9 @@ local dir_path = file_path .. gen_folder_name .. sep
 reaper.RecursiveCreateDirectory(dir_path, 0)
 
 -- Create path for standalone packages
-local standalone_folder_name = 'Packages'
+--[[ local standalone_folder_name = 'Packages'
 local standalone_path = dir_path .. standalone_folder_name .. sep
--- reaper.RecursiveCreateDirectory(standalone_path, 0)
+reaper.RecursiveCreateDirectory(standalone_path, 0) ]]
 
 -- Remove old files
 local i = 0
@@ -125,6 +133,36 @@ local function isException(h, v)
     end
 end
 
+local wrapper = [[
+----------------------------- DO MAGIC -----------------------------
+
+local _, file = reaper.get_action_context()
+local magic_dir = file:match('^(.+MIDI Editor Magic)[\\/]')
+
+local path = {magic_dir}
+if not magic_dir then
+    path = {reaper.GetResourcePath(), 'Scripts', 'FTC Tools', 'MIDI Editor Magic'}
+end
+table.insert(path, 'FTC_MeMagic.lua')
+
+local magic_file = table.concat(path, package.config:sub(1, 1))
+
+if not reaper.file_exists(magic_file) then
+    reaper.MB('Please install FTC_MeMagic', 'Error', 0)
+    if reaper.ReaPack_BrowsePackages then
+        reaper.ReaPack_BrowsePackages('FTC_MeMagic')
+    end
+    return
+end
+
+local function ForbidOverrides(_, k, v) if _G[k] == nil then _G[k] = v end end
+local env = setmetatable({}, {__index = _G})
+env._G = setmetatable({}, {__index = _G, __newindex = ForbidOverrides})
+
+local chunk, err = loadfile(magic_file, 'bt', env)
+if chunk then chunk() else reaper.ShowConsoleMsg(tostring(err)) end
+]]
+
 local config = ''
 local provides = '    [main=main,midi_editor] '
 local name_pattern = 'FTC_MeMagic (%d-%d) %s%s%s.lua'
@@ -156,6 +194,7 @@ function WriteFile(new_file_path, h, v, is_standalone, use_note_sel)
             end
             new_file:write(line, '\n')
         end
+        new_file:write(wrapper)
         new_file:close()
     end
 end
@@ -163,9 +202,9 @@ end
 function AddScript(new_file_name, h, v, use_note_sel)
     local new_file_path = dir_path .. new_file_name
     WriteFile(new_file_path, h, v, false, use_note_sel)
-    local standalone_file_name = new_file_name:gsub('FTC_MeMagic%s%(.-%)%s',
+    --[[ local standalone_file_name = new_file_name:gsub('FTC_MeMagic%s%(.-%)%s',
         'MeMagic_')
-    --  WriteFile(standalone_path .. standalone_file_name, h, v, true, use_note_sel)
+    WriteFile(standalone_path .. standalone_file_name, h, v, true, use_note_sel) ]]
 
     reaper.AddRemoveReaScript(true, 0, new_file_path, false)
     reaper.AddRemoveReaScript(true, 32060, new_file_path, true)
@@ -197,22 +236,11 @@ end
 local file = io.open(file_path .. 'FTC_MeMagic bundle.lua', 'w')
 
 if file then
-    local has_changelog = false
-    local changelog = ''
-    for _, line in ipairs(content) do
-        if line:match('@changelog') then
-            has_changelog = true
-        end
-        if has_changelog then
-            if line:match('%]%]') then break end
-            changelog = changelog .. line .. '\n'
-        end
-    end
     -- Create package with configurations
     for _, line in ipairs(content) do
         if line:match('@about') then
-            local about =
-            '  @about Bundle with feasible configurations of MeMagic\n'
+            local about = '  @about Bundle with feasible configurations \z
+                of MeMagic\n'
             local meta_pkg = '  @metapackage\n'
             line = about .. meta_pkg .. changelog
             line = line .. '  @provides\n' .. config .. ']]'

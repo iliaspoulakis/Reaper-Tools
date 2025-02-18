@@ -1,12 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @about Bundle with feasible configurations of MeMagic
   @metapackage
   @changelog
-    - Correctly handle click source items
-    - Made configuration variables global for wrapper scripts
+    - Now requires installing FTC_MeMagic package.
   @provides
     [main=main,midi_editor] Generated/FTC_MeMagic (1-2) Vertically zoom to notes in visible area.lua
     [main=main,midi_editor] Generated/FTC_MeMagic (1-2s) Vertically zoom to selected notes in visible area.lua
