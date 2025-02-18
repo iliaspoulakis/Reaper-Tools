@@ -1,12 +1,30 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @about Contextual zooming & scrolling for the MIDI editor in reaper
   @changelog
-    - Correctly handle click source items
-    - Made configuration variables global for wrapper scripts
+    - Changed default horizontal zoom to a "Smart amount of measures"
+    - Support "custom note order" and "hide unused/unnamed" views
+    - Added option to not use mouse cursor (always use edit cursor)
+    - Added option to zoom to the right/left/center of edit cursor
+    - Respect snapping when used as mouse modifier to open items
 ]]
+
+------------------------------ GENERAL SETTINGS -----------------------------
+
+-- Make this action non-contextual and always use modes from context: Toolbar button
+_G.use_toolbar_context_only = false
+
+-- Follow play cursor instead of edit cursor when playing
+_G.use_play_cursor = true
+
+-- Follow play cursor instead of edit cursor when playing
+_G.use_mouse_cursor = true
+
+-- Move edit cursor to mouse cursor
+_G.set_edit_cursor = false
+
 ------------------------------ ZOOM MODES -----------------------------
 
 -- HORIZONTAL MODES
@@ -38,12 +56,12 @@
 -- by using an array with four elements, e.g {1, 2, 3, 1}
 -- { Beats (project), Beats (source), Time (project), Sync to arrange }
 
--- Context: Toolbar button
+-- Context: Toolbar button (default for non-contextual operation)
 _G.TBB_horizontal_zoom_mode = 1
 _G.TBB_vertical_zoom_mode = 3
 
 -- Context: MIDI editor note area
-_G.MEN_horizontal_zoom_mode = {7, 1, 7, 7}
+_G.MEN_horizontal_zoom_mode = {6, 1, 6, 6}
 _G.MEN_vertical_zoom_mode = {6, 3, 3, 6}
 
 -- Context: MIDI editor piano pane
@@ -67,19 +85,8 @@ _G.AIS_horizontal_zoom_mode = 5
 _G.AIS_vertical_zoom_mode = 3
 
 -- Context: Arrange view item double click (mouse modifier)
-_G.AID_horizontal_zoom_mode = 2
+_G.AID_horizontal_zoom_mode = 8
 _G.AID_vertical_zoom_mode = 2
-
------------------------------- GENERAL SETTINGS -----------------------------
-
--- Make this action non-contextual and always use modes from context: Toolbar button
-_G.use_toolbar_context_only = false
-
--- Follow play cursor instead of edit cursor when playing
-_G.use_play_cursor = true
-
--- Move edit cursor to mouse cursor
-_G.set_edit_cursor = false
 
 ------------------------------ ZOOM SETTINGS -----------------------------
 
@@ -89,11 +96,15 @@ _G.number_of_measures = 4
 -- Number of (approximate) notes to zoom to (for horizontal modes 5 and 6)
 _G.number_of_notes = 20
 
--- Determines how influential the cursor position is on smart zoom levels
+-- Controls how the view is positioned relative to the cursor when zooming
+-- 0: Cursor at left edge, 0.5: Centered, 1: Cursor at right edge
+_G.cursor_alignment = 0.5
+
+-- Determines how influential the cursor position is in smart zoom modes
 -- No influence: 0,  High influence: >1,  Default: 0.75
 _G.smoothing = 0.75
 
--- Which note to zoom to when item/visible area contains no notes
+-- Which note to vertically zoom to when area contains no notes
 _G.base_note = 60
 
 -- Minimum number of vertical notes when zooming (not exact)
@@ -107,13 +118,13 @@ _G.use_note_sel = false
 
 ------------------------------ FUNCTIONS ------------------------------------
 
-_G.debug = false
+local is_debug = false
 local mb_title = 'MIDI Editor Magic'
 local undo_name = 'Change media item selection (MeMagic)'
 undo_name = _G.use_toolbar_context_only and 'MeMagic zoom/scroll' or undo_name
 
 function print(msg)
-    if _G.debug then
+    if is_debug then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
 end
@@ -170,9 +181,14 @@ function GetClickMode(cmd)
 end
 
 function GetCursorPosition(play_state)
-    local cursor_pos = reaper.BR_GetMouseCursorContext_Position()
-    if not cursor_pos or cursor_pos < 0 or _G.set_edit_cursor then
+    local cursor_pos
+    if not _G.use_mouse_cursor or _G.set_edit_cursor then
         cursor_pos = reaper.GetCursorPosition()
+    else
+        cursor_pos = reaper.BR_GetMouseCursorContext_Position()
+        if not cursor_pos or cursor_pos < 0 then
+            cursor_pos = reaper.GetCursorPosition()
+        end
     end
     if play_state > 0 and _G.use_play_cursor then
         cursor_pos = reaper.GetPlayPosition()
@@ -896,8 +912,8 @@ local editor_take = reaper.MIDIEditor_GetTake(hwnd)
 local is_valid_take = reaper.ValidatePtr(editor_take, 'MediaItem_Take*')
 local editor_item = is_valid_take and reaper.GetMediaItemTake_Item(editor_take)
 local window, segment = reaper.BR_GetMouseCursorContext()
-local _, _, note_row = reaper.BR_GetMouseCursorContext_MIDI()
 local is_hotkey = not (rel == -1 and res == -1 and val == -1)
+local cursor_pos = GetCursorPosition(play_state)
 
 local timestamp = tonumber(reaper.GetExtState(extname, 'timestamp'))
 local exec_time = tonumber(reaper.GetExtState(extname, 'exec_time'))
@@ -906,7 +922,6 @@ local click_mode = 0
 local context = -1
 
 local sel_item
-local cursor_pos
 
 -- Handle mouse modifiers
 if window == 'arrange' and not is_hotkey then
@@ -937,7 +952,7 @@ if is_hotkey and timestamp then
 end
 reaper.SetExtState(extname, 'timestamp', start_time, false)
 
-if _G.debug then
+if is_debug then
     reaper.ClearConsole()
 end
 
@@ -997,6 +1012,9 @@ if window == 'arrange' and (context > 0 or click_mode > 0) then
     if _G.set_edit_cursor and (play_state == 0 or not _G.use_play_cursor) then
         -- Cmd: Move edit cursor to mouse cursor
         reaper.Main_OnCommand(40513, 0)
+    end
+    if _G.use_mouse_cursor then
+        cursor_pos = reaper.SnapToGrid(0, cursor_pos)
     end
     local sel_item_cnt = reaper.CountSelectedMediaItems(0)
     -- Cmd: Select item under mouse cursor (leaving other items selected)
@@ -1073,7 +1091,6 @@ if context == 20 or context == 22 or context == 23 then
         local item_start_pos = GetItemInfoValue(editor_item, 'D_POSITION')
         local item_end_pos = item_start_pos + item_length
         local editor_track = reaper.GetMediaItem_Track(editor_item)
-        cursor_pos = GetCursorPosition(play_state)
         -- Check for other items on the same track
         if cursor_pos < item_start_pos then
             for i = 0, reaper.CountTrackMediaItems(editor_track) - 1 do
@@ -1111,8 +1128,6 @@ if not is_valid_take and not sel_item then
     reaper.Undo_EndBlock(undo_name, -1)
     return
 end
-
-cursor_pos = cursor_pos or GetCursorPosition(play_state)
 
 local hlength, hcenter
 local prev_hzoom_lvl = tonumber(reaper.GetExtState(extname, 'hzoom_lvl'))
@@ -1186,6 +1201,7 @@ local hzoom_mode, vzoom_mode = GetZoomMode(context, timebase)
 local is_notation = reaper.GetToggleCommandStateEx(32060, 40954) == 1
 if is_notation then vzoom_mode = 0 end
 
+local _, _, note_row = reaper.BR_GetMouseCursorContext_MIDI()
 local vis_rows, vis_row_map, vis_mode
 
 if vzoom_mode > 0 then
@@ -1276,9 +1292,9 @@ if hzoom_mode == 3 or hzoom_mode == 4 then
     local sig_num = reaper.TimeMap_GetTimeSigAtTime(0, cursor_pos)
     local cursor_qn = reaper.TimeMap2_timeToQN(0, cursor_pos)
     zoom_start_pos = convQNToTime(0,
-        cursor_qn - sig_num * _G.number_of_measures / 2)
+        cursor_qn - sig_num * _G.number_of_measures * _G.cursor_alignment)
     zoom_end_pos = convQNToTime(0,
-        cursor_qn + sig_num * _G.number_of_measures / 2)
+        cursor_qn + sig_num * _G.number_of_measures * (1 - _G.cursor_alignment))
 end
 
 -- Set zoom to number of notes
@@ -1290,9 +1306,9 @@ if hzoom_mode >= 5 and hzoom_mode <= 8 then
         local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
         local cursor_ppq_pos = GetPPQFromTime(editor_take, cursor_pos)
         zoom_start_pos = GetTimeFromPPQ(editor_take,
-            cursor_ppq_pos - zoom_ppq_length / 2)
+            cursor_ppq_pos - zoom_ppq_length * _G.cursor_alignment)
         zoom_end_pos = GetTimeFromPPQ(editor_take,
-            cursor_ppq_pos + zoom_ppq_length / 2)
+            cursor_ppq_pos + zoom_ppq_length * (1 - _G.cursor_alignment))
     else
         zoom_start_pos = item_start_pos
         zoom_end_pos = item_end_pos
@@ -1300,7 +1316,6 @@ if hzoom_mode >= 5 and hzoom_mode <= 8 then
 
     if hzoom_mode >= 7 then
         local TimeToBeats = reaper.TimeMap2_timeToBeats
-        local BeatsToTime = reaper.TimeMap2_beatsToTime
         local _, _, _, zoom_start_beats = TimeToBeats(0, zoom_start_pos)
         local _, _, _, zoom_end_beats = TimeToBeats(0, zoom_end_pos)
         local convQNToTime = reaper.TimeMap2_QNToTime
@@ -1314,14 +1329,16 @@ if hzoom_mode >= 5 and hzoom_mode <= 8 then
         else
             measures = math.floor(measures + 0.5)
         end
-        zoom_start_pos = convQNToTime(0, cursor_qn - sig_num * measures / 2)
-        zoom_end_pos = convQNToTime(0, cursor_qn + sig_num * measures / 2)
+        zoom_start_pos = convQNToTime(0,
+            cursor_qn - sig_num * measures * _G.cursor_alignment)
+        zoom_end_pos = convQNToTime(0,
+            cursor_qn + sig_num * measures * (1 - _G.cursor_alignment))
     end
 end
 
 if hzoom_mode == 9 then
-    zoom_start_pos = cursor_pos - hlength / 2
-    zoom_end_pos = cursor_pos + hlength / 2
+    zoom_start_pos = cursor_pos - hlength * _G.cursor_alignment
+    zoom_end_pos = cursor_pos + hlength * (1 - _G.cursor_alignment)
 end
 
 ------------------------- HORIZONTAL ZOOM RANGE RESTRICTION ---------------------------
@@ -1463,7 +1480,7 @@ reaper.MIDIEditor_OnCommand(hwnd, 40726)
 -- Reset previous time selection
 local sel_start_pos = sel and sel.start_pos or 0
 local sel_end_pos = sel and sel.end_pos or 0
-if not _G.debug then
+if not is_debug then
     SetSelection(sel_start_pos, sel_end_pos)
 end
 
