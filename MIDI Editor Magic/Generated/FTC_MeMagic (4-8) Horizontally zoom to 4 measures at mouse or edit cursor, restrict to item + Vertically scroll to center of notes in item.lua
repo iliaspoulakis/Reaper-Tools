@@ -1,7 +1,7 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.2
+  @version 1.3.3
   @noindex
   @about Automatically generated configuration of MeMagic
 ]]
@@ -11,11 +11,11 @@
 -- Make this action non-contextual and always use modes from context: Toolbar button
 _G.use_toolbar_context_only = true
 
--- Follow play cursor instead of edit cursor when playing
-_G.use_play_cursor = true
-
--- Follow play cursor instead of edit cursor when playing
+-- Use mouse cursor instead of edit cursor when applicable
 _G.use_mouse_cursor = true
+
+-- Use play cursor instead of edit cursor during playback
+_G.use_play_cursor = true
 
 -- Move edit cursor to mouse cursor
 _G.set_edit_cursor = false
@@ -37,9 +37,9 @@ _G.set_edit_cursor = false
 -- 1: No change
 -- 2: Zoom to notes in visible area
 -- 3: Zoom to all notes in item
--- 4: Scroll note row under mouse cursor
--- 5: Scroll note row under mouse cursor, restrict to notes in visible area
--- 6: Scroll note row under mouse cursor, restrict to notes in item
+-- 4: Scroll to note row at mouse or pitch cursor
+-- 5: Scroll to note row at mouse or pitch cursor, restrict to notes in visible area
+-- 6: Scroll to note row at mouse or pitch cursor, restrict to notes in item
 -- 7: Scroll to center of notes in visible area
 -- 8: Scroll to center of notes in item
 -- 9: Scroll to lowest note in visible area

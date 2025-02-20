@@ -1,14 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.2
+  @version 1.3.3
   @about Contextual zooming & scrolling for the MIDI editor in reaper
   @changelog
-    - Changed default horizontal zoom to a "Smart amount of measures"
-    - Support "custom note order" and "hide unused/unnamed" views
-    - Added option to not use mouse cursor (always use edit cursor)
-    - Added option to zoom to the right/left/center of edit cursor
-    - Respect snapping when used as mouse modifier to open items
+    - Vertically scrolling to note row now defaults to pitch cursor when no note row is hovered
 ]]
 
 ------------------------------ GENERAL SETTINGS -----------------------------
@@ -16,11 +12,11 @@
 -- Make this action non-contextual and always use modes from context: Toolbar button
 _G.use_toolbar_context_only = false
 
--- Follow play cursor instead of edit cursor when playing
-_G.use_play_cursor = true
-
--- Follow play cursor instead of edit cursor when playing
+-- Use mouse cursor instead of edit cursor when applicable
 _G.use_mouse_cursor = true
+
+-- Use play cursor instead of edit cursor during playback
+_G.use_play_cursor = true
 
 -- Move edit cursor to mouse cursor
 _G.set_edit_cursor = false
@@ -42,9 +38,9 @@ _G.set_edit_cursor = false
 -- 1: No change
 -- 2: Zoom to notes in visible area
 -- 3: Zoom to all notes in item
--- 4: Scroll note row under mouse cursor
--- 5: Scroll note row under mouse cursor, restrict to notes in visible area
--- 6: Scroll note row under mouse cursor, restrict to notes in item
+-- 4: Scroll to note row at mouse or pitch cursor
+-- 5: Scroll to note row at mouse or pitch cursor, restrict to notes in visible area
+-- 6: Scroll to note row at mouse or pitch cursor, restrict to notes in item
 -- 7: Scroll to center of notes in visible area
 -- 8: Scroll to center of notes in item
 -- 9: Scroll to lowest note in visible area
@@ -1202,6 +1198,9 @@ local is_notation = reaper.GetToggleCommandStateEx(32060, 40954) == 1
 if is_notation then vzoom_mode = 0 end
 
 local _, _, note_row = reaper.BR_GetMouseCursorContext_MIDI()
+if note_row < 0 or not _G.use_mouse_cursor then
+    note_row = reaper.MIDIEditor_GetSetting_int(hwnd, 'active_note_row')
+end
 local vis_rows, vis_row_map, vis_mode
 
 if vzoom_mode > 0 then
