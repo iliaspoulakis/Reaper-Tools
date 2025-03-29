@@ -1,10 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.9.5
+  @version 2.0.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix REAPER restart on MacOS (1.9.4 regression)
+    - Windows: Use curl to download (if available on system)
+    - Windows: Give reaper 5-10 seconds to close based on how many FX are loaded
+    - Show state for toolbar buttons
+    - Improve detecting when installation is cancelled (fix issue with CSI)
+    - Find and open the correct changelog file available on Landoleet
 ]]
 
 -- App version & platform architecture
@@ -37,8 +41,7 @@ local main_dlink = 'https://www.reaper.fm/download.php'
 local dev_dlink = 'https://www.landoleet.org/'
 local old_dlink = 'https://www.landoleet.org/old/'
 local main_changelog = 'https://www.reaper.fm/whatsnew.txt'
-local dev_changelog = 'https://www.landoleet.org/whatsnew-dev.txt'
-local rc_changelog = 'https://www.landoleet.org/whatsnew-rc.txt'
+local dev_changelog
 
 -- Paths
 local separator = platform:match('Win') and '\\' or '/'
@@ -103,7 +106,9 @@ function ExecProcess(cmd, timeout)
     end
     local ret = reaper.ExecProcess(cmd, timeout or -2)
     print('\nExecuting command:\n' .. cmd)
+    local exit_code
     if ret then
+        exit_code = tonumber(ret:match('^%d+'))
         -- Remove exit code (first line)
         ret = ret:gsub('^.-\n', '')
         -- Remove Windows network drive error (fix by jkooks)
@@ -112,7 +117,7 @@ function ExecProcess(cmd, timeout)
         ret = ret:gsub('[\r\n]', '')
         if ret ~= '' then print('\nReturn value:\n' .. ret) end
     end
-    return ret
+    return ret, exit_code
 end
 
 function ExecInstall(install_cmd)
@@ -140,10 +145,24 @@ function ExecInstall(install_cmd)
         end
     end
 
+    -- Get current state count of open projects
+    local state_cnts = {}
+    local p = 0
+    repeat
+        local proj = reaper.EnumProjects(p)
+        if proj then state_cnts[proj] = reaper.GetProjectStateChangeCount(proj) end
+        p = p + 1
+    until not proj
+
     -- File: Close all projects
     reaper.Main_OnCommand(40886, 0)
 
-    if reaper.IsProjectDirty(0) == 0 then
+    -- Check if user cancelled the dialog. If so, state count doesn't change
+    local curr_proj = reaper.EnumProjects(-1)
+    local state_cnt = reaper.GetProjectStateChangeCount(curr_proj)
+    local did_cancel = state_cnt == state_cnts[curr_proj]
+
+    if not did_cancel then
         if reaper.file_exists(scripts_path .. '__update.lua') then
             reaper.SetExtState(title, 'lua_hook', '1', true)
         end
@@ -180,6 +199,24 @@ function ParseDownloadLink(file, dlink)
             return dlink .. file_name
         end
     end
+end
+
+function ParseDevChangelogLink(file, vs)
+    for line in file:lines() do
+        if line:match('whatsnew') then
+            if vs:match('rc') then
+                if line:match('whatsnew-rc.txt') then
+                    return 'https://www.landoleet.org/whatsnew-rc.txt'
+                end
+            end
+            if line:match('whatsnew-dev.txt') then
+                return 'https://www.landoleet.org/whatsnew-dev.txt'
+            elseif line:match('whatsnew.txt') then
+                return 'https://www.landoleet.org/whatsnew.txt'
+            end
+        end
+    end
+    return 'https://www.landoleet.org/whatsnew.txt'
 end
 
 function ParseHistory(file, dlink)
@@ -773,8 +810,6 @@ function Main()
                 return
             end
             dev_dlink = ParseDownloadLink(file, dev_dlink)
-            file:close()
-            os.remove(dev_path)
             -- Parse latest versions from download link
             local pattern = '/reaper(.-)[_%-]'
             main_version = main_dlink:match(pattern):gsub('(.)', '%1.', 1)
@@ -784,6 +819,10 @@ function Main()
                 dev_dlink = ''
                 dev_version = 'none'
             end
+
+            dev_changelog = ParseDevChangelogLink(file, dev_version)
+            file:close()
+            os.remove(dev_path)
 
             local saved_main_version = reaper.GetExtState(title, 'main_version')
             local saved_dev_version = reaper.GetExtState(title, 'dev_version')
@@ -876,9 +915,26 @@ function Main()
             local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
 
-            -- Timout of 3 seconds (give REAPER time to close current project)
-            local cmd = 'timeout 3 >> %s 2>&1'
-            cmd = cmd:format(log_path)
+            -- Count how many FX are loaded across all projects
+            local fx_cnt = 0
+            local p = 0
+            repeat
+                local proj = reaper.EnumProjects(p)
+                if proj then
+                    for t = 0, reaper.CountTracks(proj) - 1 do
+                        local track = reaper.GetTrack(proj, t)
+                        fx_cnt = fx_cnt + reaper.TrackFX_GetCount(track)
+                    end
+                end
+                p = p + 1
+            until not proj
+
+            -- Pick a timeout between 5 and 10 seconds based on FX count
+            -- (give REAPER time to close projects)
+            local timeout = math.ceil(math.min(10, 5 + fx_cnt / 100 * 5))
+            local cmd = 'timeout %d >> %s 2>&1'
+            cmd = cmd:format(timeout, log_path)
+
             -- Run the installer .exe  with appropriate options
             -- /S silent mode
             -- /D installation directory
@@ -1043,7 +1099,7 @@ function Main()
             else
                 file_path = dev_path
                 version = dev_version
-                changelog = version:match('rc') and rc_changelog or dev_changelog
+                changelog = dev_changelog
             end
             local file = io.open(file_path, 'r')
             if file then
@@ -1173,9 +1229,14 @@ print('Portable: ' .. (is_portable and 'yes' or 'no'))
 -- Set command for downloading from terminal
 dl_cmd = 'curl -k -L %s -o %s'
 if platform:match('Win') then
-    dl_cmd =
-    'powershell.exe -windowstyle hidden (new-object \z
-    System.Net.WebClient).DownloadFile(\'%s\', \'%s\')'
+    -- Check if curl is installed
+    local _, exit_code = ExecProcess(('curl --version'), 1000)
+    local has_curl = exit_code == 0
+    if not has_curl then
+        -- Use powershell instead of curl
+        dl_cmd = 'powershell.exe -windowstyle hidden (new-object \z
+                System.Net.WebClient).DownloadFile(\'%s\', \'%s\')'
+    end
 end
 
 -- Set command for opening web-pages from terminal
@@ -1250,6 +1311,15 @@ if startup_mode then
 else
     ShowGUI()
 end
+
+local _, _, sec, cmd = reaper.get_action_context()
+reaper.SetToggleCommandState(sec, cmd, 1)
+reaper.RefreshToolbar2(sec, cmd)
+
+reaper.atexit(function()
+    reaper.SetToggleCommandState(sec, cmd, 0)
+    reaper.RefreshToolbar2(sec, cmd)
+end)
 
 -- Trigger the first step (steps are triggered by writing to the step file)
 ExecProcess('echo check_update > ' .. step_path)
