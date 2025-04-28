@@ -358,7 +358,7 @@ end
 
 -- Load minimum grid spacing
 local spacing
-if is_midi then
+if is_midi and tonumber(reaper.GetAppVersion():match('[%d.]+')) < 7.37 then
     -- Note: The minimum grid spacing for the MIDI editor is fixed
     spacing = 15
 else
