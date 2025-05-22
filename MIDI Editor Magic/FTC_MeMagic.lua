@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.3
+  @version 1.3.4
   @about Contextual zooming & scrolling for the MIDI editor in reaper
   @changelog
-    - Vertically scrolling to note row now defaults to pitch cursor when no note row is hovered
+    - Fix crash in 7.39+dev versions
 ]]
 
 ------------------------------ GENERAL SETTINGS -----------------------------
@@ -398,13 +398,13 @@ function GetConfigVZoom(cfg_edit_view)
 end
 
 function GetItemHZoom(item)
-    local _, chunk = reaper.GetItemStateChunk(item, '', true)
+    local _, chunk = reaper.GetItemStateChunk(item, '', false)
     local cfg_edit_view = GetItemChunkConfig(item, chunk, 'CFGEDITVIEW')
     return GetConfigHZoom(cfg_edit_view)
 end
 
 function GetItemVZoom(item)
-    local _, chunk = reaper.GetItemStateChunk(item, '', true)
+    local _, chunk = reaper.GetItemStateChunk(item, '', false)
     local cfg_edit_view = GetItemChunkConfig(item, chunk, 'CFGEDITVIEW')
     return GetConfigVZoom(cfg_edit_view)
 end
@@ -1132,7 +1132,7 @@ if sel_item and (editor_take ~= reaper.GetActiveTake(sel_item) or click_mode > 0
     print('Opening selected item in editor')
     local cfg_edit
     if is_valid_take then
-        local chunk = select(2, reaper.GetItemStateChunk(editor_item, '', true))
+        local chunk = select(2, reaper.GetItemStateChunk(editor_item, '', false))
         local cfg_edit_view = GetItemChunkConfig(editor_item, chunk,
             'CFGEDITVIEW')
         cfg_edit = GetItemChunkConfig(editor_item, chunk, 'CFGEDIT')

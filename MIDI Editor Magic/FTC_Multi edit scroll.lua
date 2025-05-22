@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.2
+  @version 1.5.3
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Double click on click source items opens source properties
+    - Fix crash in 7.39+dev versions
 ]]
 
 ------------------------------- GENERAL SETTINGS --------------------------------
@@ -100,7 +100,7 @@ function GetConfigVZoom(cfg_edit_view)
 end
 
 function GetItemVZoom(item)
-    local _, chunk = reaper.GetItemStateChunk(item, '', true)
+    local _, chunk = reaper.GetItemStateChunk(item, '', false)
     local cfg_edit_view = GetItemChunkConfig(item, chunk, 'CFGEDITVIEW')
     return GetConfigVZoom(cfg_edit_view)
 end
