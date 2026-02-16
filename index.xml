@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="7f7f231e85e6597e71f5e48cd0f25bad95ac2d79">
+<index version="1" name="FTC Tools" commit="2ca0c91e4530df0a1153598c73006323f5077a8a">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1682,7 +1682,7 @@
       </version>
       <version name="2.4.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-02-16T14:18:57Z">
         <changelog><![CDATA[- Added option to hide explicit major chord notation]]></changelog>
-        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/7f7f231e85e6597e71f5e48cd0f25bad95ac2d79/MIDI%20editor/Lil%20Chordbox.lua</source>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/2ca0c91e4530df0a1153598c73006323f5077a8a/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
