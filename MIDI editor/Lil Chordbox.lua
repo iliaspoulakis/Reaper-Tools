@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.4.1
+  @version 2.4.2
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Flush input chords when editor is closed
+    - Added option to hide explicit major chord notation
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -262,6 +262,7 @@ local sel_mode = tonumber(reaper.GetExtState(extname, 'sel_mode')) or 2
 local use_compact = reaper.GetExtState(extname, 'compact') == '1'
 local use_inversions = reaper.GetExtState(extname, 'inversions') ~= '0'
 local use_omissions = reaper.GetExtState(extname, 'omissions') == '1'
+local use_major = reaper.GetExtState(extname, 'major') ~= '0'
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
 local use_sharps_autodetect = reaper.GetExtState(extname, 'sharps_auto') ~= '0'
@@ -338,6 +339,11 @@ end
 function ToggleOmissionMode()
     use_omissions = not use_omissions
     reaper.SetExtState(extname, 'omissions', use_omissions and '1' or '0', 1)
+end
+
+function ToggleMajorMode()
+    use_major = not use_major
+    reaper.SetExtState(extname, 'major', use_major and '1' or '0', 0)
 end
 
 function ToggleSolfegeMode()
@@ -516,6 +522,9 @@ function BuildChordName(chord)
     local add = curr_chord_names[chord.key]
     if not use_omissions then
         add = add:gsub(use_compact and '%(no%d+%)' or ' omit%d+', '')
+    end
+    if not use_major then
+        add = add:gsub(use_compact and '^M(%s?)' or '^(%s?)majo?r?%s?', '%1')
     end
     local name = PitchToName(chord.root) .. add
     if use_inversions and chord.inversion_root then
@@ -1614,12 +1623,17 @@ function ShowChordBoxMenu()
                     is_checked = use_compact,
                 },
                 {
-                    title = 'Show inversions',
+                    title = 'Explicit major',
+                    OnReturn = ToggleMajorMode,
+                    is_checked = use_major,
+                },
+                {
+                    title = 'Inversions',
                     OnReturn = ToggleInversionMode,
                     is_checked = use_inversions,
                 },
                 {
-                    title = 'Show omissions',
+                    title = 'Omissions',
                     OnReturn = ToggleOmissionMode,
                     is_checked = use_omissions,
                 },
