@@ -343,7 +343,7 @@ end
 
 function ToggleMajorMode()
     use_major = not use_major
-    reaper.SetExtState(extname, 'major', use_major and '1' or '0', 0)
+    reaper.SetExtState(extname, 'major', use_major and '1' or '0', 1)
 end
 
 function ToggleSolfegeMode()
