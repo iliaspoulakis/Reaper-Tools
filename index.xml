@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="3877ba640a3720ed9c019c370e6569f6f02b6b76">
+<index version="1" name="FTC Tools" commit="ecbaa63dc3476c28bf7d6a9ed4dd6c00d2c92088">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -3851,7 +3851,7 @@
       <version name="2.1.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-04-12T10:34:57Z">
         <changelog><![CDATA[- Added checkbox to reopen projects
 - Mark previously installed versions in menu]]></changelog>
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/3877ba640a3720ed9c019c370e6569f6f02b6b76/Various/REAPER%20Update%20Utility.lua</source>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/ecbaa63dc3476c28bf7d6a9ed4dd6c00d2c92088/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
