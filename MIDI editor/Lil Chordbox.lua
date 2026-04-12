@@ -1,11 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.4.2
+  @version 2.5.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Added option to hide explicit major chord notation
+    - Support detecting chords from multiple editable takes
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -27,7 +27,6 @@ local input_note_map = {}
 local input_note_cnt = 0
 
 local prev_editor_hwnd
-local prev_hash
 local prev_take
 local prev_mode
 local prev_chunk_time
@@ -47,6 +46,7 @@ local prev_midi_scale_root
 local prev_midi_scale
 local prev_item_chunk
 local prev_key_snap_root
+local prev_take_hashes = {}
 
 local scale
 local font_size
@@ -328,7 +328,7 @@ function ToggleCompactMode()
     use_compact = not use_compact
     reaper.SetExtState(extname, 'compact', use_compact and '1' or '0', 1)
     LoadChordNames()
-    prev_hash = nil
+    prev_take_hashes = {}
 end
 
 function ToggleInversionMode()
@@ -365,7 +365,7 @@ end
 function ToggleSelectionMode()
     sel_mode = sel_mode == 2 and 1 or 2
     reaper.SetExtState(extname, 'sel_mode', sel_mode, 1)
-    prev_hash = nil
+    prev_take_hashes = {}
 end
 
 function ToggleSharpsAutoDetect()
@@ -541,79 +541,147 @@ function BuildChordName(chord)
     return name
 end
 
-function GetChords(take)
-    local _, note_cnt = reaper.MIDI_CountEvts(take)
+function GetEditableTakes(hwnd)
+    local is_timebase_source = reaper.GetToggleCommandStateEx(32060, 40470) == 1
+    if is_timebase_source then
+        local take = reaper.MIDIEditor_GetTake(hwnd)
+        if not reaper.ValidatePtr(take, 'MediaItem_Take*') then return {} end
+        return {take}
+    end
 
-    local chords = {}
+    local takes = {}
+    local take_idx = 0
+    repeat
+        local take = reaper.MIDIEditor_EnumTakes(hwnd, take_idx, true)
+        if take and reaper.ValidatePtr(take, 'MediaItem_Take*') then
+            takes[#takes + 1] = take
+        end
+        take_idx = take_idx + 1
+    until not take
+    return takes
+end
+
+function GetEditableNotes(main_take, takes)
+    if not main_take or #takes == 0 then return {} end
     local notes = {}
+
+    local GetNote = reaper.MIDI_GetNote
+    local QNFromPPQ = reaper.MIDI_GetProjQNFromPPQPos
+    local PPQFromQN = reaper.MIDI_GetPPQPosFromProjQN
+    local PPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
+
+    local is_timebase_source = reaper.GetToggleCommandStateEx(32060, 40470) == 1
+
+    for _, take in ipairs(takes) do
+        local is_main_take = take == main_take
+
+        -- Get minimum item start position and maximum item end position
+        local item = reaper.GetMediaItemTake_Item(take)
+        local length = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+        local start_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+        local end_pos = start_pos + length
+
+        local start_ppq = PPQFromTime(take, start_pos)
+        local end_ppq = PPQFromTime(take, end_pos)
+
+        local _, note_cnt = reaper.MIDI_CountEvts(take)
+        for i = 0, note_cnt - 1 do
+            local _, sel, mute, sppq, eppq, _, pitch = GetNote(take, i)
+            -- Filter out muted notes and notes that are outside item bounds
+            if not mute and (is_timebase_source or
+                    eppq > start_ppq and sppq < end_ppq) then
+                if not is_main_take then
+                    -- Convert ppq from other takes to main take ppq
+                    sppq = PPQFromQN(main_take, QNFromPPQ(take, sppq))
+                    eppq = PPQFromQN(main_take, QNFromPPQ(take, eppq))
+                end
+                local note_info = {
+                    pitch = pitch,
+                    sel = sel,
+                    sppq = sppq,
+                    eppq = eppq,
+                }
+                notes[#notes + 1] = note_info
+            end
+        end
+    end
+
+    -- Sort notes if more than one editable take
+    if #takes > 1 then
+        table.sort(notes, function(a, b) return a.sppq < b.sppq end)
+    end
+
+    return notes
+end
+
+function GetChords(notes)
+    -- Build chords from notes
+    local chords = {}
+    local chord_notes = {}
     local sel_notes = {}
 
     local chord_min_eppq
 
-    for i = 0, note_cnt - 1 do
-        local _, sel, mute, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
-        if not mute then
-            local note_info = {pitch = pitch, sel = sel, sppq = sppq, eppq = eppq}
-            if sel then sel_notes[#sel_notes + 1] = note_info end
+    for i = 1, #notes do
+        local note_info = notes[i]
+        local sppq, eppq = note_info.sppq, note_info.eppq
+        if note_info.sel then sel_notes[#sel_notes + 1] = note_info end
 
-            chord_min_eppq = chord_min_eppq or eppq
-            chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
+        chord_min_eppq = chord_min_eppq or eppq
+        chord_min_eppq = eppq < chord_min_eppq and eppq or chord_min_eppq
 
-            if sppq >= chord_min_eppq then
-                local new_notes = {}
-                if #notes >= 2 then
-                    local chord = BuildChord(notes)
-                    if chord then chords[#chords + 1] = chord end
-                    for _ = 3, #notes do
-                        -- Remove notes that end prior to chord_min_eppq
-                        for n = 1, #notes do
-                            local note = notes[n]
-                            if note.eppq > chord_min_eppq then
-                                new_notes[#new_notes + 1] = note
-                            end
-                        end
-                        -- Try to build chords
-                        chord = BuildChord(new_notes)
-                        if chord then
-                            chord.sppq = chord_min_eppq
-                            chord.eppq = math.min(chord.eppq, sppq)
-                            -- Ignore short chords
-                            if chord.eppq - chord.sppq >= 240 then
-                                chords[#chords + 1] = chord
-                            end
-                            chord_min_eppq = chord.eppq
-                        end
-                        new_notes = {}
-                    end
-                    -- Remove notes that end prior to the start of current note
-                    chord_min_eppq = eppq
-                    for n = 1, #notes do
-                        local note = notes[n]
-                        if note.eppq > sppq then
-                            new_notes[#new_notes + 1] = note
-                            if note.eppq < chord_min_eppq then
-                                chord_min_eppq = note.eppq
-                            end
+        if sppq >= chord_min_eppq then
+            local new_chord_notes = {}
+            if #chord_notes >= 2 then
+                local chord = BuildChord(chord_notes)
+                if chord then chords[#chords + 1] = chord end
+                for n = 3, #chord_notes do
+                    -- Remove notes that end prior to chord_min_eppq
+                    for _, note in ipairs(chord_notes) do
+                        if note.eppq > chord_min_eppq then
+                            new_chord_notes[#new_chord_notes + 1] = note
                         end
                     end
-                else
-                    chord_min_eppq = eppq
-                end
-                notes = new_notes
-            else
-                if #notes >= 2 then
-                    local chord = BuildChord(notes)
+                    -- Try to build chords
+                    chord = BuildChord(new_chord_notes)
                     if chord then
+                        chord.sppq = chord_min_eppq
                         chord.eppq = math.min(chord.eppq, sppq)
-                        -- Ignore very short arpeggiated chords
-                        if chord.eppq - chord.sppq >= 180 then
+                        -- Ignore short chords
+                        if chord.eppq - chord.sppq >= 240 then
                             chords[#chords + 1] = chord
                         end
+                        chord_min_eppq = chord.eppq
+                    end
+                    new_chord_notes = {}
+                end
+                -- Remove notes that end prior to the start of current note
+                chord_min_eppq = eppq
+                for _, note in ipairs(chord_notes) do
+                    if note.eppq > sppq then
+                        new_chord_notes[#new_chord_notes + 1] = note
+                        if note.eppq < chord_min_eppq then
+                            chord_min_eppq = note.eppq
+                        end
+                    end
+                end
+            else
+                chord_min_eppq = eppq
+            end
+            chord_notes = new_chord_notes
+        else
+            if #chord_notes >= 2 then
+                local chord = BuildChord(chord_notes)
+                if chord then
+                    chord.eppq = math.min(chord.eppq, sppq)
+                    -- Ignore very short arpeggiated chords
+                    if chord.eppq - chord.sppq >= 180 then
+                        chords[#chords + 1] = chord
                     end
                 end
             end
-            notes[#notes + 1] = note_info
         end
+        chord_notes[#chord_notes + 1] = note_info
     end
 
     local sel_chord
@@ -638,20 +706,19 @@ function GetChords(take)
             end
         end
     end
-    if #notes >= 2 then
-        local chord = BuildChord(notes)
+    if #chord_notes >= 2 then
+        local chord = BuildChord(chord_notes)
         if chord then chords[#chords + 1] = chord end
-        for _ = 3, #notes do
-            local new_notes = {}
+        for n = 3, #chord_notes do
+            local new_chord_notes = {}
             -- Remove notes that end prior to chord_min_eppq
-            for n = 1, #notes do
-                local note = notes[n]
+            for _, note in ipairs(chord_notes) do
                 if note.eppq > chord_min_eppq then
-                    new_notes[#new_notes + 1] = note
+                    new_chord_notes[#new_chord_notes + 1] = note
                 end
             end
             -- Try to build chords
-            chord = BuildChord(new_notes)
+            chord = BuildChord(new_chord_notes)
             if chord then
                 chord.sppq = chord_min_eppq
                 -- Ignore short chords
@@ -2047,11 +2114,28 @@ function Main()
         end
     end
 
-    -- Update take chord information when MIDI hash changes
-    local _, hash = reaper.MIDI_GetHash(take, true)
-    if hash ~= prev_hash then
-        prev_hash = hash
-        curr_chords, curr_sel_chord = GetChords(take)
+    -- Check if any of the editable takes in editor changed (by comparing hash)
+    local takes = GetEditableTakes(editor_hwnd)
+    local have_takes_changed = #takes ~= #prev_take_hashes
+
+    if not have_takes_changed then
+        for t = 1, #takes do
+            local _, hash = reaper.MIDI_GetHash(takes[t], takes[t] == take)
+            if hash ~= prev_take_hashes[t] then
+                have_takes_changed = true
+                break
+            end
+        end
+    end
+
+    if have_takes_changed then
+        prev_take_hashes = {}
+        for t = 1, #takes do
+            local _, hash = reaper.MIDI_GetHash(takes[t], takes[t] == take)
+            prev_take_hashes[t] = hash
+        end
+        local notes = GetEditableNotes(take, takes)
+        curr_chords, curr_sel_chord = GetChords(notes)
         is_redraw = true
     end
 
