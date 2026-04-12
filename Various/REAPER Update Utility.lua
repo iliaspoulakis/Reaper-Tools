@@ -1,14 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.0.0
+  @version 2.1.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Windows: Use curl to download (if available on system)
-    - Windows: Give reaper 5-10 seconds to close based on how many FX are loaded
-    - Show state for toolbar buttons
-    - Improve detecting when installation is cancelled (fix issue with CSI)
-    - Find and open the correct changelog file available on Landoleet
+    - Added checkbox to reopen projects
+    - Mark previously installed versions in menu
 ]]
 
 -- App version & platform architecture
@@ -79,6 +76,32 @@ local debug_str = ''
 local startup_mode = false
 local settings
 
+function LogInstalledVersion(v)
+    local key = 'installed_versions'
+    local existing = reaper.GetExtState(title, key)
+    -- Build a set from the comma-separated log
+    local versions = {}
+    for entry in (existing .. ','):gmatch('([^,]+),') do
+        versions[entry] = true
+    end
+    if not versions[v] then
+        versions[v] = true
+        local list = {}
+        for entry in pairs(versions) do list[#list + 1] = entry end
+        reaper.SetExtState(title, key, table.concat(list, ','), true)
+    end
+end
+
+function GetInstalledVersions()
+    local key = 'installed_versions'
+    local existing = reaper.GetExtState(title, key)
+    local versions = {}
+    for entry in (existing .. ','):gmatch('([^,]+),') do
+        versions[entry] = true
+    end
+    return versions
+end
+
 function print(msg, force)
     if settings.debug_console.enabled or force then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
@@ -134,23 +157,21 @@ function ExecInstall(install_cmd)
         end
     end
 
-    -- Save last active project in extstate (restore on startup)
-    local _, fn = reaper.EnumProjects(-1)
-    if fn ~= '' then
-        -- Check reaper preference if user wants to open last active project
-        local ret, setting = reaper.get_config_var_string('loadlastproj')
-        local setting = ret and tonumber(setting) & 7 or 0
-        if setting < 2 then
-            reaper.SetExtState(title, 'last_proj', fn, true)
-        end
-    end
-
-    -- Get current state count of open projects
+    -- Get paths and state counts of open projects
+    local paths = {}
     local state_cnts = {}
+    local active_proj_idx = 0
+    local active_proj = reaper.EnumProjects(-1)
     local p = 0
     repeat
-        local proj = reaper.EnumProjects(p)
-        if proj then state_cnts[proj] = reaper.GetProjectStateChangeCount(proj) end
+        local proj, path = reaper.EnumProjects(p)
+        if proj then
+            state_cnts[proj] = reaper.GetProjectStateChangeCount(proj)
+            if path and path ~= '' then
+                paths[#paths + 1] = path
+                if proj == active_proj then active_proj_idx = #paths end
+            end
+        end
         p = p + 1
     until not proj
 
@@ -166,6 +187,34 @@ function ExecInstall(install_cmd)
         if reaper.file_exists(scripts_path .. '__update.lua') then
             reaper.SetExtState(title, 'lua_hook', '1', true)
         end
+
+        -- Check reaper preference on opening previous projects
+        local ret, setting = reaper.get_config_var_string('loadlastproj')
+        local mode = ret and tonumber(setting) & 7 or -1
+        local WriteToIni = reaper.BR_Win32_WritePrivateProfileString
+        local wants_reopen = reaper.GetExtState(title, 'reopen_projects') == '1'
+
+        if wants_reopen and #paths > 0 and mode > 0 and (mode ~= 4 or WriteToIni) then
+            -- Mode 4 is option 'Prompt' and needs to be changed
+            if mode == 4 and WriteToIni then
+                WriteToIni('REAPER', 'loadlastproj', setting - 4, ini_file)
+                reaper.SetExtState(title, 'last_proj_mode', '1', true)
+            end
+
+            -- Save information about open projects (to be able to reopen them)
+            local proj_str = table.concat(paths, '\t')
+            reaper.SetExtState(title, 'last_proj', proj_str, true)
+            reaper.SetExtState(title, 'last_proj_active', active_proj_idx, true)
+
+            -- Make sure script runs on startup
+            if not CheckStartupHook() then
+                reaper.SetExtState(title, 'last_proj_hook', '1', true)
+                SetStartupHook(true)
+            end
+        end
+
+        LogInstalledVersion(install_version)
+
         -- In Windows execute after quitting to avoid error dialog
         if not platform:match('Win') then ExecProcess(install_cmd) end
         -- File: Quit REAPER
@@ -312,6 +361,7 @@ function ShowHistoryMenu()
     end
 
     -- Create string to use with showmenu function
+    local installed = GetInstalledVersions()
     local menu = ''
     for i, item in ipairs(flat_menu_list) do
         local sep = i == 1 and '' or '|'
@@ -320,7 +370,8 @@ function ShowHistoryMenu()
             sep = sep .. '>' .. group .. '|'
         end
         if item.is_last then sep = sep .. '<' end
-        menu = menu .. sep .. item.version
+        local label = item.version .. (installed[item.version] and ' •' or '')
+        menu = menu .. sep .. label
     end
 
     -- Determine where to show the menu
@@ -708,17 +759,108 @@ function DrawInstallButton(x, y, w, h, version, dlink)
     gfx.setfont(1, '', 30 * font_factor, string.byte('b'))
     local version_text = version:match('^([%d%.]+)') or 'none'
     t_w, t_h = gfx.measurestr(version_text)
-    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
-    gfx.y = math.floor(gfx.h / 2 - t_h / 2)
+    gfx.x = x + (w - t_w) // 2
+    gfx.y = y + (h - t_h) // 2
     gfx.drawstr(version_text, 1)
 
     -- Subversion
     gfx.setfont(1, '', 15 * font_factor, string.byte('i'))
     local subversion_text = version:match('[%d%.]+(.-)$') or ''
     t_w = gfx.measurestr(subversion_text)
-    gfx.x = math.floor(x + gfx.w / 7 - t_w / 2) + 1
-    gfx.y = math.floor(gfx.y + t_h) + 5
+    gfx.x = x + (w - t_w) // 2
+    gfx.y = math.floor(gfx.y + t_h) + h // 22
     gfx.drawstr(subversion_text, 1)
+end
+
+function DrawReopenCheckbox(x, y, w, h)
+    gfx.set(0.48)
+
+    -- Label
+    gfx.setfont(1, '', 13 * font_factor, 0)
+    local label = 'REOPEN PROJECTS'
+    local t_w, t_h = gfx.measurestr(label)
+    local box_size = 16
+    local box_size_m = box_size + 6
+    local total_w = t_w + box_size_m
+    gfx.x = x + (w - total_w) // 2 + box_size_m - 2
+    gfx.y = y + 4
+
+    local cb_x, cb_y, cb_w, cb_h = gfx.x - box_size_m, gfx.y, box_size, box_size
+
+    local is_hover = m_x >= cb_x and m_x <= cb_x + total_w and
+        m_y >= cb_y and m_y <= cb_y + cb_h
+
+    local is_reopen = reaper.GetExtState(title, 'reopen_projects') == '1'
+
+    if is_hover then gfx.set(0.55) end
+
+    -- Button left click
+    if is_hover and gfx.mouse_cap == 1 then
+        gfx.set(0.8, 0.6, 0.35)
+        click = {action = 'reopen_projects'}
+    end
+
+    -- Button left click release
+    if gfx.mouse_cap == 0 and click.action == 'reopen_projects' then
+        if is_hover then
+            local state = is_reopen and '0' or '1'
+            if not reaper.BR_Win32_WritePrivateProfileString then
+                -- Check reaper preference on opening previous projects
+                local ret, setting = reaper.get_config_var_string('loadlastproj')
+                local mode = ret and tonumber(setting) & 7 or -1
+                if mode == 4 then
+                    state = '0'
+                    local msg = 'Please install SWS extension'
+                    reaper.MB(msg, 'Notice', 0)
+                end
+            end
+            reaper.SetExtState(title, 'reopen_projects', state, true)
+        end
+        click = {}
+    end
+
+    -- Button hover
+    if is_hover then
+        hover_cnt = hover_cnt + 1
+        local tooltip = 'Reopen current projects after update is complete'
+        local tooltip_x, tooltip_y = reaper.GetMousePosition()
+        if hover_cnt > 12 then
+            reaper.TrackCtl_SetToolTip(tooltip, tooltip_x, tooltip_y, true)
+        end
+    end
+
+    -- Checkbox
+    gfx.roundrect(cb_x, cb_y, cb_w - 1, cb_h - 1, 4, 1)
+
+    gfx.y = gfx.y + (box_size - t_h) // 2
+    if platform:match('OS') then gfx.y = gfx.y + 1 end
+    gfx.drawstr(label, 1)
+
+
+    if is_reopen then
+        -- Draw checkmark
+        local m = 3
+        cb_x, cb_y = cb_x + m, cb_y + m
+        cb_w, cb_h = cb_w - 2 * m, cb_h - 2 * m - 1
+
+        local size = math.min(cb_w, cb_h) // 3
+
+        local mid_x = cb_x + cb_w // 3
+        local mid_y = cb_y + cb_h // 2 + size + 1
+
+        local left_x = mid_x - size
+        local left_y = mid_y - size
+
+        local right_x = mid_x + 2 * size
+        local right_y = mid_y - 2 * size
+
+        local d = math.max(1, size // 3.5)
+
+        gfx.triangle(left_x, left_y, mid_x, mid_y,
+            left_x + d, left_y - d, mid_x + d, mid_y - d)
+        gfx.triangle(mid_x, mid_y, right_x, right_y,
+            mid_x - d, mid_y - d, right_x - d, right_y - d)
+    end
 end
 
 function DrawGUI()
@@ -730,10 +872,13 @@ function DrawGUI()
     m_y = gfx.mouse_y
 
     task = ''
+    local top_h = gfx.h - 34
     local x = gfx.w // 7
-    local y = gfx.h // 4
+    local y = top_h // 4
     local w = gfx.w // 7 * 2
-    local h = gfx.h // 2
+    local h = top_h // 2
+
+    DrawSettingsButton()
 
     DrawVersionHistoryButton(x + w // 2 - 16, y - 18, true)
     DrawChangelogButton(x + w // 2 + 16, y - 18, true)
@@ -743,13 +888,13 @@ function DrawGUI()
     DrawChangelogButton(x * 4 + w // 2 + 16, y - 18, false)
     DrawInstallButton(x * 4, y, w, h, dev_version, dev_dlink)
 
-    DrawSettingsButton()
+    DrawReopenCheckbox(0, top_h, gfx.w, gfx.h - top_h)
 end
 
 function ShowGUI()
     -- Show script window in center of screen
     gfx.clear = reaper.ColorToNative(37, 37, 37)
-    local w, h = 500, 250
+    local w, h = 500, 286
     local x, y = reaper.GetMousePosition()
     local l, t, r, b = reaper.my_getViewport(0, 0, 0, 0, x, y, x, y, 1)
     gfx.init(title, w, h, 0, (r + l - w) / 2, (b + t - h) / 2 - 24)
@@ -1184,6 +1329,9 @@ end
 
 settings = LoadSettings()
 
+-- Log the currently running version so it appears marked in the history menu
+LogInstalledVersion(curr_version)
+
 if not platform:match('Win') then
     -- String escape Unix paths (spaces and brackets)
     install_path = install_path:gsub('[%s%(%)]', '\\%1')
@@ -1230,7 +1378,7 @@ print('Portable: ' .. (is_portable and 'yes' or 'no'))
 dl_cmd = 'curl -k -L %s -o %s'
 if platform:match('Win') then
     -- Check if curl is installed
-    local _, exit_code = ExecProcess(('curl --version'), 1000)
+    local _, exit_code = ExecProcess('curl --version', 1000)
     local has_curl = exit_code == 0
     if not has_curl then
         -- Use powershell instead of curl
@@ -1290,11 +1438,52 @@ end
 
 local last_proj = reaper.GetExtState(title, 'last_proj')
 if last_proj ~= '' then
-    -- Restore previously loaded project
+    -- Restore all previously open project tabs
     if not has_already_run and CheckStartupHook() then
-        reaper.Main_openProject(last_proj)
+        local ret, setting = reaper.get_config_var_string('loadlastproj')
+        local mode = ret and tonumber(setting) & 7 or 0
+
+        if mode ~= 4 then
+            local paths = {}
+            for path in (last_proj .. '\t'):gmatch('([^\t]+)\t') do
+                paths[#paths + 1] = path
+            end
+
+            for i, path in ipairs(paths) do
+                -- Open new tab
+                if i > 1 then reaper.Main_OnCommand(41929, 0) end
+                reaper.Main_openProject('noprompt:' .. path)
+            end
+            -- Re-focus the tab that was active before the update
+            local active_proj_idx = reaper.GetExtState(title, 'last_proj_active')
+            if active_proj_idx then
+                local proj = reaper.EnumProjects(tonumber(active_proj_idx) - 1)
+                if proj then reaper.SelectProjectInstance(proj) end
+            end
+
+            -- Restore project load mode setting to "Prompt"
+            if reaper.GetExtState(title, 'last_proj_mode') ~= '' then
+                local WriteToIni = reaper.BR_Win32_WritePrivateProfileString
+                if mode == 0 and WriteToIni then
+                    WriteToIni('REAPER', 'loadlastproj', setting + 4, ini_file)
+                    if reaper.SNM_SetIntConfigVar then
+                        -- Update config so change shows up immediately
+                        reaper.SNM_SetIntConfigVar('loadlastproj', setting + 4)
+                    end
+                end
+            end
+        end
     end
     reaper.SetExtState(title, 'last_proj', '', true)
+    reaper.SetExtState(title, 'last_proj_active', '', true)
+    reaper.SetExtState(title, 'last_proj_mode', '', true)
+
+    -- Script is not set to run on startup, reopen projects and exit
+    if reaper.GetExtState(title, 'last_proj_hook') ~= '' then
+        reaper.SetExtState(title, 'last_proj_hook', '', true)
+        SetStartupHook(false)
+        return
+    end
 end
 
 if startup_mode then
