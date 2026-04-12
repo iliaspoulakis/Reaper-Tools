@@ -1481,6 +1481,7 @@ if last_proj ~= '' then
     -- Script is not set to run on startup, reopen projects and exit
     if reaper.GetExtState(title, 'last_proj_hook') ~= '' then
         reaper.SetExtState(title, 'last_proj_hook', '', true)
+        reaper.SetExtState(title, 'startup', '', false)
         SetStartupHook(false)
         return
     end
