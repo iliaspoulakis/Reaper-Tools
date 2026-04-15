@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.4
+  @version 1.4.0
   @about Contextual zooming & scrolling for the MIDI editor in reaper
   @changelog
-    - Fix crash in 7.39+dev versions
+    - Various performance optimizations
 ]]
 
 ------------------------------ GENERAL SETTINGS -----------------------------
@@ -410,7 +410,6 @@ function GetItemVZoom(item)
 end
 
 function GetRelativeSourcePPQ(take, pos)
-    local ppq_pos = reaper.MIDI_GetPPQPosFromProjTime(take, pos)
     local qn_pos = reaper.TimeMap2_timeToQN(0, pos)
 
     local src = reaper.GetMediaItemTake_Source(take)
@@ -434,32 +433,93 @@ function GetSourcePPQLength(take)
 end
 
 function GetMIDIEditorView(hwnd, item, timebase)
-    if timebase == 2 or timebase == 4 then
-        SetTimebase(hwnd, 1)
-    end
-
-    local _, offset = GetItemHZoom(item)
-    -- Cmd: Scroll view right
-    reaper.MIDIEditor_OnCommand(hwnd, 40141)
-
-    local _, scroll_offset = GetItemHZoom(item)
-    -- Cmd: Scroll view left
-    reaper.MIDIEditor_OnCommand(hwnd, 40140)
-
-    if timebase == 2 or timebase == 4 then
-        SetTimebase(hwnd, timebase)
-    end
-
     local take = reaper.GetActiveTake(item)
-    local start_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, offset)
-    local end_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, scroll_offset)
+    local hzoom_lvl, start_ppq = GetItemHZoom(item)
+    if hzoom_lvl < 0 then return end
 
-    -- A factor is necessary to convert to the selection used for the action
-    -- "Zoom to project loop selection" which is smaller than the actual visible area
+    local end_ppq
+    local start_time, end_time
     local factor = timebase == 2 and 0.97087377 or 0.943396226415
-    local area = end_pos - start_pos
-    local center = start_pos + area / 2
-    return area * factor, center
+    local GetProjTimeFromPPQ = reaper.MIDI_GetProjTimeFromPPQPos
+
+    if reaper.JS_Window_FindChildByID then
+        local midiview = reaper.JS_Window_FindChildByID(hwnd, 1001)
+        local _, width_in_pixels = reaper.JS_Window_GetClientSize(midiview)
+
+        if timebase == 1 or timebase == 2 then
+            -- For timebase 1 and 2, hzoom_lvl is in pixel/ppq
+            end_ppq = start_ppq + width_in_pixels / hzoom_lvl
+        else
+            -- For timebase 2 and 3, hzoom_lvl is in pixel/time
+            start_time = GetProjTimeFromPPQ(take, start_ppq)
+            end_time = start_time + width_in_pixels / hzoom_lvl
+        end
+    else
+        reaper.PreventUIRefresh(1)
+
+        if timebase == 4 then
+            -- Timebase: Toggle sync to arrange view
+            reaper.MIDIEditor_OnCommand(hwnd, 40640)
+        end
+
+        -- Cmd: Scroll view right
+        reaper.MIDIEditor_OnCommand(hwnd, 40141)
+
+        -- After scrolling right, the new start_ppq is our end_ppq
+        _, end_ppq = GetItemHZoom(item)
+
+        -- Note: Scrolling back to the left doesn't always work because
+        -- it won't scroll back further than 0 ppq
+        if start_ppq > 0 then
+            -- Cmd: Scroll view left
+            reaper.MIDIEditor_OnCommand(hwnd, 40140)
+        else
+            local editor_start_pos = GetProjTimeFromPPQ(take, start_ppq)
+            local editor_end_pos = GetProjTimeFromPPQ(take, end_ppq)
+
+            -- A factor is necessary to convert to the selection used for the
+            -- action "Zoom to project loop selection" which is smaller than
+            -- the actual visible area
+            local area = editor_end_pos - editor_start_pos
+            local center = editor_start_pos + area / 2
+            area = area * factor
+
+            -- Save current time selection
+            local GetSetTimeSel = reaper.GetSet_LoopTimeRange
+            local sel_start_pos, sel_end_pos = GetSetTimeSel(0, 1, 0, 0, 0)
+
+            -- Set selection to area for zoom
+            GetSetTimeSel(1, 1, center - area / 2, center + area / 2, 0)
+
+            -- View: Zoom to project loop selection
+            reaper.MIDIEditor_OnCommand(hwnd, 40726)
+
+            -- Restore initial time selection
+            GetSetTimeSel(1, 1, sel_start_pos, sel_end_pos, 0)
+        end
+
+        if timebase == 4 then
+            -- Timebase: Toggle sync to arrange view
+            reaper.MIDIEditor_OnCommand(hwnd, 40640)
+        end
+
+        reaper.PreventUIRefresh(-1)
+    end
+
+    -- Convert ppq to time based units
+    start_time = start_time or GetProjTimeFromPPQ(take, start_ppq)
+    end_time = end_time or GetProjTimeFromPPQ(take, end_ppq)
+
+    if timebase == 1 or timebase == 2 then
+        -- Convert hzoom_lvl from pixel/ppq to pixel/time
+        local width_in_pixels = (end_ppq - start_ppq) * hzoom_lvl
+        hzoom_lvl = width_in_pixels / (end_time - start_time)
+    end
+
+    local area = end_time - start_time
+    local center = start_time + area / 2
+    area = area * factor
+    return area, center
 end
 
 function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
@@ -496,41 +556,46 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
     local prev_eppq = start_ppq
     local gap_length = 0
     local min_note_distance = math.huge
+    local num_notes = _G.number_of_notes
+    local smoothing = _G.smoothing
+    local GetNote = reaper.MIDI_GetNote
 
-    local i = 0
-    repeat
-        local ret, _, _, sppq, eppq = reaper.MIDI_GetNote(take, i)
-        if ret then
-            local note_length = eppq - sppq
-            -- Add gap between notes to note length
-            if sppq >= prev_eppq then
-                -- Limit gap length to something reasonable
-                local min_gap_length = note_length * _G.number_of_notes
-                gap_length = math.min(min_gap_length, sppq - prev_eppq)
-            end
-            if eppq > prev_eppq then
-                prev_eppq = eppq
-            end
-            for n = loop_start, loop_end do
-                local sppq_o = sppq + n * src_ppq_length
-                local eppq_o = eppq + n * src_ppq_length
-                if eppq_o > start_ppq and sppq_o < end_ppq then
-                    local note_center_ppq = sppq_o + note_length / 2
-                    local note_distance = math.abs(note_center_ppq - ppq_pos)
-                    -- Avoid dividing by zero (and attributing very high weights)
-                    note_distance = math.max(note_distance, note_length)
-                    min_note_distance = math.min(min_note_distance, note_distance)
-
-                    local note_weight = 1 / note_distance ^ _G.smoothing
-                    local gap_note_length = note_length + gap_length
-                    local weighted_gap_length = note_weight * gap_note_length
-                    note_length_sum = note_length_sum + weighted_gap_length
-                    note_weight_sum = note_weight_sum + note_weight
+    local _, total_note_cnt = reaper.MIDI_CountEvts(take)
+    for i = 0, total_note_cnt - 1 do
+        local _, _, _, sppq, eppq = GetNote(take, i)
+        local note_length = eppq - sppq
+        -- Add gap between notes to note length
+        if sppq >= prev_eppq then
+            -- Limit gap length to something reasonable
+            local min_gap_length = note_length * num_notes
+            gap_length = sppq - prev_eppq
+            if gap_length > min_gap_length then gap_length = min_gap_length end
+        end
+        if eppq > prev_eppq then
+            prev_eppq = eppq
+        end
+        for n = loop_start, loop_end do
+            local sppq_o = sppq + n * src_ppq_length
+            local eppq_o = eppq + n * src_ppq_length
+            if eppq_o > start_ppq and sppq_o < end_ppq then
+                local note_center_ppq = sppq_o + note_length / 2
+                local note_distance = note_center_ppq - ppq_pos
+                if note_distance < 0 then note_distance = -note_distance end
+                -- Avoid dividing by zero (and attributing very high weights)
+                if note_length > note_distance then
+                    note_distance = note_length
                 end
+                if note_distance < min_note_distance then
+                    min_note_distance = note_distance
+                end
+                local note_weight = 1 / note_distance ^ smoothing
+                local gap_note_length = note_length + gap_length
+                local weighted_gap_length = note_weight * gap_note_length
+                note_length_sum = note_length_sum + weighted_gap_length
+                note_weight_sum = note_weight_sum + note_weight
             end
         end
-        i = i + 1
-    until not ret
+    end
 
     if note_weight_sum == 0 then
         return
@@ -619,14 +684,6 @@ function GetPitchRange(take, vis_row_map,
         end
     end
 
-    local function IsNoteVisible(sppq, eppq)
-        if end_ppq < start_ppq then
-            return eppq > start_ppq or sppq < end_ppq
-        else
-            return eppq > start_ppq and sppq < end_ppq
-        end
-    end
-
     local note_lo = 128
     local note_hi = -1
 
@@ -639,24 +696,27 @@ function GetPitchRange(take, vis_row_map,
     local sel_note_avg = 0
     local sel_note_cnt = 0
 
-    local i = 0
-    repeat
-        local ret, sel, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, i)
-        pitch = ret and vis_row_map[pitch]
-        if pitch and IsNoteVisible(sppq, eppq) then
-            note_lo = math.min(note_lo, pitch)
-            note_hi = math.max(note_hi, pitch)
-            note_avg = note_avg + pitch
-            note_cnt = note_cnt + 1
-            if sel then
-                sel_note_lo = math.min(sel_note_lo, pitch)
-                sel_note_hi = math.max(sel_note_hi, pitch)
-                sel_note_avg = sel_note_avg + pitch
-                sel_note_cnt = sel_note_cnt + 1
+    local _, total_note_cnt = reaper.MIDI_CountEvts(take)
+    for n = 0, total_note_cnt - 1 do
+        local _, sel, _, sppq, eppq, _, pitch = reaper.MIDI_GetNote(take, n)
+        -- Check if note is within bounds of the item
+        if (end_ppq < start_ppq and (eppq > start_ppq or sppq < end_ppq)) or
+            (end_ppq >= start_ppq and eppq > start_ppq and sppq < end_ppq) then
+            pitch = vis_row_map[pitch]
+            if pitch then
+                note_lo = math.min(note_lo, pitch)
+                note_hi = math.max(note_hi, pitch)
+                note_avg = note_avg + pitch
+                note_cnt = note_cnt + 1
+                if sel then
+                    sel_note_lo = math.min(sel_note_lo, pitch)
+                    sel_note_hi = math.max(sel_note_hi, pitch)
+                    sel_note_avg = sel_note_avg + pitch
+                    sel_note_cnt = sel_note_cnt + 1
+                end
             end
         end
-        i = i + 1
-    until not ret
+    end
 
     note_avg = note_cnt > 0 and note_avg / note_cnt
     sel_note_avg = sel_note_cnt > 0 and sel_note_avg / sel_note_cnt
@@ -677,6 +737,7 @@ function ZoomToPitchRange(hwnd, item, vis_rows, note_lo, note_hi)
 
     local target_row = math.floor((note_lo + note_hi) / 2)
     local curr_row = GetItemVZoom(item)
+    if not curr_row or curr_row == 0 then return end
     curr_row = curr_row + vis_row_cnt - 127
 
     local target_range = math.ceil((note_hi - note_lo) / 2)
@@ -770,6 +831,7 @@ function ScrollToNoteRow(hwnd, item, vis_rows, target_row, note_lo, note_hi)
 
     local vis_row_cnt = #vis_rows
     local curr_row = GetItemVZoom(item)
+    if not curr_row or curr_row == 0 then return end
     curr_row = curr_row + vis_row_cnt - 127
 
     local pitch = vis_rows[curr_row]
@@ -858,6 +920,8 @@ function ScrollToNoteRow(hwnd, item, vis_rows, target_row, note_lo, note_hi)
 
     print('Target row:' .. target_row)
     print('Target range:' .. tostring(target_range))
+    print(row_string)
+    print(zoom_string)
     local _, zoom_cnt = zoom_string:gsub(' %-', '')
     print('Vertically zooming ' .. zoom_cnt .. ' times')
 

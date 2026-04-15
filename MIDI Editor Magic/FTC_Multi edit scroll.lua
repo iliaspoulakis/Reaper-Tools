@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.5.3
+  @version 1.6.0
   @provides [main=main,midi_editor] .
   @about Opens multiple items in the MIDI editor and scrolls to the center of their content
   @changelog
-    - Fix crash in 7.39+dev versions
+    - Support custom note order
+    - Add options for minimum/maximum number of measures
 ]]
 
 ------------------------------- GENERAL SETTINGS --------------------------------
@@ -15,6 +16,15 @@
 -- 1: Always
 -- 2: Only when multiple MIDI items are selected
 _G.hzoom_mode = 1
+
+-- Always round up horizontal zoom to full measures
+_G.zoom_to_full_measures = true
+
+-- Minimum number of measures to zoom to (0 = disabled)
+_G.min_number_of_measures = 0
+
+-- Maximum number of measures to zoom to (0 = disabled)
+_G.max_number_of_measures = 0
 
 -- Which note to scroll to when item/visible area contains no notes
 _G.base_note = 60
@@ -40,7 +50,7 @@ _G.toggle_editor = false
 
 --------------------------------------------------------------------------------
 
-local debug = false
+local is_debug = false
 local extname = 'FTC.MultiEditScroll'
 
 if not reaper.SNM_GetIntConfigVar then
@@ -52,7 +62,7 @@ local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
 if version >= 7.03 then reaper.set_action_options(3) end
 
 function print(msg)
-    if debug then
+    if is_debug then
         reaper.ShowConsoleMsg(tostring(msg) .. '\n')
     end
 end
@@ -112,18 +122,69 @@ function GetSourcePPQLength(take)
     return reaper.MIDI_GetPPQPosFromProjQN(take, start_qn + src_length)
 end
 
-function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
+function GetVisibleNoteRows(hwnd)
+    local mode
+    local visible_rows = {}
+
+    if reaper.GetToggleCommandStateEx(32060, 40452) == 1 then
+        mode = 'all'
+        for n = 0, 127 do visible_rows[n + 1] = n end
+    elseif reaper.GetToggleCommandStateEx(32060, 40143) == 1 then
+        mode = 'custom'
+        local take = reaper.MIDIEditor_GetTake(hwnd)
+        local track = take and reaper.GetMediaItemTake_Track(take)
+
+        local note_order
+        if track then
+            local _, chunk = reaper.GetTrackStateChunk(track, '', false)
+            note_order = chunk:match('CUSTOM_NOTE_ORDER (.-)\n')
+        end
+        if note_order then
+            for value in (note_order .. ' '):gmatch('(.-) ') do
+                visible_rows[#visible_rows + 1] = tonumber(value)
+            end
+        else
+            for n = 0, 127 do visible_rows[n + 1] = n end
+        end
+    else
+        mode = 'unused'
+        local GetSetting = reaper.MIDIEditor_GetSetting_int
+        local SetSetting = reaper.MIDIEditor_SetSetting_int
+        local setting = 'active_note_row'
+
+        local prev_row = GetSetting(hwnd, setting)
+
+        local highest_row = -1
+        for i = 0, 127 do
+            SetSetting(hwnd, setting, i)
+            local row = GetSetting(hwnd, setting)
+            if row > highest_row then
+                highest_row = row
+                visible_rows[#visible_rows + 1] = row
+            end
+        end
+
+        SetSetting(hwnd, setting, prev_row)
+    end
+    return visible_rows, mode
+end
+
+function ScrollToNoteRow(hwnd, item, vis_rows, target_row, note_lo, note_hi)
     -- Get previous active note row
     local setting = 'active_note_row'
     local active_row = reaper.MIDIEditor_GetSetting_int(hwnd, setting)
 
+    local vis_row_cnt = #vis_rows
     local curr_row = GetItemVZoom(item)
-    -- Set active note row to set center of vertical zoom
-    reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
+    if not curr_row or curr_row == 0 then return end
+    curr_row = curr_row + vis_row_cnt - 127
+
+    local pitch = vis_rows[curr_row]
+    reaper.MIDIEditor_SetSetting_int(hwnd, setting, pitch)
 
     if note_lo and note_hi then
-        note_lo = math.max(note_lo, 0)
-        note_hi = math.min(note_hi, 127)
+        note_lo = math.max(note_lo, 1)
+        note_hi = math.min(note_hi, vis_row_cnt)
         target_row = math.max(target_row, note_lo)
         target_row = math.min(target_row, note_hi)
     end
@@ -136,22 +197,23 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
     local target_range
 
     -- Debugging output
-    local row_string = ' -> ' .. curr_row
+    local row_string = ' -> ' .. curr_row .. ':' .. pitch
     local zoom_string = ' -> in'
 
     local i = 0
     repeat
-        local row, size = GetItemVZoom(item)
+        local row = GetItemVZoom(item)
+        row = row - 127 + vis_row_cnt
         local pitch_range = math.min(-2, curr_row - row + 1) * -1
 
-        if row == 127 and i == 0 and not backup_target_row then
+        if row == vis_row_cnt and i == 0 and not backup_target_row then
             -- When row 127 is visible it's not possible to get the target range.
             -- Scroll down until it isn't and keep target row as backup
             backup_target_row = target_row
-            target_row = 0
+            target_row = 1
         end
 
-        if row < 127 and zoom_in_cnt == 0 and not target_range then
+        if row < vis_row_cnt and zoom_in_cnt == 0 and not target_range then
             target_range = pitch_range
             target_row = backup_target_row or target_row
 
@@ -183,8 +245,9 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
         end
 
         -- Set active note row to set center of vertical zoom
-        reaper.MIDIEditor_SetSetting_int(hwnd, setting, curr_row)
-        row_string = row_string .. ' -> ' .. curr_row
+        pitch = vis_rows[curr_row]
+        reaper.MIDIEditor_SetSetting_int(hwnd, setting, pitch)
+        row_string = row_string .. ' -> ' .. curr_row .. ':' .. pitch
 
         if zoom_in_cnt > 0 then
             -- Cmd: Zoom out vertically
@@ -198,7 +261,7 @@ function ScrollToNoteRow(hwnd, item, target_row, note_lo, note_hi)
             zoom_in_cnt = zoom_in_cnt + 1
         end
         i = i + 1
-    until i == 50 or curr_row == target_row and zoom_in_cnt == 0 and i > 2
+    until i == 100 or curr_row == target_row and zoom_in_cnt == 0 and i > 2
 
     print('Target row:' .. target_row)
     print('Target range:' .. tostring(target_range))
@@ -532,8 +595,6 @@ if sel_item_cnt == 0 then
     return
 end
 
-reaper.PreventUIRefresh(1)
-
 local sel_items = {}
 
 -- Get selected items
@@ -541,101 +602,26 @@ for i = 0, sel_item_cnt - 1 do
     sel_items[#sel_items + 1] = reaper.GetSelectedMediaItem(0, i)
 end
 
-local midi_item_cnt = 0
 local midi_takes = {}
 
-local zoom_start_pos = math.huge
-local zoom_end_pos = 0
-
-local note_lo = 128
-local note_hi = -1
-
-local density = 0
-local density_cnt = 0
-
-local analysis_start_time = reaper.time_precise()
-
-local GetNote = reaper.MIDI_GetNote
-local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
-local GetItemInfo = reaper.GetMediaItemInfo_Value
-local GetTrackMIDINoteRange = reaper.GetTrackMIDINoteRange
-
--- Analyze all selected items
+-- Get selected MIDI takes
 for i = 1, #sel_items do
     local item = sel_items[i]
     local take = reaper.GetActiveTake(item)
     if reaper.ValidatePtr(take, 'MediaItem_Take*') and reaper.TakeIsMIDI(take) then
-        midi_item_cnt = midi_item_cnt + 1
-        midi_takes[take] = true
-
-        -- Get minimum item start position and maximum item end position
-        local length = GetItemInfo(item, 'D_LENGTH')
-        local start_pos = GetItemInfo(item, 'D_POSITION')
-        local end_pos = start_pos + length
-        if start_pos < zoom_start_pos then zoom_start_pos = start_pos end
-        if end_pos > zoom_end_pos then zoom_end_pos = end_pos end
-
-        if reaper.time_precise() - analysis_start_time > 0.15 then
-            -- If analysis takes too long, start using track note range
-            local track = reaper.GetMediaItem_Track(item)
-            local range_note_lo, range_note_hi = GetTrackMIDINoteRange(0, track)
-            if range_note_lo + range_note_hi > 0 then
-                if range_note_lo < note_lo then note_lo = range_note_lo end
-                if range_note_hi > note_hi then note_hi = range_note_hi end
-                density = density + (note_lo + note_hi) / 2
-                density_cnt = density_cnt + 1
-            end
-        else
-            -- Get note center
-            local start_ppq = GetPPQFromTime(take, start_pos)
-            local end_ppq = GetPPQFromTime(take, end_pos)
-
-            if GetItemInfo(item, 'B_LOOPSRC') == 1 then
-                local src_ppq_length = GetSourcePPQLength(take)
-                if end_ppq - start_ppq >= src_ppq_length then
-                    start_ppq = 0
-                    end_ppq = src_ppq_length
-                else
-                    start_ppq = start_ppq % src_ppq_length
-                    end_ppq = end_ppq % src_ppq_length
-                end
-            end
-
-            local function IsNoteVisible(sppq, eppq)
-                if end_ppq < start_ppq then
-                    return eppq > start_ppq or sppq < end_ppq
-                else
-                    return eppq > start_ppq and sppq < end_ppq
-                end
-            end
-
-            local n = 0
-            repeat
-                local ret, _, _, sppq, eppq, _, pitch = GetNote(take, n)
-                if ret and IsNoteVisible(sppq, eppq) then
-                    if pitch < note_lo then note_lo = pitch end
-                    if pitch > note_hi then note_hi = pitch end
-                    density = density + pitch
-                    density_cnt = density_cnt + 1
-                end
-                n = n + 1
-            until not ret
-        end
+        midi_takes[#midi_takes + 1] = take
     end
 end
 
 -- No MIDI items found
-if midi_item_cnt == 0 then
-    reaper.PreventUIRefresh(-1)
-    return
-end
+if #midi_takes == 0 then return end
 
-local prev_hwnd = reaper.MIDIEditor_GetActive()
+reaper.PreventUIRefresh(1)
 
 local config
 local visibility
 
-if midi_item_cnt > 1 then
+if #midi_takes > 1 then
     -- Change MIDI editor settings for multi-edit
     config = reaper.SNM_GetIntConfigVar('midieditor', 0)
 
@@ -668,39 +654,15 @@ if midi_item_cnt > 1 then
     -- is linked to editability
     local editor_follows_track_sel = config & 8192 == 8192
     if editor_follows_track_sel and editability == 0 then
-        for take in pairs(midi_takes) do
+        for _, take in ipairs(midi_takes) do
             local track = reaper.GetMediaItemTake_Track(take)
             reaper.SetMediaTrackInfo_Value(track, 'I_SELECTED', 1)
         end
     end
 end
 
--- If all editable takes are already editable, avoid re-opening the editor
-local requires_new_editor = true
-if prev_hwnd then
-    local i = 0
-    repeat
-        local take = reaper.MIDIEditor_EnumTakes(prev_hwnd, i, false)
-        if take and not midi_takes[take] then break end
-        i = i + 1
-    until not take
-
-    if midi_item_cnt == i - 1 then requires_new_editor = false end
-
-    -- Ensure that active take can be switched (with same items selected)
-    if not requires_new_editor and mouse_item then
-        local mouse_take = reaper.GetActiveTake(mouse_item)
-        local is_valid = reaper.ValidatePtr(mouse_take, 'MediaItem_Take*')
-        if is_valid and mouse_take ~= reaper.MIDIEditor_GetTake(prev_hwnd) then
-            requires_new_editor = true
-        end
-    end
-end
-
-if requires_new_editor then
-    -- Cmd: Open in built-in MIDI editor
-    reaper.Main_OnCommand(40153, 0)
-end
+-- Cmd: Open in built-in MIDI editor
+reaper.Main_OnCommand(40153, 0)
 
 local hwnd = reaper.MIDIEditor_GetActive()
 local editor_take = reaper.MIDIEditor_GetTake(hwnd)
@@ -712,7 +674,7 @@ if not reaper.ValidatePtr(editor_take, 'MediaItem_Take*') then
     return
 end
 
-if midi_item_cnt > 1 then
+if #midi_takes > 1 then
     -- Note: Setting 'Selection is linked to visibility' can change item
     -- selection to  all items that are open (visible) in editor
     if reaper.CountSelectedMediaItems(0) ~= sel_item_cnt then
@@ -737,7 +699,7 @@ if midi_item_cnt > 1 then
     if _G.smart_note_color then
         local has_multiple_track_colors = false
         local prev_color
-        for take in pairs(midi_takes) do
+        for _, take in ipairs(midi_takes) do
             local track = reaper.GetMediaItemTake_Track(take)
             local color = reaper.GetMediaTrackInfo_Value(track, 'I_CUSTOMCOLOR')
             if prev_color and color ~= prev_color then
@@ -781,28 +743,162 @@ if new_sel_item_cnt ~= sel_item_cnt or mouse_item then
     end
 end
 
-local are_notes_hidden = reaper.GetToggleCommandStateEx(32060, 40452) ~= 1
-if are_notes_hidden then
-    print('Notes are hidden. Zooming to content')
-    -- Cmd: Zoom to content
-    reaper.MIDIEditor_OnCommand(hwnd, 40466)
-else
-    if note_hi == -1 then
-        print('No note in area/take: Scrolling to center')
-        note_lo = 0
-        note_hi = 127
-    end
-    local note_row = _G.base_note
-    if density_cnt > 0 then
-        note_row = density // density_cnt
-    end
-    print('Vertically scrolling to note ' .. note_row)
-    print('Scroll lo/hi limit: ' .. note_lo .. '/' .. note_hi)
-    local editor_item = reaper.GetMediaItemTake_Item(editor_take)
-    ScrollToNoteRow(hwnd, editor_item, note_row, note_lo - 1, note_hi + 1)
+local vis_rows = GetVisibleNoteRows(hwnd)
+local vis_row_map = {}
+for i = 1, #vis_rows do vis_row_map[vis_rows[i]] = i end
+
+local zoom_start_pos = math.huge
+local zoom_end_pos = 0
+
+local note_lo = 128
+local note_hi = -1
+
+local note_avg = 0
+local note_cnt = 0
+
+local analysis_start_time = reaper.time_precise()
+local is_timebase_source = reaper.GetToggleCommandStateEx(32060, 40470) == 1
+
+if is_timebase_source and #midi_takes > 0 then
+    -- Switch timebase to "project" to allow multiple open items
+    reaper.MIDIEditor_OnCommand(hwnd, 40459)
+    is_timebase_source = false
 end
 
-if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and midi_item_cnt > 1 then
+local GetNote = reaper.MIDI_GetNote
+local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
+local GetItemInfo = reaper.GetMediaItemInfo_Value
+local GetTrackMIDINoteRange = reaper.GetTrackMIDINoteRange
+
+-- Analyze all midi takes
+for i = 1, #midi_takes do
+    local take = midi_takes[i]
+    local item = reaper.GetMediaItemTake_Item(take)
+
+    -- Get minimum item start position and maximum item end position
+    local length = GetItemInfo(item, 'D_LENGTH')
+    local start_pos = GetItemInfo(item, 'D_POSITION')
+    local end_pos = start_pos + length
+    if start_pos < zoom_start_pos then zoom_start_pos = start_pos end
+    if end_pos > zoom_end_pos then zoom_end_pos = end_pos end
+
+    if reaper.time_precise() - analysis_start_time > 0.15 then
+        -- If analysis takes too long, start using track note range
+        local track = reaper.GetMediaItem_Track(item)
+        local range_note_lo, range_note_hi = GetTrackMIDINoteRange(0, track)
+        if range_note_lo + range_note_hi > 0 then
+            if range_note_lo < note_lo then note_lo = range_note_lo end
+            if range_note_hi > note_hi then note_hi = range_note_hi end
+            note_avg = note_avg + (note_lo + note_hi) / 2
+            note_cnt = note_cnt + 1
+        end
+    else
+        -- Get note center
+        local start_ppq = GetPPQFromTime(take, start_pos)
+        local end_ppq = GetPPQFromTime(take, end_pos)
+
+        if not is_timebase_source and GetItemInfo(item, 'B_LOOPSRC') == 1 then
+            local src_ppq_length = GetSourcePPQLength(take)
+            if end_ppq - start_ppq >= src_ppq_length then
+                start_ppq = 0
+                end_ppq = src_ppq_length
+            else
+                start_ppq = start_ppq % src_ppq_length
+                end_ppq = end_ppq % src_ppq_length
+            end
+        end
+
+        local _, total_note_cnt = reaper.MIDI_CountEvts(take)
+        for n = 0, total_note_cnt - 1 do
+            local _, _, _, sppq, eppq, _, pitch = GetNote(take, n)
+            -- Check if note is within bounds of the item
+            local is_in_bounds = true
+            if not is_timebase_source then
+                if end_ppq < start_ppq then
+                    is_in_bounds = eppq > start_ppq or sppq < end_ppq
+                else
+                    is_in_bounds = eppq > start_ppq and sppq < end_ppq
+                end
+            end
+            if is_in_bounds then
+                pitch = vis_row_map[pitch]
+                if pitch then
+                    if pitch < note_lo then note_lo = pitch end
+                    if pitch > note_hi then note_hi = pitch end
+                    note_avg = note_avg + pitch
+                    note_cnt = note_cnt + 1
+                end
+            end
+        end
+    end
+end
+
+if note_hi == -1 then
+    print('No note in area/take: Scrolling to center')
+    note_lo = 0
+    note_hi = 127
+end
+
+local note_row = _G.base_note
+if note_cnt > 0 then
+    note_row = note_avg // note_cnt
+end
+
+print('Vertically scrolling to note ' .. note_row)
+print('Scroll lo/hi limit: ' .. note_lo .. '/' .. note_hi)
+
+local editor_item = reaper.GetMediaItemTake_Item(editor_take)
+ScrollToNoteRow(hwnd, editor_item, vis_rows, note_row,
+    note_lo - 1, note_hi + 1)
+
+if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and #midi_takes > 1 then
+    local m = 0.001
+    local TimeToBeats = reaper.TimeMap2_timeToBeats
+    local BeatsToTime = reaper.TimeMap2_beatsToTime
+    local start_measure = select(2, TimeToBeats(0, zoom_start_pos + m))
+    local end_measure = select(2, TimeToBeats(0, zoom_end_pos - m)) + 1
+
+    if _G.zoom_to_full_measures then
+        zoom_start_pos = BeatsToTime(0, 0, start_measure)
+        zoom_end_pos = BeatsToTime(0, 0, end_measure)
+    end
+
+    local zoom_measures = end_measure - start_measure
+
+    local min_measures = _G.min_number_of_measures
+    if min_measures > 0 and zoom_measures <= min_measures then
+        local start_offs = (min_measures - zoom_measures) // 2
+
+        local new_start_measure = start_measure - start_offs
+        local new_end_measure = new_start_measure + min_measures
+
+        zoom_start_pos = BeatsToTime(0, 0, new_start_measure)
+        zoom_end_pos = BeatsToTime(0, 0, new_end_measure)
+    end
+
+    local max_measures = _G.max_number_of_measures
+    if max_measures > 0 and zoom_measures >= max_measures then
+        local cursor_pos = reaper.GetCursorPosition()
+        local _, cursor_measure = TimeToBeats(0, cursor_pos)
+        local start_offs = max_measures // 2
+
+        local new_start_measure = cursor_measure - start_offs
+        local new_end_measure = new_start_measure + max_measures
+
+        if new_end_measure > end_measure then
+            new_start_measure = end_measure - max_measures
+            new_end_measure = end_measure
+        end
+
+        if new_start_measure < start_measure then
+            new_start_measure = start_measure
+            new_end_measure = start_measure + max_measures
+        end
+
+        zoom_start_pos = BeatsToTime(0, 0, new_start_measure)
+        zoom_end_pos = BeatsToTime(0, 0, new_end_measure)
+    end
+
     -- Get previous time selection
     local sel = GetSelection()
     SetSelection(zoom_start_pos, zoom_end_pos)
@@ -813,7 +909,7 @@ if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and midi_item_cnt > 1 then
     -- Reset previous time selection
     local sel_start_pos = sel and sel.start_pos or 0
     local sel_end_pos = sel and sel.end_pos or 0
-    if not debug then
+    if not is_debug then
         SetSelection(sel_start_pos, sel_end_pos)
     end
 else

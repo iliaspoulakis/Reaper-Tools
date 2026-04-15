@@ -3,22 +3,20 @@
   @license MIT
   @version 1.6.0
   @provides [main=main,midi_editor] .
-  @about Opens multiple items in the MIDI editor and zooms to their content
-  @changelog
-    - Support custom note order
-    - Add options for minimum/maximum number of measures
+  @about Opens multiple items in the MIDI editor and zooms depending on content
 ]]
 
 ------------------------------- GENERAL SETTINGS --------------------------------
 
--- When to zoom to items horizontally (inside MIDI editor)
--- 0: Never
--- 1: Always
--- 2: Only when multiple MIDI items are selected
-_G.hzoom_mode = 1
+-- Number of (approximate) notes to zoom to
+_G.number_of_notes = 20
 
--- Always round up horizontal zoom to full measures
-_G.zoom_to_full_measures = true
+-- Determines how influential the cursor position is in smart zoom modes
+-- No influence: 0,  High influence: >1,  Default: 0.75
+_G.smoothing = 0.75
+
+-- Restrict zoom to item bounds
+_G.restrict_to_items = true
 
 -- Minimum number of measures to zoom to (0 = disabled)
 _G.min_number_of_measures = 0
@@ -57,7 +55,7 @@ _G.toggle_editor = false
 --------------------------------------------------------------------------------
 
 local is_debug = false
-local extname = 'FTC.MultiEditZoom'
+local extname = 'FTC.MultiEditSmartZoom'
 
 if not reaper.SNM_GetIntConfigVar then
     reaper.MB('Please install SWS extension', 'Error', 0)
@@ -745,12 +743,20 @@ local vis_rows = GetVisibleNoteRows(hwnd)
 local vis_row_map = {}
 for i = 1, #vis_rows do vis_row_map[vis_rows[i]] = i end
 
-local zoom_start_pos = math.huge
-local zoom_end_pos = 0
+local item_zoom_start_pos = math.huge
+local item_zoom_end_pos = 0
 
 local note_lo = 128
 local note_hi = -1
 
+local note_length_sum = 0
+local note_weight_sum = 0
+local min_note_distance = math.huge
+
+local num_notes = _G.number_of_notes
+local smoothing = _G.smoothing
+
+local cursor_pos = reaper.GetCursorPosition()
 local analysis_start_time = reaper.time_precise()
 local is_timebase_source = reaper.GetToggleCommandStateEx(32060, 40470) == 1
 
@@ -762,6 +768,7 @@ end
 
 local GetNote = reaper.MIDI_GetNote
 local GetPPQFromTime = reaper.MIDI_GetPPQPosFromProjTime
+local GetTimeFromPPQ = reaper.MIDI_GetProjTimeFromPPQPos
 local GetItemInfo = reaper.GetMediaItemInfo_Value
 local GetTrackMIDINoteRange = reaper.GetTrackMIDINoteRange
 
@@ -774,8 +781,8 @@ for i = 1, #midi_takes do
     local length = GetItemInfo(item, 'D_LENGTH')
     local start_pos = GetItemInfo(item, 'D_POSITION')
     local end_pos = start_pos + length
-    if start_pos < zoom_start_pos then zoom_start_pos = start_pos end
-    if end_pos > zoom_end_pos then zoom_end_pos = end_pos end
+    if start_pos < item_zoom_start_pos then item_zoom_start_pos = start_pos end
+    if end_pos > item_zoom_end_pos then item_zoom_end_pos = end_pos end
 
     if reaper.time_precise() - analysis_start_time > 0.15 then
         -- If analysis takes too long, start using track note range
@@ -801,6 +808,11 @@ for i = 1, #midi_takes do
             end
         end
 
+        local ppq_pos = GetPPQFromTime(take, cursor_pos)
+
+        local prev_eppq = start_ppq
+        local gap_length = 0
+
         local _, total_note_cnt = reaper.MIDI_CountEvts(take)
         for n = 0, total_note_cnt - 1 do
             local _, _, _, sppq, eppq, _, pitch = GetNote(take, n)
@@ -818,6 +830,35 @@ for i = 1, #midi_takes do
                 if pitch then
                     if pitch < note_lo then note_lo = pitch end
                     if pitch > note_hi then note_hi = pitch end
+
+                    local note_length = eppq - sppq
+                    -- Add gap between notes to note length
+                    if sppq >= prev_eppq then
+                        -- Limit gap length to something reasonable
+                        local min_gap_length = note_length * num_notes
+                        gap_length = sppq - prev_eppq
+                        if gap_length > min_gap_length then
+                            gap_length = min_gap_length
+                        end
+                    end
+                    if eppq > prev_eppq then
+                        prev_eppq = eppq
+                    end
+                    local note_center_ppq = sppq + note_length / 2
+                    local note_distance = note_center_ppq - ppq_pos
+                    if note_distance < 0 then note_distance = -note_distance end
+                    -- Avoid dividing by zero (and attributing very high weights)
+                    if note_length > note_distance then
+                        note_distance = note_length
+                    end
+                    if note_distance < min_note_distance then
+                        min_note_distance = note_distance
+                    end
+                    local note_weight = 1 / note_distance ^ smoothing
+                    local gap_note_length = note_length + gap_length
+                    local weighted_gap_length = note_weight * gap_note_length
+                    note_length_sum = note_length_sum + weighted_gap_length
+                    note_weight_sum = note_weight_sum + note_weight
                 end
             end
         end
@@ -843,71 +884,78 @@ print('Vertically zooming to notes ' .. note_lo .. ' - ' .. note_hi)
 local editor_item = reaper.GetMediaItemTake_Item(editor_take)
 ZoomToPitchRange(hwnd, editor_item, vis_rows, note_lo - 1, note_hi + 1)
 
+local m = 0.001
+local TimeToBeats = reaper.TimeMap2_timeToBeats
+local BeatsToTime = reaper.TimeMap2_beatsToTime
 
-if _G.hzoom_mode == 1 or _G.hzoom_mode == 2 and #midi_takes > 1 then
-    local m = 0.001
-    local TimeToBeats = reaper.TimeMap2_timeToBeats
-    local BeatsToTime = reaper.TimeMap2_beatsToTime
-    local start_measure = select(2, TimeToBeats(0, zoom_start_pos + m))
-    local end_measure = select(2, TimeToBeats(0, zoom_end_pos - m)) + 1
+local item_start_measure = select(2, TimeToBeats(0, item_zoom_start_pos + m))
+local item_end_measure = select(2, TimeToBeats(0, item_zoom_end_pos - m)) + 1
+local zoom_measures = item_end_measure - item_start_measure
 
-    if _G.zoom_to_full_measures then
-        zoom_start_pos = BeatsToTime(0, 0, start_measure)
-        zoom_end_pos = BeatsToTime(0, 0, end_measure)
+if note_weight_sum > 0 then
+    local avg_note_length = note_length_sum / note_weight_sum
+    local zoom_ppq_length = avg_note_length * num_notes
+    print('Avg note length: ' .. math.floor(avg_note_length))
+
+    local cursor_ppq_pos = GetPPQFromTime(editor_take, cursor_pos)
+    local offs = zoom_ppq_length / 2
+    local start_pos = GetTimeFromPPQ(editor_take, cursor_ppq_pos - offs)
+    local end_pos = GetTimeFromPPQ(editor_take, cursor_ppq_pos + offs)
+
+    local start_beats, start_measures, start_cml = TimeToBeats(0, start_pos)
+    local end_beats, end_measures, end_cml = TimeToBeats(0, end_pos)
+
+    local start_measure = start_measures + start_beats / start_cml
+    local end_measure = end_measures + end_beats / end_cml
+
+    local measures = math.max(1, math.floor(end_measure - start_measure + 0.5))
+
+    -- If item itelf is just a little bit larger, zoom to item
+    if math.ceil(measures * 1.25) < zoom_measures or
+        not _G.restrict_to_items and measures > zoom_measures then
+        zoom_measures = measures
     end
+end
 
-    local zoom_measures = end_measure - start_measure
+if _G.min_number_of_measures > 0 and zoom_measures < _G.min_number_of_measures then
+    zoom_measures = _G.min_number_of_measures
+end
 
-    local min_measures = _G.min_number_of_measures
-    if min_measures > 0 and zoom_measures <= min_measures then
-        local start_offs = (min_measures - zoom_measures) // 2
+if _G.max_number_of_measures > 0 and zoom_measures > _G.max_number_of_measures then
+    zoom_measures = _G.max_number_of_measures
+end
 
-        local new_start_measure = start_measure - start_offs
-        local new_end_measure = new_start_measure + min_measures
+local _, cursor_measure = TimeToBeats(0, cursor_pos)
+local start_offs = (zoom_measures - 0.5) // 2
 
-        zoom_start_pos = BeatsToTime(0, 0, new_start_measure)
-        zoom_end_pos = BeatsToTime(0, 0, new_end_measure)
-    end
+local start_measure = cursor_measure - start_offs
+local end_measure = start_measure + zoom_measures
 
-    local max_measures = _G.max_number_of_measures
-    if max_measures > 0 and zoom_measures >= max_measures then
-        local cursor_pos = reaper.GetCursorPosition()
-        local _, cursor_measure = TimeToBeats(0, cursor_pos)
-        local start_offs = max_measures // 2
+if _G.restrict_to_items and end_measure > item_end_measure then
+    start_measure = item_end_measure - zoom_measures
+    end_measure = item_end_measure
+end
 
-        local new_start_measure = cursor_measure - start_offs
-        local new_end_measure = new_start_measure + max_measures
+if _G.restrict_to_items and start_measure < item_start_measure then
+    start_measure = item_start_measure
+    end_measure = item_start_measure + zoom_measures
+end
 
-        if new_end_measure > end_measure then
-            new_start_measure = end_measure - max_measures
-            new_end_measure = end_measure
-        end
+local zoom_start_pos = BeatsToTime(0, 0, start_measure)
+local zoom_end_pos = BeatsToTime(0, 0, end_measure)
 
-        if new_start_measure < start_measure then
-            new_start_measure = start_measure
-            new_end_measure = start_measure + max_measures
-        end
+-- Get previous time selection
+local sel = GetSelection()
+SetSelection(zoom_start_pos, zoom_end_pos)
 
-        zoom_start_pos = BeatsToTime(0, 0, new_start_measure)
-        zoom_end_pos = BeatsToTime(0, 0, new_end_measure)
-    end
+-- Cmd: Zoom to project loop selection
+reaper.MIDIEditor_OnCommand(hwnd, 40726)
 
-    -- Get previous time selection
-    local sel = GetSelection()
-    SetSelection(zoom_start_pos, zoom_end_pos)
-
-    -- Cmd: Zoom to project loop selection
-    reaper.MIDIEditor_OnCommand(hwnd, 40726)
-
-    -- Reset previous time selection
-    local sel_start_pos = sel and sel.start_pos or 0
-    local sel_end_pos = sel and sel.end_pos or 0
-    if not is_debug then
-        SetSelection(sel_start_pos, sel_end_pos)
-    end
-else
-    -- View: Go to edit cursor
-    reaper.MIDIEditor_OnCommand(hwnd, 40151)
+-- Reset previous time selection
+local sel_start_pos = sel and sel.start_pos or 0
+local sel_end_pos = sel and sel.end_pos or 0
+if not is_debug then
+    SetSelection(sel_start_pos, sel_end_pos)
 end
 
 reaper.PreventUIRefresh(-1)
