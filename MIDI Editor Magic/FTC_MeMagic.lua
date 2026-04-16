@@ -553,7 +553,7 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
     local note_length_sum = 0
     local note_weight_sum = 0
 
-    local prev_eppq = start_ppq
+    local prev_eppq
     local gap_length = 0
     local min_note_distance = math.huge
     local num_notes = _G.number_of_notes
@@ -565,13 +565,15 @@ function GetSmartZoomRange(take, pos, item_start_pos, item_end_pos)
         local _, _, _, sppq, eppq = GetNote(take, i)
         local note_length = eppq - sppq
         -- Add gap between notes to note length
-        if sppq >= prev_eppq then
+        if prev_eppq and sppq >= prev_eppq then
             -- Limit gap length to something reasonable
             local min_gap_length = note_length * num_notes
             gap_length = sppq - prev_eppq
-            if gap_length > min_gap_length then gap_length = min_gap_length end
+            if gap_length > min_gap_length then
+                gap_length = min_gap_length
+            end
         end
-        if eppq > prev_eppq then
+        if not prev_eppq or eppq > prev_eppq then
             prev_eppq = eppq
         end
         for n = loop_start, loop_end do

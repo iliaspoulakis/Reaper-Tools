@@ -657,6 +657,17 @@ if #midi_takes > 1 then
     end
 end
 
+-- Note: Clearing editor is needed in edge case where track only has one midi item
+local prev_hwnd = reaper.MIDIEditor_GetActive()
+if prev_hwnd and #midi_takes == 1 then
+    local prev_editor_take = reaper.MIDIEditor_GetTake(prev_hwnd)
+    if prev_editor_take == midi_takes[1] then
+        -- Contents: Activate next MIDI media item on this track, clearing the
+        -- editor first
+        reaper.MIDIEditor_OnCommand(prev_hwnd, 40798)
+    end
+end
+
 -- Cmd: Open in built-in MIDI editor
 reaper.Main_OnCommand(40153, 0)
 
@@ -810,7 +821,7 @@ for i = 1, #midi_takes do
 
         local ppq_pos = GetPPQFromTime(take, cursor_pos)
 
-        local prev_eppq = start_ppq
+        local prev_eppq
         local gap_length = 0
 
         local _, total_note_cnt = reaper.MIDI_CountEvts(take)
@@ -833,7 +844,7 @@ for i = 1, #midi_takes do
 
                     local note_length = eppq - sppq
                     -- Add gap between notes to note length
-                    if sppq >= prev_eppq then
+                    if prev_eppq and sppq >= prev_eppq then
                         -- Limit gap length to something reasonable
                         local min_gap_length = note_length * num_notes
                         gap_length = sppq - prev_eppq
@@ -841,7 +852,7 @@ for i = 1, #midi_takes do
                             gap_length = min_gap_length
                         end
                     end
-                    if eppq > prev_eppq then
+                    if not prev_eppq or eppq > prev_eppq then
                         prev_eppq = eppq
                     end
                     local note_center_ppq = sppq + note_length / 2
@@ -882,7 +893,8 @@ end
 print('Vertically zooming to notes ' .. note_lo .. ' - ' .. note_hi)
 
 local editor_item = reaper.GetMediaItemTake_Item(editor_take)
-ZoomToPitchRange(hwnd, editor_item, vis_rows, note_lo - 1, note_hi + 1)
+ZoomToPitchRange(hwnd, editor_item, vis_rows,
+    note_lo - 1, note_hi + 1)
 
 local m = 0.001
 local TimeToBeats = reaper.TimeMap2_timeToBeats
@@ -926,7 +938,8 @@ if _G.max_number_of_measures > 0 and zoom_measures > _G.max_number_of_measures t
 end
 
 local _, cursor_measure = TimeToBeats(0, cursor_pos)
-local start_offs = (zoom_measures - 0.5) // 2
+local left_adjust = zoom_measures > 2 and 0.5 or 0
+local start_offs = (zoom_measures - left_adjust) // 2
 
 local start_measure = cursor_measure - start_offs
 local end_measure = start_measure + zoom_measures

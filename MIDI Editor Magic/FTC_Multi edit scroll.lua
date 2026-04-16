@@ -661,6 +661,17 @@ if #midi_takes > 1 then
     end
 end
 
+-- Note: Clearing editor is needed in edge case where track only has one midi item
+local prev_hwnd = reaper.MIDIEditor_GetActive()
+if prev_hwnd and #midi_takes == 1 then
+    local prev_editor_take = reaper.MIDIEditor_GetTake(prev_hwnd)
+    if prev_editor_take == midi_takes[1] then
+        -- Contents: Activate next MIDI media item on this track, clearing the
+        -- editor first
+        reaper.MIDIEditor_OnCommand(prev_hwnd, 40798)
+    end
+end
+
 -- Cmd: Open in built-in MIDI editor
 reaper.Main_OnCommand(40153, 0)
 
