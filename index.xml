@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="dfb129af2a6b3646f78ca6ec962bf63b108b17cd">
+<index version="1" name="FTC Tools" commit="5ccff11b22c275c6bd998af4110aef49babeb075">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -2892,7 +2892,7 @@
       </version>
       <version name="1.4.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-04-15T16:26:47Z">
         <changelog><![CDATA[- Various performance optimizations]]></changelog>
-        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/dfb129af2a6b3646f78ca6ec962bf63b108b17cd/MIDI%20Editor%20Magic/FTC_MeMagic.lua</source>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ccff11b22c275c6bd998af4110aef49babeb075/MIDI%20Editor%20Magic/FTC_MeMagic.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit scroll.lua" type="script">
@@ -3010,7 +3010,7 @@
       <version name="1.6.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-04-15T16:26:47Z">
         <changelog><![CDATA[- Support custom note order
 - Add options for minimum/maximum number of measures]]></changelog>
-        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/dfb129af2a6b3646f78ca6ec962bf63b108b17cd/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ccff11b22c275c6bd998af4110aef49babeb075/MIDI%20Editor%20Magic/FTC_Multi%20edit%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit smart scroll.lua" type="script">
@@ -3024,7 +3024,7 @@
 ]]></description>
       </metadata>
       <version name="1.6.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-04-15T16:26:47Z">
-        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/dfb129af2a6b3646f78ca6ec962bf63b108b17cd/MIDI%20Editor%20Magic/FTC_Multi%20edit%20smart%20scroll.lua</source>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ccff11b22c275c6bd998af4110aef49babeb075/MIDI%20Editor%20Magic/FTC_Multi%20edit%20smart%20scroll.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit smart zoom.lua" type="script">
@@ -3038,7 +3038,7 @@
 ]]></description>
       </metadata>
       <version name="1.6.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-04-15T16:26:47Z">
-        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/dfb129af2a6b3646f78ca6ec962bf63b108b17cd/MIDI%20Editor%20Magic/FTC_Multi%20edit%20smart%20zoom.lua</source>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ccff11b22c275c6bd998af4110aef49babeb075/MIDI%20Editor%20Magic/FTC_Multi%20edit%20smart%20zoom.lua</source>
       </version>
     </reapack>
     <reapack name="FTC_Multi edit zoom.lua" type="script">
@@ -3111,7 +3111,7 @@
       <version name="1.6.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-04-15T16:26:47Z">
         <changelog><![CDATA[- Support custom note order
 - Add options for minimum/maximum number of measures]]></changelog>
-        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/dfb129af2a6b3646f78ca6ec962bf63b108b17cd/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/5ccff11b22c275c6bd998af4110aef49babeb075/MIDI%20Editor%20Magic/FTC_Multi%20edit%20zoom.lua</source>
       </version>
     </reapack>
   </category>
