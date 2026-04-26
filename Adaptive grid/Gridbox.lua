@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.2
+  @version 2.1.3
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix MIDI editor options not applying new grid size immediately
+    - Avoid lockup on reaper v7.70+
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1293,12 +1293,14 @@ function PeekIntercepts(m_x, m_y)
                     end
                     -- Scroll slower when Ctrl is pressed
                     local amt = wph * (mouse_state == 20 and 0.01 or 0.03)
-                    GetSetGrid(0, 1, nil, 1, swing_amt + amt)
+                    swing_amt = math.floor((swing_amt + amt) * 100 + 0.5) / 100
+                    GetSetGrid(0, 1, nil, 1, swing_amt)
                     menu_env.SaveProjectGrid(grid_div, swing, swing_amt)
                 else
                     local ext = 'FTC.AdaptiveGrid'
                     -- Calculate new grid division
                     local _, grid_div, swing, swing_amt = GetSetGrid(0, 0)
+                    menu_env.SaveProjectGrid(grid_div, swing, swing_amt)
                     local factor = reaper.GetExtState(ext, 'zoom_div')
                     factor = tonumber(factor) or 2
                     grid_div = wph < 0 and grid_div * factor or grid_div / factor
@@ -2041,7 +2043,7 @@ function Main()
             SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
             EnsureBitmapVisible()
             is_resize = true
-        elseif prev_window_w then
+        elseif prev_window_w and window_w ~= 0 then
             -- Move bitmap based on attached position
             local new_bm_x = GetAttachPosition()
             if new_bm_x then SetBitmapCoords(new_bm_x) end
@@ -2550,7 +2552,8 @@ function Main()
             repeat
                 gfx.setfont(1, font_family, font_size)
                 curr_h = select(2, gfx.measurechar(70))
-                font_size = font_size + math.floor(target_h / curr_h + 0.5)
+                local add = math.floor(target_h / curr_h + 0.5)
+                font_size = font_size + math.min(1, add)
             until curr_h >= target_h
         else
             gfx.setfont(1, font_family, font_size)
