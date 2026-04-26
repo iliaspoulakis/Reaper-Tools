@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.3
+  @version 2.1.4
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Avoid lockup on reaper v7.70+
+    - Fix font size calculation (2.1.3 regression)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -2551,9 +2551,8 @@ function Main()
             local curr_h
             repeat
                 gfx.setfont(1, font_family, font_size)
-                curr_h = select(2, gfx.measurechar(70))
-                local add = math.floor(target_h / curr_h + 0.5)
-                font_size = font_size + math.min(1, add)
+                curr_h = math.max(1, select(2, gfx.measurechar(70)))
+                font_size = font_size + math.floor(target_h / curr_h + 0.5)
             until curr_h >= target_h
         else
             gfx.setfont(1, font_family, font_size)
