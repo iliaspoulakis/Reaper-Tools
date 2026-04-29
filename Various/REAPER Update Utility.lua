@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.0
+  @version 2.1.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Added checkbox to reopen projects
-    - Mark previously installed versions in menu
+    - Mark top-level menu entries of previously installed versions
 ]]
 
 -- App version & platform architecture
@@ -353,6 +352,18 @@ function ShowHistoryMenu()
 
     SortByAttributeName(menu_list, 'group', false)
 
+    local installed = GetInstalledVersions()
+    local installed_groups = {}
+    for _, group in ipairs(menu_list) do
+        for _, item in ipairs(group) do
+            item.is_installed = installed[item.version] ~= nil
+            if item.is_installed then
+                local g = item.version:match('^[%d.]+')
+                installed_groups[g] = true
+            end
+        end
+    end
+
     local flat_menu_list = {}
     for _, group in ipairs(menu_list) do
         for _, item in ipairs(group) do
@@ -361,16 +372,16 @@ function ShowHistoryMenu()
     end
 
     -- Create string to use with showmenu function
-    local installed = GetInstalledVersions()
     local menu = ''
     for i, item in ipairs(flat_menu_list) do
         local sep = i == 1 and '' or '|'
         if item.is_first then
             local group = item.version:match('^[%d.]+')
-            sep = sep .. '>' .. group .. '|'
+            local dot = installed_groups[group] and ' •' or ''
+            sep = sep .. '>' .. group .. dot .. '|'
         end
         if item.is_last then sep = sep .. '<' end
-        local label = item.version .. (installed[item.version] and ' •' or '')
+        local label = item.version .. (item.is_installed and ' •' or '')
         menu = menu .. sep .. label
     end
 
