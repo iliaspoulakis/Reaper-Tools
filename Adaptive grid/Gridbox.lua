@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.4
+  @version 2.1.5
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix font size calculation (2.1.3 regression)
+    - Fix font size on Linux with v7.71
 ]]
 
 local extname = 'FTC.GridBox'
@@ -2545,7 +2545,7 @@ function Main()
         font_size = user_font_size
         local font_family = user_font_family or 'Arial'
         if not font_size then
-            font_size = 1
+            font_size = 2
             -- Find optimal font size by incrementing until it doesn't target height
             local target_h = math.max(math.min(ScaleValue(14), bm_h), bm_h // 2.5)
             local curr_h
