@@ -1,10 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.1
+  @version 2.2.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Mark top-level menu entries of previously installed versions
+    - Fix font sizes on MacOS/Linux for reaper v7.70+
+    - Prioriotize downloading from landoleet to avoid geo-restrictions
+    - Fix potential hang during download
 ]]
 
 -- App version & platform architecture
@@ -65,6 +67,7 @@ local show_buttons = false
 local task = 'Initializing...'
 local title = 'REAPER Update Utility'
 local font_factor = platform:match('Win') and 1.25 or 1
+if not platform:match('Win') and version >= 7.70 then font_factor = 1.15 end
 
 local main_list = {}
 local dev_list = {}
@@ -1052,7 +1055,18 @@ function Main()
             dfile_name = user_dlink:gsub('.-/', '')
 
             -- Download chosen REAPER version
-            local cmd = dl_cmd .. ' >> %s 2>&1'
+            local cmd = ''
+            -- Try downloading main versions from landoleet (access denied in some
+            -- countries)
+            if user_dlink:find('www.reaper.fm', 0, true) then
+                cmd = cmd .. dl_cmd .. ' >> %s 2>&1'
+                cmd = cmd:format(old_dlink .. dfile_name, tmp_path .. dfile_name,
+                    cmd_log_path)
+                -- Go to next step if download succeeds, otherwise try reaper.fm
+                cmd = cmd .. ' && echo %s > %s || '
+                cmd = cmd:format(next_step, step_path)
+            end
+            cmd = cmd .. dl_cmd .. ' >> %s 2>&1'
             cmd = cmd:format(user_dlink, tmp_path .. dfile_name, cmd_log_path)
             -- Go to next step if download succeeds, otherwise show error
             cmd = cmd .. ' && echo %s > %s'
@@ -1386,7 +1400,7 @@ print('Reaper version: ' .. tostring(curr_version))
 print('Portable: ' .. (is_portable and 'yes' or 'no'))
 
 -- Set command for downloading from terminal
-dl_cmd = 'curl -k -L %s -o %s'
+dl_cmd = 'curl -f -k -L %s -o %s'
 if platform:match('Win') then
     -- Check if curl is installed
     local _, exit_code = ExecProcess('curl --version', 1000)
