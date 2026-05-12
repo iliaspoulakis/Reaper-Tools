@@ -2238,7 +2238,7 @@ function Main()
             if not swing_drag_x and left_w > 0 and m_x - bm_x < left_w then
                 is_snap_hovered = true
             end
-            if resize_cursor then
+            if resize_cursor and resize_flags > 0 then
                 SetCursor(resize_cursor)
             end
         else
