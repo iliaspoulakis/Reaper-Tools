@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.2.1
+  @version 2.2.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix dragging box to other windows (2.2.0 regression)
+    - Fix move/resize cursor behavior (2.2.0 regression)
 ]]
 
 local extname = 'FTC.GridBox'
