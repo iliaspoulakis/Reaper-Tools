@@ -2164,6 +2164,7 @@ function Main()
                 end
                 if m_x > 0 and m_y > 0 and m_x < window_w and m_y < window_h then
                     SetCursor(move_cursor)
+                    resize_cursor = nil
                 end
             end
             drag_x = m_x
@@ -2238,7 +2239,7 @@ function Main()
             if not swing_drag_x and left_w > 0 and m_x - bm_x < left_w then
                 is_snap_hovered = true
             end
-            if resize_cursor and resize_flags > 0 then
+            if resize_cursor then
                 SetCursor(resize_cursor)
             end
         else
