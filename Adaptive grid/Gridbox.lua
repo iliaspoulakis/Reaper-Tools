@@ -2164,6 +2164,7 @@ function Main()
                 end
                 if m_x > 0 and m_y > 0 and m_x < window_w and m_y < window_h then
                     SetCursor(move_cursor)
+                    resize_flags = -1
                     resize_cursor = nil
                 end
             end
