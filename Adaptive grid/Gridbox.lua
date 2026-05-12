@@ -1,14 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.2.0
+  @version 2.2.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - When docked to a specific toolbar, hide when switching to another toolbar
-    - Improve interaction with other similar scripts
-    - Fix edge case that would make box unclickable
-    - Fix resize cursor when dragging outside of parent window
-    - Attempt to fix sporadeous resizing
+    - Fix dragging box to other windows (2.2.0 regression)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -2012,7 +2008,7 @@ function Main()
                 is_resize = true
             end
         end
-    elseif attach_window_title then
+    elseif attach_window_title and not drag_x then
         -- Check attached window title changes (e.g. when switching toolbar)
         local curr_title = reaper.JS_Window_GetTitle(window_hwnd)
         if curr_title ~= attach_window_title then
