@@ -1,10 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.1.5
+  @version 2.2.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix font size on Linux with v7.71
+    - When docked to a specific toolbar, hide when switching to another toolbar
+    - Improve interaction with other similar scripts
+    - Fix edge case that would make box unclickable
+    - Fix resize cursor when dragging outside of parent window
+    - Attempt to fix sporadeous resizing
 ]]
 
 local extname = 'FTC.GridBox'
@@ -82,6 +86,7 @@ local prev_snap_color
 local is_redraw = false
 local is_resize = false
 local resize_flags = 0
+local resize_cursor
 
 local prev_attach_hwnd
 local prev_bm_w
@@ -1146,6 +1151,7 @@ local intercepts = {
 }
 
 function SetCursor(cursor)
+    if not is_intercept then return end
     reaper.JS_Mouse_SetCursor(cursor)
     prev_cursor = cursor
 end
@@ -1153,6 +1159,19 @@ end
 function StartIntercepts()
     if is_intercept then return end
     is_intercept = true
+    local _, intercept_str = reaper.JS_WindowMessage_ListIntercepts(window_hwnd)
+    local blocked_messages = {}
+    for entry in (intercept_str .. ','):gmatch('(.-),') do
+        local blocked_message = entry:match('(.-):block')
+        if blocked_message then blocked_messages[blocked_message] = true end
+    end
+    for _, intercept in ipairs(intercepts) do
+        local msg = intercept.message
+        if blocked_messages[msg] then
+            is_intercept = false
+            return
+        end
+    end
     for _, intercept in ipairs(intercepts) do
         Intercept(window_hwnd, intercept.message, intercept.passthrough)
     end
@@ -1160,15 +1179,14 @@ end
 
 function EndIntercepts()
     if not is_intercept then return end
-    is_intercept = false
+    if prev_cursor ~= normal_cursor then
+        SetCursor(normal_cursor)
+    end
     for _, intercept in ipairs(intercepts) do
         Release(window_hwnd, intercept.message)
         intercept.timestamp = 0
     end
-
-    if prev_cursor ~= normal_cursor then
-        reaper.JS_Mouse_SetCursor(normal_cursor)
-    end
+    is_intercept = false
     prev_cursor = -1
 end
 
@@ -1190,6 +1208,7 @@ function LoadMenuScript()
 end
 
 function PeekIntercepts(m_x, m_y)
+    if not is_intercept then return end
     for _, intercept in ipairs(intercepts) do
         local msg = intercept.message
         local ret, _, time, _, wph = Peek(window_hwnd, msg)
@@ -1627,6 +1646,7 @@ function GetStatusWindowClientRect()
 end
 
 function SetBitmapCoords(x, y, w, h)
+    if w == 0 or h == 0 then return end
     local has_pos_changed = x and x ~= bm_x or y and y ~= bm_y
     local has_size_changed = w and w ~= bm_w or h and h ~= bm_h
     if not has_pos_changed and not has_size_changed then return end
@@ -1704,6 +1724,7 @@ end
 
 function EnsureBitmapVisible()
     -- Ensure position/size is within bounds
+    if window_w == 0 or window_h == 0 then return end
     local w = math.max(min_area_size, math.min(bm_w, window_w))
     local h = math.max(min_area_size, math.min(bm_h, window_h))
 
@@ -1991,6 +2012,21 @@ function Main()
                 is_resize = true
             end
         end
+    elseif attach_window_title then
+        -- Check attached window title changes (e.g. when switching toolbar)
+        local curr_title = reaper.JS_Window_GetTitle(window_hwnd)
+        if curr_title ~= attach_window_title then
+            reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
+            if bitmap then
+                reaper.JS_Composite_Unlink(window_hwnd, bitmap)
+            end
+            if bm_x then
+                reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
+                    bm_x + bm_w, bm_y + bm_h, false)
+            end
+            EndIntercepts()
+            window_hwnd = nil
+        end
     end
 
     -- Go idle if window is not found/visible
@@ -2043,7 +2079,7 @@ function Main()
             SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
             EnsureBitmapVisible()
             is_resize = true
-        elseif prev_window_w and window_w ~= 0 then
+        elseif prev_window_w then
             -- Move bitmap based on attached position
             local new_bm_x = GetAttachPosition()
             if new_bm_x then SetBitmapCoords(new_bm_x) end
@@ -2143,7 +2179,9 @@ function Main()
         is_hovered = m_x > bm_x - m and m_y > bm_y - m and
             m_x < bm_x + bm_w + m and m_y < bm_y + bm_h + m
 
-        if is_hovered then
+        if is_hovered and hover_hwnd == window_hwnd then
+            StartIntercepts()
+            PeekIntercepts(m_x, m_y)
             if is_edit_mode and not drag_x and not swing_drag_x then
                 local new_resize = 0
                 local cursor = normal_cursor
@@ -2195,26 +2233,27 @@ function Main()
                     cursor = diag1_resize_cursor
                 end
 
-                SetCursor(cursor)
-
                 if resize_flags ~= new_resize then
                     resize_flags = new_resize
+                    resize_cursor = cursor
                     is_redraw = true
                 end
             end
             if not swing_drag_x and left_w > 0 and m_x - bm_x < left_w then
                 is_snap_hovered = true
             end
-            StartIntercepts()
-            PeekIntercepts(m_x, m_y)
+            if resize_cursor then
+                SetCursor(resize_cursor)
+            end
         else
-            EndIntercepts()
             is_left_click = false
             is_right_click = false
             if resize_flags > 0 and not drag_x then
-                is_redraw = true
                 resize_flags = 0
+                resize_cursor = nil
+                is_redraw = true
             end
+            EndIntercepts()
         end
 
         -- Release drags / left clicks / right clicks
@@ -2347,6 +2386,8 @@ function Main()
             prev_bm_x = nil
             prev_bm_y = nil
         end
+    else
+        EndIntercepts()
     end
 
     if swing_drag_x then
