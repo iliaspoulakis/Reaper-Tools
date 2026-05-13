@@ -1,12 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.2.0
+  @version 3.0.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix font sizes on MacOS/Linux for reaper v7.70+
-    - Prioriotize downloading from landoleet to avoid geo-restrictions
-    - Fix potential hang during download
+    - Reworked debugging, removed menu options
+    - Ask to automatically create log file when something goes wrong
+    - Support portable installs on Linux
+    - Ask to retry with root permission when install fails on MacOS
 ]]
 
 -- App version & platform architecture
@@ -47,10 +48,9 @@ local install_path = reaper.GetExePath()
 local res_path = reaper.GetResourcePath()
 local ini_file = reaper.get_ini_file()
 local scripts_path = res_path .. separator .. 'Scripts' .. separator
-local tmp_path, step_path, main_path, dev_path, cmd_log_path
-local user_log_path = res_path .. separator .. 'update-utility.log'
-local startup_log_path = res_path .. separator .. 'update-utility-startup.log'
+local tmp_path, step_path, main_path, dev_path, log_path
 local is_portable = res_path == install_path
+local install_id, install_ext_key
 
 -- Download variables
 local dl_cmd, browser_cmd, user_dlink, dfile_name
@@ -73,76 +73,106 @@ local main_list = {}
 local dev_list = {}
 
 local hook_cmd = ''
-local debug_str = ''
 
 local startup_mode = false
 local settings
 
-function LogInstalledVersion(v)
-    local key = 'installed_versions'
-    local existing = reaper.GetExtState(title, key)
-    -- Build a set from the comma-separated log
-    local versions = {}
-    for entry in (existing .. ','):gmatch('([^,]+),') do
-        versions[entry] = true
-    end
-    if not versions[v] then
-        versions[v] = true
-        local list = {}
-        for entry in pairs(versions) do list[#list + 1] = entry end
-        reaper.SetExtState(title, key, table.concat(list, ','), true)
+function print(msg)
+    reaper.ShowConsoleMsg(tostring(msg) .. '\n')
+end
+
+function Log(...)
+    if not log_path then return end
+    local log_file = io.open(log_path, 'a')
+    if log_file then
+        local values = {...}
+        for i = 1, #values do values[i] = tostring(values[i]) end
+        if #values == 0 then values[1] = 'nil' end
+        log_file:write(table.concat(values, ' '), '\n')
+        log_file:close()
+    else
+        print('Warning: Failed writing to log file!')
     end
 end
 
-function GetInstalledVersions()
-    local key = 'installed_versions'
-    local existing = reaper.GetExtState(title, key)
-    local versions = {}
-    for entry in (existing .. ','):gmatch('([^,]+),') do
-        versions[entry] = true
+function GenerateReport(error)
+    local log_file = io.open(log_path, 'r')
+    if not log_file then
+        reaper.MB(('Log file missing!\n\nERROR: %s'):format(error), 'Error', 0)
+        return
     end
-    return versions
-end
+    local log_content = log_file:read('*a')
+    log_file:close()
 
-function print(msg, force)
-    if settings.debug_console.enabled or force then
-        reaper.ShowConsoleMsg(tostring(msg) .. '\n')
-    end
-    if settings.debug_file.enabled then
-        local user_log_file = io.open(user_log_path, 'a')
-        if user_log_file then
-            user_log_file:write(msg, '\n')
-            user_log_file:close()
+    local msg = 'Oops, something went wrong...\n\n\z
+        ERROR: %s\n\nDo you want to report the issue?'
+    local ret = reaper.MB(msg:format(error), 'Update Utility', 4)
+    if ret == 6 then
+        local timestamp = os.date('_%d-%m-%Y_%H-%M-%S')
+        local report_file_name = ('update-utility%s.log'):format(timestamp)
+        local report_path = res_path .. separator .. report_file_name
+
+        local report_file = io.open(report_path, 'w')
+        if not report_file then
+            reaper.MB('Failed to create report file!', 'Error', 0)
+            return
+        end
+        report_file:write(log_content)
+        report_file:write(('\nERROR: %s'):format(error))
+        report_file:close()
+
+        msg = 'Created log file:\n%s\n\n\z
+            The containing folder (your resource directory) will \z
+            now open in explorer/finder\n'
+
+        reaper.MB(msg:format(report_file_name), title, 0)
+
+        if reaper.CF_LocateInExplorer then
+            reaper.CF_LocateInExplorer(report_path)
         else
-            local msg = 'Warning: Writing to log file failed. Already in use!\n'
-            reaper.ShowConsoleMsg(msg)
+            -- Show REAPER resource path in explorer
+            reaper.Main_OnCommand(40027, 0)
+        end
+
+        msg = 'Please post this file to the forum thread \z
+            "REAPER Update Utility"\n\n\z
+            Open forum thread in web browser?\n'
+        ret = reaper.MB(msg, title, 4)
+        if ret == 6 then
+            local url = 'https://forum.cockos.com/showthread.php?t=242922'
+            ExecProcess(browser_cmd .. url)
         end
     end
-    debug_str = debug_str .. tostring(msg) .. '\n'
 end
 
 function ExecProcess(cmd, timeout)
     if platform:match('Win') then
         cmd = 'cmd.exe /Q /C "' .. cmd .. '"'
-    elseif platform:match('OSX') or platform:match('macOS') then
+    elseif platform:match('OS') then
         cmd = '/bin/sh -c \'' .. cmd .. '\''
     else
         cmd = '/bin/sh -c "' .. cmd .. '"'
     end
     local ret = reaper.ExecProcess(cmd, timeout or -2)
-    print('\nExecuting command:\n' .. cmd)
+    Log('\nExecuting command:\n' .. cmd)
     local exit_code
     if ret then
-        exit_code = tonumber(ret:match('^%d+'))
-        -- Remove exit code (first line)
-        ret = ret:gsub('^.-\n', '')
+        exit_code = tonumber(ret:match('^%-?%d+'))
+        if ret:find('\n') then
+            ret = ret:gsub('^.-\n', '', 1)
+        else
+            ret = ''
+        end
         -- Remove Windows network drive error (fix by jkooks)
         ret = ret:gsub('.+CMD%.EXE.-UNC.+%.', '')
         -- Remove all newlines
         ret = ret:gsub('[\r\n]', '')
-        if ret ~= '' then print('\nReturn value:\n' .. ret) end
+        Log('\nExit code:', exit_code)
+        if ret ~= '' then Log('Command output:\n' .. ret .. '\n') end
+    else
+        Log('\nExit code:', ret)
     end
-    return ret, exit_code
+    return ret or '', exit_code
 end
 
 function ExecInstall(install_cmd)
@@ -154,7 +184,7 @@ function ExecInstall(install_cmd)
         Quit reaper and proceed with installation of v%s?'
         local ret = reaper.MB(msg:format(install_version), title, 4)
         if ret == 7 then
-            print('User exit...')
+            Log('User exit...')
             return
         end
     end
@@ -215,7 +245,7 @@ function ExecInstall(install_cmd)
             end
         end
 
-        LogInstalledVersion(install_version)
+        reaper.SetExtState(title, install_ext_key, install_version, true)
 
         -- In Windows execute after quitting to avoid error dialog
         if not platform:match('Win') then ExecProcess(install_cmd) end
@@ -225,6 +255,41 @@ function ExecInstall(install_cmd)
     else
         reaper.MB('\nInstallation cancelled!\n ', title, 0)
     end
+end
+
+function EncodeString_fnv1a(str)
+    local hash = 2166136261
+    for i = 1, #str do
+        hash = hash ~ string.byte(str, i)
+        hash = (hash * 16777619) & 0xffffffff
+    end
+    return string.format('%08x', hash)
+end
+
+function LogInstalledVersion(v)
+    local key = 'installed_versions'
+    local existing = reaper.GetExtState(title, key)
+    -- Build a set from the comma-separated log
+    local versions = {}
+    for entry in (existing .. ','):gmatch('([^,]+),') do
+        versions[entry] = true
+    end
+    if not versions[v] then
+        versions[v] = true
+        local list = {}
+        for entry in pairs(versions) do list[#list + 1] = entry end
+        reaper.SetExtState(title, key, table.concat(list, ','), true)
+    end
+end
+
+function GetInstalledVersions()
+    local key = 'installed_versions'
+    local existing = reaper.GetExtState(title, key)
+    local versions = {}
+    for entry in (existing .. ','):gmatch('([^,]+),') do
+        versions[entry] = true
+    end
+    return versions
 end
 
 function GetFilePattern()
@@ -479,7 +544,7 @@ function SetStartupHook(is_enabled)
 end
 
 function LoadSettings()
-    local show_install_dialog = platform:match('OSX') or platform:match('macOS')
+    local show_install_dialog = platform:match('OS')
     show_install_dialog = show_install_dialog or is_portable
     local default_settings = {
         ['startup_hook'] = {idx = 1, default = false},
@@ -489,9 +554,6 @@ function LoadSettings()
         ['notify_rc'] = {idx = 5, default = true},
         ['dialog_install'] = {idx = 6, default = show_install_dialog},
         ['dialog_dl_cancel'] = {idx = 7, default = true},
-        ['debug_startup'] = {idx = 8, default = false},
-        ['debug_console'] = {idx = 9, default = false},
-        ['debug_file'] = {idx = 10, default = false},
     }
     for key, setting in pairs(default_settings) do
         local ret = reaper.GetExtState(title, key)
@@ -512,8 +574,7 @@ function ShowSettingsMenu()
     local menu =
     '>Startup notifications|%1Run script on startup||%2Only show window when \z
     a new version is available (notifications)|>Check for...|%3Main|%4Dev|<%5RC|<\z
-    |>Confirmation dialogs|%6Before installing|<%7When cancelling download\z
-    |>Debugging|%8Dump startup log|%9Log to console|%10Log to file'
+    |>Confirmation dialogs|%6Before installing|<%7When cancelling download'
     local function substitute(s)
         return state[tonumber(s)].enabled and '!' or ''
     end
@@ -533,46 +594,6 @@ function ShowSettingsMenu()
         end
 
         if ret == 1 then SetStartupHook(enabled) end
-
-        if ret == 8 then
-            reaper.SetExtState(title, 'debug_startup', 'false', true)
-            settings.debug_startup.enabled = false
-
-            local startup_log_file = io.open(startup_log_path, 'w')
-            if not startup_log_file then return end
-            startup_log_file:write(debug_str, '\n')
-            startup_log_file:close()
-
-            local msg = 'Created new file: update-utility-startup.log\n\n\z
-                Please attach this file to your forum post. It will be automatically \z
-                deleted the next time this script runs. Thank you for testing!\n\n\z
-                The containing folder (your resource directory) will \z
-                now automatically open in explorer/finder\n '
-            reaper.MB(msg, title, 0)
-            -- Show REAPER resource path in explorer
-            reaper.Main_OnCommand(40027, 0)
-        end
-
-        if ret == 10 then
-            os.remove(user_log_path)
-            if enabled then
-                local user_log_file = io.open(user_log_path, 'a')
-                if not user_log_file then return end
-                user_log_file:write(debug_str, '\n')
-                user_log_file:close()
-                local msg = ' \nLogging to file is now enabled!\n\n\z
-                    You can find the file \'update-utility.log\' in your resource \z
-                    directory:\n--> Options --> Show REAPER resource path...\n\n\z
-                    Open resource directory now?\n '
-                local response = reaper.MB(msg, title, 4)
-                if response == 6 then
-                    -- Show REAPER resource path in explorer
-                    reaper.Main_OnCommand(40027, 0)
-                end
-            else
-                reaper.MB('Removed log file. Thank you for testing!', title, 0)
-            end
-        end
     end
 end
 
@@ -922,24 +943,15 @@ function Main()
         step_file:close()
         os.remove(step_path)
 
-        -- Print log file of previous step
-        local cmd_log_file = io.open(cmd_log_path, 'r')
-        if cmd_log_file then
-            print('\nCommand log:\n')
-            print(cmd_log_file:read('*a'))
-            cmd_log_file:close()
-            os.remove(cmd_log_path)
-        end
-
-        print('\n------------- Step ' .. tostring(step) .. ' ---------------')
+        Log('\n------------- Step', step, '---------------')
 
         if step == 'check_update' then
             -- Download the HTML of the REAPER website
             local cmd = dl_cmd .. ' >> %s 2>&1'
-            cmd = cmd:format(main_dlink, main_path, cmd_log_path)
+            cmd = cmd:format(main_dlink, main_path, log_path)
             -- Download the HTML of the Landoleet website
             cmd = cmd .. ' && ' .. dl_cmd .. ' >> %s 2>&1'
-            cmd = cmd:format(dev_dlink, dev_path, cmd_log_path)
+            cmd = cmd:format(dev_dlink, dev_path, log_path)
             -- Show buttons if download succeeds, otherwise show error
             cmd = cmd .. ' && echo display_update > %s'
             cmd = cmd .. ' || echo err_internet > %s'
@@ -986,52 +998,52 @@ function Main()
             local saved_main_version = reaper.GetExtState(title, 'main_version')
             local saved_dev_version = reaper.GetExtState(title, 'dev_version')
 
-            print('\nCurr version: ' .. tostring(curr_version))
-            print('\nSaved main version: ' .. tostring(saved_main_version))
-            print('Saved dev version: ' .. tostring(saved_dev_version))
-            print('\nMain version: ' .. tostring(main_version))
-            print('Dev version: ' .. tostring(dev_version))
+            Log('\nCurr version:', curr_version)
+            Log('\nSaved main version:', saved_main_version)
+            Log('Saved dev version:', saved_dev_version)
+            Log('\nMain version:', main_version)
+            Log('Dev version:', dev_version)
 
             -- Check if there's new version
             if saved_main_version ~= main_version then
                 new_version = main_version
-                print('Found new main version')
+                Log('Found new main version')
             end
             if saved_dev_version ~= dev_version then
                 -- If both are new, show update to the currently installed version
                 local is_installed = not curr_version:match('^%d+%.%d+%a*$')
                 if (not new_version or is_installed) and dev_version ~= 'none' then
                     new_version = dev_version
-                    print('Found new dev version')
+                    Log('Found new dev version')
                 end
             end
             -- Check if the new version is already installed (first script run)
             if new_version == curr_version then
                 new_version = nil
-                print('Newly found version is already installed')
+                Log('Newly found version is already installed')
             end
             -- Save latest version numbers in extstate for next check
             reaper.SetExtState(title, 'main_version', main_version, true)
             reaper.SetExtState(title, 'dev_version', dev_version, true)
 
-            print('\nNew version: ' .. tostring(new_version))
+            Log('\nNew version:', new_version)
 
             if startup_mode then
                 if not new_version then
-                    print('No update found! Exiting...')
+                    Log('No update found! Exiting...')
                     return
                 elseif new_version:match('dev') or new_version:match('pre') then
                     if not settings.notify_dev.enabled then
-                        print('No dev notifications! Exiting...')
+                        Log('No dev notifications! Exiting...')
                         return
                     end
                 elseif new_version:match('rc') then
                     if not settings.notify_rc.enabled then
-                        print('No rc notifications! Exiting...')
+                        Log('No rc notifications! Exiting...')
                         return
                     end
                 elseif not settings.notify_main.enabled then
-                    print('No main notifications! Exiting...')
+                    Log('No main notifications! Exiting...')
                     return
                 end
                 ShowGUI()
@@ -1047,7 +1059,7 @@ function Main()
             if platform:match('Win') then
                 next_step = 'windows_install'
             end
-            if platform:match('OSX') or platform:match('macOS') then
+            if platform:match('OS') then
                 next_step = 'osx_install'
             end
 
@@ -1061,13 +1073,13 @@ function Main()
             if user_dlink:find('www.reaper.fm', 0, true) then
                 cmd = cmd .. dl_cmd .. ' >> %s 2>&1'
                 cmd = cmd:format(old_dlink .. dfile_name, tmp_path .. dfile_name,
-                    cmd_log_path)
+                    log_path)
                 -- Go to next step if download succeeds, otherwise try reaper.fm
                 cmd = cmd .. ' && echo %s > %s || '
                 cmd = cmd:format(next_step, step_path)
             end
             cmd = cmd .. dl_cmd .. ' >> %s 2>&1'
-            cmd = cmd:format(user_dlink, tmp_path .. dfile_name, cmd_log_path)
+            cmd = cmd:format(user_dlink, tmp_path .. dfile_name, log_path)
             -- Go to next step if download succeeds, otherwise show error
             cmd = cmd .. ' && echo %s > %s'
             cmd = cmd .. ' || echo err_internet > %s'
@@ -1077,11 +1089,6 @@ function Main()
         end
 
         if step == 'windows_install' then
-            local log_path = cmd_log_path
-            if settings.debug_file.enabled then
-                log_path = user_log_path
-            end
-
             local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
 
@@ -1131,11 +1138,6 @@ function Main()
         end
 
         if step == 'osx_install' then
-            local log_path = cmd_log_path
-            if settings.debug_file.enabled then
-                log_path = user_log_path
-            end
-
             -- Mount downloaded dmg file and get the mount directory (yes agrees to license)
             local cmd = 'mount_dir=$(yes | hdiutil attach \"%s%s\" '
             cmd = cmd .. '| grep Volumes | cut -f 3) >> \"%s\" 2>&1'
@@ -1148,31 +1150,44 @@ function Main()
             cmd = cmd .. ' && app_name=$(ls | grep REAPER)'
             cmd = cmd .. ' && echo \"app_name: $app_name\" >> \"%s\" 2>&1'
             cmd = cmd:format(log_path)
+            cmd = cmd .. ' && cp_cmd=$(printf \"echo ROOT >> %%q 2>&1'
+            cmd = cmd .. ' && ditto %%q %%q >> %%q 2>&1\"'
+            cmd = cmd .. ' \"%s\" \"$app_name\" \"%s/$app_name\" \"%s\")'
             -- Copy .app to install path
-            cmd = cmd .. ' && ditto \"$app_name\" \"%s/$app_name\"'
-            cmd = cmd .. ' >> \"%s\" 2>&1'
-            cmd = cmd:format(install_path, log_path)
-            -- Unmount file
-            cmd = cmd .. ' ; cd'
-            cmd = cmd .. ' && hdiutil eject \"$mount_dir\" >> \"%s\" 2>&1'
-            cmd = cmd:format(log_path)
+            cmd = cmd .. ' && cp_output=$(ditto \"$app_name\" \"%s/$app_name\"'
+            cmd = cmd .. ' 2>&1)'
+            -- Copy failed: Attempt with root access
+            cmd = cmd .. ' || osascript -e \"on run argv\ndo shell script '
+            cmd = cmd .. '(item 1 of argv) with administrator privileges'
+            cmd = cmd .. ' with prompt (item 2 of argv)\n'
+            cmd = cmd .. 'end run\" \"$cp_cmd\" \"REAPER Update Utility\n\n'
+            cmd = cmd .. 'Could not copy files to installation directory...\n\n'
+            cmd = cmd .. 'Error message:\n$cp_output\n\n'
+            cmd = cmd .. 'Retry with elevated permissions?\n'
+            cmd = cmd .. '(not recommended)\"'
+            cmd = cmd .. ' ; echo $cp_output >> \"%s\" 2>&1'
+            cmd = cmd:format(log_path, install_path, log_path, install_path,
+                log_path)
+            -- Unmount file (new command string due to %q)
+            local e_cmd = ' ; cd && hdiutil eject \"$mount_dir\" >> \"%s\" 2>&1'
+            e_cmd = e_cmd:format(log_path)
             -- Execute hook script (if it exists)
             if hook_cmd ~= '' then
-                cmd = cmd .. ' %s >> \"%s\" 2>&1'
-                cmd = cmd:format(hook_cmd, log_path)
+                e_cmd = e_cmd .. ' %s >> \"%s\" 2>&1'
+                e_cmd = e_cmd:format(hook_cmd, log_path)
             end
             -- Restart REAPER
-            cmd = cmd .. ' ; echo \"Starting: %s/$app_name\" >> \"%s\" 2>&1'
-            cmd = cmd .. ' && open \"%s/$app_name\" --args -cfgfile \"%s\"'
-            cmd = cmd:format(install_path, log_path, install_path, ini_file)
-            ExecInstall(cmd)
+            e_cmd = e_cmd .. ' ; echo \"Starting: %s/$app_name\" >> \"%s\" 2>&1'
+            e_cmd = e_cmd .. ' ; open \"%s/$app_name\" --args -cfgfile \"%s\"'
+            e_cmd = e_cmd:format(install_path, log_path, install_path, ini_file)
+            ExecInstall(cmd .. e_cmd)
             return
         end
 
         if step == 'linux_extract' then
             -- Extract tar file in /tmp directory
             local cmd = 'tar -xf %s%s -C %s >> %s 2>&1'
-            cmd = cmd:format(tmp_path, dfile_name, tmp_path, cmd_log_path)
+            cmd = cmd:format(tmp_path, dfile_name, tmp_path, log_path)
             -- Go to installation step or show error
             cmd = cmd .. ' && echo linux_install > %s'
             cmd = cmd .. ' || echo err_extract > %s'
@@ -1182,40 +1197,57 @@ function Main()
         end
 
         if step == 'err_extract' then
-            local msg = 'Extracting failed!\nShow debugging output in console?'
-            local ret = reaper.MB(msg, 'Error', 4)
-            if ret == 6 then print(debug_str, true) end
+            GenerateReport('Extraction failed!')
             return
         end
 
         if step == 'linux_install' then
-            local log_path = cmd_log_path
-            if settings.debug_file.enabled then
-                log_path = user_log_path
-            end
-
             -- Determine path to the extracted installer shell script
             local sh_path = '%sreaper_linux_%s/install-reaper.sh'
             sh_path = sh_path:format(tmp_path, arch)
-            -- Note: Linux installer creates a REAPER directory
-            local outer_install_path = install_path:gsub('/REAPER$', '')
+
+            local function EscapePathForShell(s)
+                return s:gsub("([%s'\"\\|&;()<>!{}*%[%]?^$`#,])", '\\%1')
+            end
+            -- Note: Linux installer creates a REAPER directory if not present
+            local installer_path = EscapePathForShell(install_path)
+            local create_symlink_cmd = ''
+            local delete_symlink_cmd = ''
+            -- When installer folder is not called REAPER, trick the
+            -- installer by directing it to a symlink called REAPER
+            if not installer_path:match('/REAPER$') then
+                -- We create a folder called uutil inside of our install path
+                installer_path = installer_path .. '/uutil'
+                -- Inside uutil we add a symlink called REAPER
+                local cmd = 'mkdir %s ; ln -s %s/.. %s/REAPER ;'
+                cmd = cmd:format(installer_path, installer_path, installer_path)
+                create_symlink_cmd = cmd
+                -- Delete folder and symlink
+                cmd = '; rm -R %s'
+                cmd = cmd:format(installer_path)
+                delete_symlink_cmd = cmd
+            else
+                -- Set installer path to parent of REAPER folder
+                installer_path = installer_path:gsub('/REAPER$', '')
+            end
             -- Only use options for non portable installs
             local options = '--integrate-desktop --usr-local-bin-symlink'
             if is_portable then options = '' end
 
             -- Run Linux installation
-            local cmd = 'pkexec sh %s --install %s %s >> %s 2>&1'
-            cmd = cmd:format(sh_path, outer_install_path, options, log_path)
-            -- Wrap install command in new shell with sudo privileges
-            cmd = '/bin/sh -c \'' .. cmd .. '\''
+            local root_cmd = '%s sh %s --install %s %s %s'
+            root_cmd = root_cmd:format(create_symlink_cmd, sh_path,
+                installer_path, options, delete_symlink_cmd)
+            local cmd = 'pkexec sh -c \'' .. root_cmd .. '\' >> %s 2>&1'
+            cmd = cmd:format(log_path)
             -- Execute hook script (if it exists)
             if hook_cmd ~= '' then
                 cmd = cmd .. ' %s >> %s 2>&1'
                 cmd = cmd:format(hook_cmd, log_path)
             end
             --  Restart reaper
-            cmd = cmd .. ' ; %s/reaper'
-            cmd = cmd:format(install_path)
+            cmd = cmd .. ' ; \'%s/reaper\' -cfgfile \'%s\''
+            cmd = cmd:format(install_path, ini_file)
             ExecInstall(cmd)
             return
         end
@@ -1223,7 +1255,7 @@ function Main()
         if step == 'get_history' then
             -- Show buttons if download succeeds, otherwise show error
             local cmd = dl_cmd .. ' >> %s 2>&1'
-            cmd = cmd:format(old_dlink, main_path, cmd_log_path)
+            cmd = cmd:format(old_dlink, main_path, log_path)
             cmd = cmd .. ' && echo show_history > %s'
             cmd = cmd .. ' || echo err_internet > %s'
             cmd = cmd:format(step_path, step_path)
@@ -1294,11 +1326,7 @@ function Main()
         end
 
         if step == 'err_internet' then
-            local msg = 'Download failed!\nShow debugging output in console?'
-            if not startup_mode then
-                local ret = reaper.MB(msg, 'Error', 4)
-                if ret == 6 then print(debug_str, true) end
-            end
+            GenerateReport('Download failed!')
             return
         end
     end
@@ -1310,13 +1338,13 @@ function Main()
                 local msg = 'Quit installation of v%s?'
                 local ret = reaper.MB(msg:format(install_version), title, 4)
                 if ret == 6 then
-                    print('User exit...')
+                    Log('User exit...')
                     return
                 elseif char == -1 then
                     ShowGUI()
                 end
             else
-                print('User exit...')
+                Log('User exit...')
                 return
             end
         end
@@ -1352,52 +1380,56 @@ function Main()
     reaper.defer(Main)
 end
 
-settings = LoadSettings()
+----------------------------- CODE START ----------------------------------
 
--- Log the currently running version so it appears marked in the history menu
-LogInstalledVersion(curr_version)
+install_id = EncodeString_fnv1a(install_path)
+install_ext_key = 'install_version_' .. install_id
 
-if not platform:match('Win') then
-    -- String escape Unix paths (spaces and brackets)
-    install_path = install_path:gsub('[%s%(%)]', '\\%1')
-    res_path = res_path:gsub('[%s%(%)]', '\\%1')
+local was_update_successful = true
+local prev_install_version = reaper.GetExtState(title, install_ext_key)
+if prev_install_version ~= '' then
+    reaper.SetExtState(title, install_ext_key, '', true)
+    was_update_successful = prev_install_version == curr_version
 end
 
 -- Define paths to temporary files
 tmp_path = '/tmp/'
 if platform:match('Win') then
     tmp_path = ExecProcess('echo %TEMP%', 1000)
-    if not tmp_path then
+    if tmp_path == '' then
         reaper.MB('Could not get temporary directory', 'Error', 0)
         return
     end
     tmp_path = tmp_path .. '\\'
 end
-step_path = tmp_path .. 'reaper_uutil_step.txt'
-main_path = tmp_path .. 'reaper_uutil_main.html'
-dev_path = tmp_path .. 'reaper_uutil_dev.html'
-cmd_log_path = tmp_path .. 'reaper_uutil_log.txt'
+step_path = tmp_path .. ('reaper_uutil_%s_step.txt'):format(install_id)
+main_path = tmp_path .. ('reaper_uutil_%s_main.html'):format(install_id)
+dev_path = tmp_path .. ('reaper_uutil_%s_dev.html'):format(install_id)
+log_path = tmp_path .. ('reaper_uutil_%s_log.txt'):format(install_id)
 
-local cmd_log_file = io.open(cmd_log_path, 'r')
-if cmd_log_file then
-    print('\nCommand log:\n')
-    print(cmd_log_file:read('*a'))
-    cmd_log_file:close()
-    os.remove(cmd_log_path)
-end
-
--- Delete existing temporary files from previous runs
+-- Remove leftover files from previous runs
+if was_update_successful then os.remove(log_path) end
 os.remove(step_path)
 os.remove(main_path)
 os.remove(dev_path)
-os.remove(startup_log_path)
 
-print('\n-------------------------------------------')
-print('CPU achitecture: ' .. tostring(arch))
-print('Installation path: ' .. tostring(install_path))
-print('Resource path: ' .. tostring(res_path))
-print('Reaper version: ' .. tostring(curr_version))
-print('Portable: ' .. (is_portable and 'yes' or 'no'))
+Log('\n-------------------------------------------')
+Log('CPU architecture:', arch)
+Log('Installation path:', install_path)
+Log('Resource path:', res_path)
+Log('Reaper version:', curr_version)
+Log('Portable:', is_portable and 'yes' or 'no')
+
+-- Check if ini path is valid (MacOS privacy can obfuscate path)
+if not reaper.file_exists(ini_file) then
+    Log('Ini path:', ini_file)
+    GenerateReport('Could not read REAPER.ini!')
+    return
+end
+
+settings = LoadSettings()
+-- Log the currently running version so it appears marked in the history menu
+LogInstalledVersion(curr_version)
 
 -- Set command for downloading from terminal
 dl_cmd = 'curl -f -k -L %s -o %s'
@@ -1415,7 +1447,7 @@ end
 -- Set command for opening web-pages from terminal
 browser_cmd = 'xdg-open '
 if platform:match('Win') then browser_cmd = 'start ' end
-if platform:match('OSX') or platform:match('macOS') then browser_cmd = 'open ' end
+if platform:match('OS') then browser_cmd = 'open ' end
 
 -- Set command for platform-dependent post-install hooks
 if platform:match('Win') then
@@ -1444,22 +1476,15 @@ end
 -- Check if the script has already run since last restart (using extstate persist)
 local has_already_run = reaper.GetExtState(title, 'startup') == '1'
 reaper.SetExtState(title, 'startup', '1', false)
-print('Startup extstate: ' .. tostring(has_already_run))
+Log('Startup extstate:', has_already_run)
 
 if has_already_run then
     startup_mode = false
 elseif settings.force_startup.enabled then
-    print('Forced startup up mode is enabled!')
+    Log('Forced startup up mode is enabled!')
     startup_mode = true
 end
-print('Startup mode: ' .. tostring(startup_mode))
-
-if settings.debug_file.enabled then
-    local msg =
-    ' \nLogging to file is enabled!\n\nYou can find the file \'update-utility.log\' \z
-    in your resource directory:\n--> Options --> Show REAPER resource path...\n '
-    reaper.MB(msg, title, 0)
-end
+Log('Startup mode:', startup_mode)
 
 local last_proj = reaper.GetExtState(title, 'last_proj')
 if last_proj ~= '' then
@@ -1502,24 +1527,29 @@ if last_proj ~= '' then
     reaper.SetExtState(title, 'last_proj', '', true)
     reaper.SetExtState(title, 'last_proj_active', '', true)
     reaper.SetExtState(title, 'last_proj_mode', '', true)
+end
 
-    -- Script is not set to run on startup, reopen projects and exit
-    if reaper.GetExtState(title, 'last_proj_hook') ~= '' then
-        reaper.SetExtState(title, 'last_proj_hook', '', true)
-        reaper.SetExtState(title, 'startup', '', false)
-        SetStartupHook(false)
-        return
-    end
+if not was_update_successful then
+    GenerateReport('Update failed!')
+    return
+end
+
+-- Script is not set to run on startup, reopen projects and exit
+if reaper.GetExtState(title, 'last_proj_hook') ~= '' then
+    reaper.SetExtState(title, 'last_proj_hook', '', true)
+    reaper.SetExtState(title, 'startup', '', false)
+    SetStartupHook(false)
+    return
 end
 
 if startup_mode then
     local prev_time = tonumber(reaper.GetExtState(title, 'prev_start_time')) or 0
     local curr_time = reaper.time_precise()
     local time_diff = math.abs(math.ceil(curr_time - prev_time))
-    print(('Last update check: %s seconds ago'):format(time_diff))
+    Log(('Last update check: %s seconds ago'):format(time_diff))
     -- Check if 3 minutes have passed since last update check
     if time_diff < 60 * 3 then
-        print('Exiting without checking for updates!')
+        Log('Exiting without checking for updates!')
         return
     end
     reaper.SetExtState(title, 'prev_start_time', curr_time, true)
