@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="bbbbdf4e31b5166611e94d162f514fea0cd478da">
+<index version="1" name="FTC Tools" commit="fd5b1fbccb737f84449105cadb47969e5c364f1b">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -3936,6 +3936,13 @@
 - Prioriotize downloading from landoleet to avoid geo-restrictions
 - Fix potential hang during download]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/cca91085ef84d84b326405d80181ea5d7eff7bee/Various/REAPER%20Update%20Utility.lua</source>
+      </version>
+      <version name="3.0.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-05-13T20:24:03Z">
+        <changelog><![CDATA[- Reworked debugging, removed menu options
+- Ask to automatically create log file when something goes wrong
+- Support portable installs on Linux
+- Ask to retry with root permission when install fails on MacOS]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/fd5b1fbccb737f84449105cadb47969e5c364f1b/Various/REAPER%20Update%20Utility.lua</source>
       </version>
     </reapack>
   </category>
