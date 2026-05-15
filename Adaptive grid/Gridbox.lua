@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.2.2
+  @version 2.2.3
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix move/resize cursor behavior (2.2.0 regression)
+    - Render at 2x pixel density on macOS for Retina sharpness
 ]]
 
 local extname = 'FTC.GridBox'
@@ -184,6 +184,7 @@ local function GetTransportScale()
 end
 
 local scale = GetTransportScale()
+local pixel_ratio = is_macos and 2 or 1
 
 local function ScaleValue(value, scale_factor)
     if not tonumber(value) then return value end
@@ -813,7 +814,7 @@ function DrawLICERect(bm, color, x, y, w, h, fill, r, a)
 
     if not fill or fill == 0 then
         local LICE_RoundRect = reaper.JS_LICE_RoundRect
-        for _ = 1, math.max(1, math.max(1, scale)) do
+        for _ = 1, math.max(1, math.max(1, scale * pixel_ratio)) do
             LICE_RoundRect(bm, x, y, w - 1, h - 1, r, color, a, 0, true)
             x, y, w, h = x + 1, y + 1, w - 2, h - 2
         end
@@ -847,8 +848,9 @@ end
 
 function DrawBackground(bg_color, corner_r, a)
     if a == 0 then return end
+    local pr = pixel_ratio
     if not bg_bitmap then
-        bg_bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
+        bg_bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w * pr, bm_h * pr)
         prev_bg_color = nil
     end
 
@@ -856,30 +858,32 @@ function DrawBackground(bg_color, corner_r, a)
         prev_bg_color = bg_color
         prev_bg_corner_r = corner_r
         ClearBitmap(bg_bitmap, bg_color)
-        DrawLICERect(bg_bitmap, bg_color, 0, 0, bm_w, bm_h, true, corner_r)
+        DrawLICERect(bg_bitmap, bg_color, 0, 0, bm_w * pr, bm_h * pr, true, corner_r * pr)
     end
-    reaper.JS_LICE_Blit(bitmap, 0, 0, bg_bitmap, 0, 0, bm_w, bm_h, a, 'COPY')
+    reaper.JS_LICE_Blit(bitmap, 0, 0, bg_bitmap, 0, 0, bm_w * pr, bm_h * pr, a, 'COPY')
 end
 
 function DrawSnapIcon(snap_color, x, y, h, a)
     if a == 0 then return end
     h = h + 1
+    local pr = pixel_ratio
+    local h_px = h * pr
     if not snap_bitmap then
-        snap_bitmap = reaper.JS_LICE_CreateBitmap(true, h, h)
+        snap_bitmap = reaper.JS_LICE_CreateBitmap(true, h_px, h_px)
         prev_snap_color = nil
     end
 
     if snap_color ~= prev_snap_color then
         prev_snap_color = snap_color
 
-        local r = (h - 1) // 2
+        local r = (h_px - 1) // 2
         local d = 2 * r + 1
 
         local FillRect = reaper.JS_LICE_FillRect
         local LICE_FillCircle = reaper.JS_LICE_FillCircle
 
         -- Clear bitmap by substracting color
-        FillRect(snap_bitmap, 0, 0, h, h, snap_color, -1, 'ADD')
+        FillRect(snap_bitmap, 0, 0, h_px, h_px, snap_color, -1, 'ADD')
 
         -- Draw circle for right side of snap icon
         LICE_FillCircle(snap_bitmap, r, r, r, snap_color, 1, 0, 1)
@@ -904,7 +908,7 @@ function DrawSnapIcon(snap_color, x, y, h, a)
             FillRect(snap_bitmap, 0, 0, snap_cut, d, snap_color, 1, 0)
         end
     end
-    reaper.JS_LICE_Blit(bitmap, x, y, snap_bitmap, 0, 0, h, h, a, 'ADD')
+    reaper.JS_LICE_Blit(bitmap, x * pr, y * pr, snap_bitmap, 0, 0, h_px, h_px, a, 'ADD')
 end
 
 function DrawLiceBitmap()
@@ -940,9 +944,10 @@ function DrawLiceBitmap()
         border_color = border_color | alpha
     end
     -- Draw border
+    local pr = pixel_ratio
     if border_color then
-        DrawLICERect(bitmap, border_color, 0, 0, bm_w, bm_h, false,
-            corner_radius, border_alpha)
+        DrawLICERect(bitmap, border_color, 0, 0, bm_w * pr, bm_h * pr, false,
+            corner_radius * pr, border_alpha)
     end
 
     local snap_h = user_snap_size
@@ -1001,8 +1006,8 @@ function DrawLiceBitmap()
         local sep_w = math.max(1, ScaleValue(1))
         local sep_x = left_w - sep_w
         local sep_h = bm_h - 2 * m
-        DrawLICERect(bitmap, snap_sep_color, sep_x, m, sep_w, sep_h, true, 0,
-            snap_sep_alpha)
+        DrawLICERect(bitmap, snap_sep_color, sep_x * pr, m * pr, sep_w * pr, sep_h * pr,
+            true, 0, snap_sep_alpha)
     end
 
     -- Draw swing slider
@@ -1033,33 +1038,33 @@ function DrawLiceBitmap()
         else
             x_offs = x_offs + math.ceil(right_w / 2) - swing_len
         end
-        DrawLICERect(bitmap, swing_color, x_offs, bm_h - h - y_offs, swing_len, h,
-            true, 0, swing_alpha)
+        DrawLICERect(bitmap, swing_color, x_offs * pr, (bm_h - h - y_offs) * pr,
+            swing_len * pr, h * pr, true, 0, swing_alpha)
     end
 
-    -- Measure Text
+    -- Measure Text (gfx font is sized at physical pixels, so measurements are physical)
     local icon_w = 0
     if is_adaptive then icon_w = gfx.measurestr('A') * 4 // 3 end
 
     -- If text with "Swing:" prefix doesn't fit, remove prefix
     if grid_text:match('^Swing:') then
         local text_w, text_h = gfx.measurestr('Swing: -100%')
-        if text_w > right_w then
+        if text_w > right_w * pr then
             grid_text = grid_text:gsub('^Swing:', '')
         end
     end
     local text_w, text_h = gfx.measurestr(grid_text)
 
-    local text_x = (right_w - text_w + icon_w) // 2
-    local text_y = (bm_h - text_h) // 2
-    if is_macos then text_y = text_y + 1 end
-    text_y = text_y + (user_font_yoffs or 0)
+    local text_x = (right_w * pr - text_w + icon_w) // 2
+    local text_y = (bm_h * pr - text_h) // 2
+    if is_macos then text_y = text_y + pr end
+    text_y = text_y + (user_font_yoffs or 0) * pr
 
     local m = ScaleValue(2)
-    if text_x - icon_w < m then
-        text_x = icon_w + m
+    if text_x - icon_w < m * pr then
+        text_x = icon_w + m * pr
     end
-    text_x = text_x + left_w
+    text_x = text_x + left_w * pr
 
     -- Determine text color
     local text_color = tonumber(user_text_color or 'a9a9a9', 16) | alpha
@@ -1068,7 +1073,7 @@ function DrawLiceBitmap()
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
     local len = tostring(grid_text):len()
     local LICE_DrawText = reaper.JS_LICE_DrawText
-    LICE_DrawText(bitmap, lice_font, grid_text, len, text_x, text_y, bm_w, bm_h)
+    LICE_DrawText(bitmap, lice_font, grid_text, len, text_x, text_y, bm_w * pr, bm_h * pr)
 
     -- Draw adaptive icon (A)
     if icon_w > 0 then
@@ -1081,7 +1086,7 @@ function DrawLiceBitmap()
         end
         reaper.JS_LICE_SetFontColor(lice_font, adaptive_color)
         LICE_DrawText(bitmap, lice_font, 'A', 1, text_x - icon_w, text_y,
-            bm_w, bm_h)
+            bm_w * pr, bm_h * pr)
     end
 
     -- Refresh window
@@ -1666,7 +1671,7 @@ function SetBitmapCoords(x, y, w, h)
         -- Change bitmap draw coordinates
         reaper.JS_Composite_Delay(window_hwnd, comp_delay, comp_delay * 1.5, 2)
         reaper.JS_Composite(window_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
-            bm_w, bm_h)
+            bm_w * pixel_ratio, bm_h * pixel_ratio)
     end
 end
 
@@ -2576,17 +2581,17 @@ function Main()
         if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
         if snap_bitmap then reaper.JS_LICE_DestroyBitmap(snap_bitmap) end
         if bg_bitmap then reaper.JS_LICE_DestroyBitmap(bg_bitmap) end
-        bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
+        bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w * pixel_ratio, bm_h * pixel_ratio)
         snap_bitmap = nil
         bg_bitmap = nil
 
-        -- Determine font size
+        -- Determine font size (target physical pixels so text is sharp on Retina)
         font_size = user_font_size
         local font_family = user_font_family or 'Arial'
         if not font_size then
             font_size = 2
             -- Find optimal font size by incrementing until it doesn't target height
-            local target_h = math.max(math.min(ScaleValue(14), bm_h), bm_h // 2.5)
+            local target_h = math.max(math.min(ScaleValue(14), bm_h), bm_h // 2.5) * pixel_ratio
             local curr_h
             repeat
                 gfx.setfont(1, font_family, font_size)
@@ -2594,6 +2599,7 @@ function Main()
                 font_size = font_size + math.floor(target_h / curr_h + 0.5)
             until curr_h >= target_h
         else
+            font_size = font_size * pixel_ratio
             gfx.setfont(1, font_family, font_size)
         end
 
@@ -2610,7 +2616,7 @@ function Main()
         -- Set bitmap draw coordinates
         reaper.JS_Composite_Delay(window_hwnd, comp_delay, comp_delay * 1.5, 2)
         reaper.JS_Composite(window_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap,
-            0, 0, bm_w, bm_h)
+            0, 0, bm_w * pixel_ratio, bm_h * pixel_ratio)
         is_resize = false
         is_redraw = true
     end
