@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="fd5b1fbccb737f84449105cadb47969e5c364f1b">
+<index version="1" name="FTC Tools" commit="d5859212b712214e6fb750319d1d59ace9e3822f">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -751,6 +751,15 @@
       <version name="2.2.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-05-12T14:51:41Z">
         <changelog><![CDATA[- Fix move/resize cursor behavior (2.2.0 regression)]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/bbbbdf4e31b5166611e94d162f514fea0cd478da/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.2.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-05-12T21:28:42Z">
+        <changelog><![CDATA[- Render at 2x pixel density on macOS for Retina sharpness]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/28012a4385ba62c7aac9024b6061615ba738c5ed/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.3.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-05-15T14:10:12Z">
+        <changelog><![CDATA[- Render at 2x pixel density on macOS for Retina sharpness (thanks dansimco!)
+- Set custom font size in height (px)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/d5859212b712214e6fb750319d1d59ace9e3822f/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
