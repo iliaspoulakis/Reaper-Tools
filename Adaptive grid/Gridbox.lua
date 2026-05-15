@@ -1,18 +1,24 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.2.3
+  @version 2.3.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Render at 2x pixel density on macOS for Retina sharpness
+    - Render at 2x pixel density on macOS for Retina sharpness (thanks dansimco!)
+    - Set custom font size in height (px)
 ]]
 
 local extname = 'FTC.GridBox'
 
-local bm_w
-local bm_h
-local bm_x
-local bm_y
+local box_w
+local box_h
+local box_x
+local box_y
+
+local prev_box_w
+local prev_box_h
+local prev_box_x
+local prev_box_y
 
 local attach_mode
 local attach_x
@@ -23,7 +29,7 @@ local user_text_color
 local user_swing_color
 local user_corner_radius
 local user_adaptive_color
-local user_font_size
+local user_font_height
 local user_font_yoffs
 local user_font_family
 
@@ -33,6 +39,7 @@ local user_snap_off_color
 local user_snap_sep_color
 
 local window_hwnd
+local prev_window_hwnd
 local window_w
 local window_h
 
@@ -44,6 +51,7 @@ local prev_main_mult
 local prev_swing_amt
 local prev_grid_div
 local prev_top_window_cnt
+local prev_attach_hwnd
 local top_window_array = reaper.new_array(4096)
 
 local prev_hzoom_lvl
@@ -60,7 +68,7 @@ local is_swing_drag
 local is_left_click = false
 local is_right_click = false
 
-local left_w = 0
+local snap_w = 0
 local prev_is_snap
 local prev_is_rel_snap
 local prev_is_snap_hovered
@@ -83,12 +91,6 @@ local is_redraw = false
 local is_resize = false
 local resize_flags = 0
 local resize_cursor
-
-local prev_attach_hwnd
-local prev_bm_w
-local prev_bm_h
-local prev_bm_x
-local prev_bm_y
 
 local GetSetGrid = reaper.GetSetProjectGrid
 
@@ -178,22 +180,19 @@ local transport_title = reaper.JS_Localize('Transport', 'common')
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
 local function GetTransportScale()
-    if is_macos then return 1 end
     local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
-    return tonumber(new_dpi) / 256
+    local scale = tonumber(new_dpi) / 256
+    return is_macos and 1 or scale, scale
 end
 
-local scale = GetTransportScale()
-local pixel_ratio = is_macos and 2 or 1
-
-local function ScaleValue(value, scale_factor)
+local function Scale(value, scale)
     if not tonumber(value) then return value end
-    scale_factor = scale_factor or scale
-    return math.floor(value * scale_factor + 0.5)
+    return math.floor(value * scale + 0.5)
 end
 
--- Smallest size the bitmap is allowed to have (width and height in pixels)
-local min_area_size = ScaleValue(12)
+local measure_scale, draw_scale = GetTransportScale()
+-- Smallest size the box is allowed to have (width and height in pixels)
+local min_box_size = Scale(12, measure_scale)
 
 -------------------------------- FUNCTIONS -----------------------------------
 
@@ -496,16 +495,17 @@ function LoadThemeSettings(theme_path)
     if not settings and attach_window_title then
         local prev_theme_path = ExtLoad('prev_theme_path')
         local prev_settings = prev_theme_path and ExtLoad(prev_theme_path)
-        if prev_settings then
+        if prev_settings and prev_settings.box_x then
             settings = {}
             settings.attach_x = prev_settings.attach_x
             settings.attach_mode = prev_settings.attach_mode
 
-            settings.bm_x = prev_settings.bm_x
-            settings.bm_y = prev_settings.bm_y
-            settings.bm_w = prev_settings.bm_w
-            settings.bm_h = prev_settings.bm_h
-            settings.scale = prev_settings.scale
+            settings.box_x = prev_settings.box_x
+            settings.box_y = prev_settings.box_y
+            settings.box_w = prev_settings.box_w
+            settings.box_h = prev_settings.box_h
+            settings.draw_scale = prev_settings.draw_scale
+            settings.measure_scale = prev_settings.measure_scale
         end
     end
 
@@ -517,7 +517,7 @@ function LoadThemeSettings(theme_path)
     user_border_color = settings.border_color
     user_swing_color = settings.swing_color
     user_adaptive_color = settings.adaptive_color
-    user_font_size = settings.font_size
+    user_font_height = settings.font_height
     user_font_family = settings.font_family
     user_font_yoffs = settings.font_yoffs
     user_corner_radius = settings.corner_radius
@@ -526,43 +526,60 @@ function LoadThemeSettings(theme_path)
     user_snap_off_color = settings.snap_off_color
     user_snap_sep_color = settings.snap_sep_color
 
+    -- Compatibility: Coordinates
+    if settings.bm_x then settings.box_x = settings.bm_x end
+    if settings.bm_y then settings.box_y = settings.bm_y end
+    if settings.bm_w then settings.box_w = settings.bm_w end
+    if settings.bm_h then settings.box_h = settings.bm_h end
+    -- Compatibility: Scale
+    if settings.scale then settings.measure_scale = settings.scale end
+    -- Compatibility: Font size
+    if settings.font_size then
+        local font_family = user_font_family or 'Arial'
+        gfx.setfont(1, font_family, settings.font_size)
+        user_font_height = math.floor(math.max(1, select(2, gfx.measurechar(70))))
+    end
+
     attach_x = settings.attach_x
     attach_mode = settings.attach_mode
 
-    local new_bm_x = settings.bm_x
-    local new_bm_y = settings.bm_y
-    local new_bm_w = settings.bm_w
-    local new_bm_h = settings.bm_h
+    local new_box_x = settings.box_x
+    local new_box_y = settings.box_y
+    local new_box_w = settings.box_w
+    local new_box_h = settings.box_h
 
-    if not is_macos and settings.scale and settings.scale ~= scale then
-        local scale_factor = scale / settings.scale
-        new_bm_x = ScaleValue(new_bm_x, scale_factor)
-        new_bm_y = ScaleValue(new_bm_y, scale_factor)
-        new_bm_w = ScaleValue(new_bm_w, scale_factor)
-        new_bm_h = ScaleValue(new_bm_h, scale_factor)
-
-        attach_x = ScaleValue(attach_x, scale_factor)
-        user_snap_size = ScaleValue(user_snap_size, scale_factor)
-        user_font_size = ScaleValue(user_font_size, scale_factor)
-        user_font_yoffs = ScaleValue(user_font_yoffs, scale_factor)
-        user_corner_radius = ScaleValue(user_corner_radius, scale_factor)
+    if settings.draw_scale and settings.draw_scale ~= draw_scale then
+        local scale_factor = draw_scale / settings.draw_scale
+        user_snap_size = Scale(user_snap_size, scale_factor)
+        user_font_height = Scale(user_font_height, scale_factor)
+        user_font_yoffs = Scale(user_font_yoffs, scale_factor)
+        user_corner_radius = Scale(user_corner_radius, scale_factor)
     end
 
-    if attach_x then new_bm_x = GetAttachPosition() end
+    if settings.measure_scale and settings.measure_scale ~= measure_scale then
+        local scale_factor = measure_scale / settings.measure_scale
+        new_box_x = Scale(new_box_x, scale_factor)
+        new_box_y = Scale(new_box_y, scale_factor)
+        new_box_w = Scale(new_box_w, scale_factor)
+        new_box_h = Scale(new_box_h, scale_factor)
+        attach_x = Scale(attach_x, scale_factor)
+    end
+
+    if attach_x then new_box_x = GetAttachPosition() end
     if attach_window_title == settings.attach_title
         and attach_window_child_id == settings.attach_child_id
-        or not bm_x then
-        SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
+        or not box_x then
+        SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
     end
     return has_settings
 end
 
 function SaveThemeSettings(theme_path)
     local settings = {
-        bm_x = bm_x,
-        bm_y = bm_y,
-        bm_w = bm_w,
-        bm_h = bm_h,
+        box_x = box_x,
+        box_y = box_y,
+        box_w = box_w,
+        box_h = box_h,
         attach_x = attach_x,
         attach_mode = attach_mode,
         attach_title = attach_window_title,
@@ -572,7 +589,7 @@ function SaveThemeSettings(theme_path)
         border_color = user_border_color,
         swing_color = user_swing_color,
         adaptive_color = user_adaptive_color,
-        font_size = user_font_size,
+        font_height = user_font_height,
         font_family = user_font_family,
         font_yoffs = user_font_yoffs,
         corner_radius = user_corner_radius,
@@ -580,7 +597,8 @@ function SaveThemeSettings(theme_path)
         snap_on_color = user_snap_on_color,
         snap_off_color = user_snap_off_color,
         snap_sep_color = user_snap_sep_color,
-        scale = scale,
+        draw_scale = draw_scale,
+        measure_scale = measure_scale,
     }
 
     -- If theme inside resource folder, save as relative path
@@ -637,7 +655,7 @@ function SetCustomSize()
     local captions = 'Width:,Height:,X pos:,Y pos:'
 
     local floor = math.floor
-    local curr_vals = {floor(bm_w), floor(bm_h), floor(bm_x), floor(bm_y)}
+    local curr_vals = {floor(box_w), floor(box_h), floor(box_x), floor(box_y)}
     local curr_vals_str = table.concat(curr_vals, ',')
 
     local ret, inputs = reaper.GetUserInputs(title, 4, captions, curr_vals_str)
@@ -653,10 +671,10 @@ function SetCustomSize()
     if input_vals[2] then h = floor(input_vals[2] + 0.5) end
     if input_vals[3] then x = floor(input_vals[3] + 0.5) end
     if input_vals[4] then y = floor(input_vals[4] + 0.5) end
-    SetBitmapCoords(x, y, w, h)
+    SetBoxCoords(x, y, w, h)
 
     UpdateAttachPosition()
-    EnsureBitmapVisible()
+    EnsureBoxVisible()
 
     SaveThemeSettings(prev_color_theme)
 end
@@ -684,11 +702,11 @@ end
 
 function SetCustomFont()
     local title = 'Font'
-    local captions = 'Size: (e.g.42),Family (e.g. Comic Sans),\z
+    local captions = 'Height: (e.g.42),Family (e.g. Comic Sans),\z
         Y offset:,extrawidth=50'
 
     local curr_vals_str = ('%s,%s,%s'):format(
-        user_font_size or '',
+        user_font_height or '',
         user_font_family or '',
         user_font_yoffs or ''
     )
@@ -701,7 +719,7 @@ function SetCustomFont()
         input_vals[#input_vals + 1] = input
     end
 
-    user_font_size = tonumber(input_vals[1])
+    user_font_height = tonumber(input_vals[1])
     user_font_family = input_vals[2]
     if user_font_family == '' then user_font_family = nil end
     user_font_yoffs = tonumber(input_vals[3])
@@ -730,7 +748,7 @@ function SetCustomSnapSize()
 
     SaveThemeSettings(prev_color_theme)
 
-    if user_snap_size and user_snap_size // 0.4 > bm_w / 1.3 then
+    if user_snap_size and user_snap_size // 0.4 > box_w / 1.3 then
         local msg = 'You entered a large size. Snap icon will not be \z
         visible.\n\nReduce the size or expand Gridbox to make it show.'
         reaper.MB(msg, 'Warning', 0)
@@ -797,6 +815,18 @@ function SetCustomColors()
     end
 end
 
+function InvalidateBoxRect()
+    if not box_x then return end
+    reaper.JS_Window_InvalidateRect(window_hwnd, box_x, box_y,
+        box_x + box_w, box_y + box_h, false)
+end
+
+function GetBitmapSize()
+    local pixel_ratio = draw_scale / measure_scale
+    local bm_w, bm_h = box_w * pixel_ratio, box_h * pixel_ratio
+    return math.floor(bm_w), math.floor(bm_h)
+end
+
 function ClearBitmap(bm, color)
     -- Note: Clear to transparent avoids artifacts on aliased rect corners
     if is_windows then
@@ -806,7 +836,7 @@ function ClearBitmap(bm, color)
     end
 end
 
-function DrawLICERect(bm, color, x, y, w, h, fill, r, a)
+function DrawRect(bm, color, x, y, w, h, fill, r, a)
     if a == 0 then return end
     fill = fill or 0
     r = r or 0
@@ -814,7 +844,7 @@ function DrawLICERect(bm, color, x, y, w, h, fill, r, a)
 
     if not fill or fill == 0 then
         local LICE_RoundRect = reaper.JS_LICE_RoundRect
-        for _ = 1, math.max(1, math.max(1, scale * pixel_ratio)) do
+        for _ = 1, math.max(1, draw_scale) do
             LICE_RoundRect(bm, x, y, w - 1, h - 1, r, color, a, 0, true)
             x, y, w, h = x + 1, y + 1, w - 2, h - 2
         end
@@ -846,11 +876,10 @@ function DrawLICERect(bm, color, x, y, w, h, fill, r, a)
     reaper.JS_LICE_FillRect(bm, x + r, y, w - r * 2, h, color, a, 0)
 end
 
-function DrawBackground(bg_color, corner_r, a)
+function DrawBackground(bm, bg_color, w, h, corner_r, a)
     if a == 0 then return end
-    local pr = pixel_ratio
     if not bg_bitmap then
-        bg_bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w * pr, bm_h * pr)
+        bg_bitmap = reaper.JS_LICE_CreateBitmap(true, w, h)
         prev_bg_color = nil
     end
 
@@ -858,32 +887,30 @@ function DrawBackground(bg_color, corner_r, a)
         prev_bg_color = bg_color
         prev_bg_corner_r = corner_r
         ClearBitmap(bg_bitmap, bg_color)
-        DrawLICERect(bg_bitmap, bg_color, 0, 0, bm_w * pr, bm_h * pr, true, corner_r * pr)
+        DrawRect(bg_bitmap, bg_color, 0, 0, w, h, true, corner_r)
     end
-    reaper.JS_LICE_Blit(bitmap, 0, 0, bg_bitmap, 0, 0, bm_w * pr, bm_h * pr, a, 'COPY')
+    reaper.JS_LICE_Blit(bm, 0, 0, bg_bitmap, 0, 0, w, h, a, 'COPY')
 end
 
-function DrawSnapIcon(snap_color, x, y, h, a)
+function DrawSnapIcon(bm, snap_color, x, y, h, a)
     if a == 0 then return end
     h = h + 1
-    local pr = pixel_ratio
-    local h_px = h * pr
     if not snap_bitmap then
-        snap_bitmap = reaper.JS_LICE_CreateBitmap(true, h_px, h_px)
+        snap_bitmap = reaper.JS_LICE_CreateBitmap(true, h, h)
         prev_snap_color = nil
     end
 
     if snap_color ~= prev_snap_color then
         prev_snap_color = snap_color
 
-        local r = (h_px - 1) // 2
+        local r = (h - 1) // 2
         local d = 2 * r + 1
 
         local FillRect = reaper.JS_LICE_FillRect
         local LICE_FillCircle = reaper.JS_LICE_FillCircle
 
         -- Clear bitmap by substracting color
-        FillRect(snap_bitmap, 0, 0, h_px, h_px, snap_color, -1, 'ADD')
+        FillRect(snap_bitmap, 0, 0, h, h, snap_color, -1, 'ADD')
 
         -- Draw circle for right side of snap icon
         LICE_FillCircle(snap_bitmap, r, r, r, snap_color, 1, 0, 1)
@@ -908,10 +935,10 @@ function DrawSnapIcon(snap_color, x, y, h, a)
             FillRect(snap_bitmap, 0, 0, snap_cut, d, snap_color, 1, 0)
         end
     end
-    reaper.JS_LICE_Blit(bitmap, x * pr, y * pr, snap_bitmap, 0, 0, h_px, h_px, a, 'ADD')
+    reaper.JS_LICE_Blit(bm, x, y, snap_bitmap, 0, 0, h, h, a, 'ADD')
 end
 
-function DrawLiceBitmap()
+function DrawBitmap(bm, w, h)
     local alpha = 0xFF000000
 
     -- Determine background color
@@ -922,16 +949,16 @@ function DrawLiceBitmap()
     end
     bg_color = bg_color | alpha
 
-    ClearBitmap(bitmap, bg_color)
+    ClearBitmap(bm, bg_color)
 
     -- Draw background
     local corner_radius
     if user_corner_radius then
         corner_radius = math.floor(user_corner_radius)
     else
-        corner_radius = ScaleValue(6)
+        corner_radius = Scale(6, draw_scale)
     end
-    DrawBackground(bg_color, corner_radius, bg_alpha)
+    DrawBackground(bm, bg_color, w, h, corner_radius, bg_alpha)
 
     -- Determine border color
     local border_color
@@ -944,26 +971,27 @@ function DrawLiceBitmap()
         border_color = border_color | alpha
     end
     -- Draw border
-    local pr = pixel_ratio
     if border_color then
-        DrawLICERect(bitmap, border_color, 0, 0, bm_w * pr, bm_h * pr, false,
-            corner_radius * pr, border_alpha)
+        DrawRect(bm, border_color, 0, 0, w, h, false,
+            corner_radius, border_alpha)
     end
 
     local snap_h = user_snap_size
-    snap_h = snap_h or bm_h - 2 * math.max(ScaleValue(4), bm_h // 4)
+    snap_h = snap_h or h - 2 * math.max(Scale(4, draw_scale), h // 4)
 
-    left_w = snap_h // 0.4
-    local right_w = bm_w - left_w
+    local left_w = snap_h // 0.4
+    snap_w = left_w * measure_scale / draw_scale
+    local right_w = w - left_w
     -- Check if snap icon will be visible
     local is_snap_hidden = hide_snap or left_w == 0
     if not is_snap_hidden then
         local hide_factor = user_snap_size and 1.3 or 2.3
-        is_snap_hidden = left_w > bm_w / hide_factor
+        is_snap_hidden = left_w > w / hide_factor
     end
     if is_snap_hidden then
+        snap_w = 0
         left_w = 0
-        right_w = bm_w
+        right_w = w
     else
         local snap_on_color, snap_off_color, snap_sep_color
         local snap_on_alpha, snap_off_alpha, snap_sep_alpha = 1, 1, 1
@@ -999,15 +1027,15 @@ function DrawLiceBitmap()
         end
         -- Draw snap icon
         local snap_x = (left_w - snap_h) // 1.78
-        local snap_y = (bm_h - snap_h) // 2
-        DrawSnapIcon(snap_color, snap_x, snap_y, snap_h, snap_alpha)
+        local snap_y = (h - snap_h) // 2
+        DrawSnapIcon(bm, snap_color, snap_x, snap_y, snap_h, snap_alpha)
         -- Draw snap separator
-        local m = math.max(ScaleValue(3), bm_h // 14)
-        local sep_w = math.max(1, ScaleValue(1))
+        local m = math.max(Scale(4, draw_scale), h // 14)
+        local sep_w = math.max(1, Scale(1, draw_scale))
         local sep_x = left_w - sep_w
-        local sep_h = bm_h - 2 * m
-        DrawLICERect(bitmap, snap_sep_color, sep_x * pr, m * pr, sep_w * pr, sep_h * pr,
-            true, 0, snap_sep_alpha)
+        local sep_h = h - 2 * m
+        DrawRect(bm, snap_sep_color, sep_x, m, sep_w, sep_h, true, 0,
+            snap_sep_alpha)
     end
 
     -- Draw swing slider
@@ -1025,9 +1053,9 @@ function DrawLiceBitmap()
             swing_color = GetThemeColor('areasel_outline') | alpha
         end
         -- Draw swing slider
-        local m = ScaleValue(4)
-        local h = ScaleValue(3)
-        local y_offs = border_color and ScaleValue(1) or 0
+        local m = Scale(4, draw_scale)
+        local slider_h = Scale(3, draw_scale)
+        local y_offs = border_color and Scale(1, draw_scale) or 0
         local value = prev_swing_amt
 
         local swing_len = math.ceil(math.abs(value) * (right_w - 2 * m) / 2)
@@ -1038,33 +1066,33 @@ function DrawLiceBitmap()
         else
             x_offs = x_offs + math.ceil(right_w / 2) - swing_len
         end
-        DrawLICERect(bitmap, swing_color, x_offs * pr, (bm_h - h - y_offs) * pr,
-            swing_len * pr, h * pr, true, 0, swing_alpha)
+        DrawRect(bm, swing_color, x_offs, h - slider_h - y_offs,
+            swing_len, slider_h, true, 0, swing_alpha)
     end
 
-    -- Measure Text (gfx font is sized at physical pixels, so measurements are physical)
+    -- Measure Text
     local icon_w = 0
     if is_adaptive then icon_w = gfx.measurestr('A') * 4 // 3 end
 
     -- If text with "Swing:" prefix doesn't fit, remove prefix
     if grid_text:match('^Swing:') then
-        local text_w, text_h = gfx.measurestr('Swing: -100%')
-        if text_w > right_w * pr then
+        local text_w = gfx.measurestr('Swing: -100%')
+        if text_w > right_w then
             grid_text = grid_text:gsub('^Swing:', '')
         end
     end
     local text_w, text_h = gfx.measurestr(grid_text)
 
-    local text_x = (right_w * pr - text_w + icon_w) // 2
-    local text_y = (bm_h * pr - text_h) // 2
-    if is_macos then text_y = text_y + pr end
-    text_y = text_y + (user_font_yoffs or 0) * pr
+    local text_x = (right_w - text_w + icon_w) // 2
+    local text_y = (h - text_h) // 2
+    if is_macos then text_y = text_y + 1 end
+    text_y = text_y + (user_font_yoffs or 0)
 
-    local m = ScaleValue(2)
-    if text_x - icon_w < m * pr then
-        text_x = icon_w + m * pr
+    local m = Scale(2, draw_scale)
+    if text_x - icon_w < m then
+        text_x = icon_w + m
     end
-    text_x = text_x + left_w * pr
+    text_x = text_x + left_w
 
     -- Determine text color
     local text_color = tonumber(user_text_color or 'a9a9a9', 16) | alpha
@@ -1073,7 +1101,7 @@ function DrawLiceBitmap()
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
     local len = tostring(grid_text):len()
     local LICE_DrawText = reaper.JS_LICE_DrawText
-    LICE_DrawText(bitmap, lice_font, grid_text, len, text_x, text_y, bm_w * pr, bm_h * pr)
+    LICE_DrawText(bm, lice_font, grid_text, len, text_x, text_y, w, h)
 
     -- Draw adaptive icon (A)
     if icon_w > 0 then
@@ -1085,13 +1113,8 @@ function DrawLiceBitmap()
             adaptive_color = text_color
         end
         reaper.JS_LICE_SetFontColor(lice_font, adaptive_color)
-        LICE_DrawText(bitmap, lice_font, 'A', 1, text_x - icon_w, text_y,
-            bm_w * pr, bm_h * pr)
+        LICE_DrawText(bm, lice_font, 'A', 1, text_x - icon_w, text_y, w, h)
     end
-
-    -- Refresh window
-    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y, bm_x + bm_w,
-        bm_y + bm_h, false)
 end
 
 function DecimalToFraction(x, error)
@@ -1224,7 +1247,7 @@ function PeekIntercepts(m_x, m_y)
                 end
                 is_left_click = true
                 if reaper.JS_Mouse_GetState(16) == 16 then
-                    if left_w == 0 or m_x - bm_x > left_w then
+                    if snap_w == 0 or m_x - box_x > snap_w then
                         swing_drag_x = m_x
                     end
                 elseif is_edit_mode then
@@ -1237,7 +1260,7 @@ function PeekIntercepts(m_x, m_y)
                 if not is_left_click then return end
                 if is_swing_drag then return end
                 -- Check if left section is pressed
-                if left_w > 0 and m_x - bm_x < left_w then
+                if snap_w > 0 and m_x - box_x < snap_w then
                     -- Check if alt is pressed
                     if reaper.JS_Mouse_GetState(16) == 16 then
                         -- Item edit: Toggle relative grid snap
@@ -1262,7 +1285,7 @@ function PeekIntercepts(m_x, m_y)
                     menu_env.SaveProjectGrid(grid_div, new_swing, swing_amt)
                     return
                 end
-                if resize_flags == 0 or math.min(bm_w, bm_h) < min_area_size * 1.5 then
+                if resize_flags == 0 or math.min(box_w, box_h) < min_box_size * 1.5 then
                     -- Show adaptive grid menu
                     local new_menu_env = LoadMenuScript()
                     if new_menu_env then ShowMenu(new_menu_env._G.menu) end
@@ -1284,7 +1307,7 @@ function PeekIntercepts(m_x, m_y)
             if msg == 'WM_RBUTTONUP' then
                 if not is_right_click then return end
                 -- Check if left section is pressed
-                if left_w > 0 and m_x - bm_x < left_w then
+                if snap_w > 0 and m_x - box_x < snap_w then
                     -- Options: Show snap/grid settings
                     reaper.Main_OnCommand(40071, 0)
                     return
@@ -1294,7 +1317,7 @@ function PeekIntercepts(m_x, m_y)
 
             if msg == 'WM_MOUSEWHEEL' then
                 -- Check if left section is hovered
-                if left_w > 0 and m_x - bm_x < left_w then return end
+                if snap_w > 0 and m_x - box_x < snap_w then return end
 
                 -- Make sure menu is loaded
                 menu_env = menu_env or LoadMenuScript()
@@ -1526,7 +1549,7 @@ function ShowRightClickMenu()
                 end,
             },
             {
-                title = 'Show snap button',
+                title = 'Show snap button (when space)',
                 is_checked = not hide_snap,
                 OnReturn = function()
                     hide_snap = not hide_snap
@@ -1598,10 +1621,10 @@ function ShowMenu(menu)
     local ClientToScreen = reaper.JS_Window_ClientToScreen
     local window_x, window_y = ClientToScreen(window_hwnd, 0, 0)
     window_x, window_y = window_x + 4, window_y + 4
-    gfx.init('FTC.GB', ScaleValue(24), 0, 0, window_x, window_y)
+    gfx.init('FTC.GB', Scale(24, measure_scale), 0, 0, window_x, window_y)
 
     -- Open menu at bottom left corner
-    local menu_x, menu_y = ClientToScreen(window_hwnd, bm_x, bm_y + bm_h)
+    local menu_x, menu_y = ClientToScreen(window_hwnd, box_x, box_y + box_h)
     gfx.x, gfx.y = gfx.screentoclient(menu_x, menu_y)
 
     -- Hide gfx window
@@ -1646,50 +1669,46 @@ function GetStatusWindowClientRect()
     return st_l, st_t, st_r, st_b
 end
 
-function SetBitmapCoords(x, y, w, h)
+function SetBoxCoords(x, y, w, h)
     if w == 0 or h == 0 then return end
-    local has_pos_changed = x and x ~= bm_x or y and y ~= bm_y
-    local has_size_changed = w and w ~= bm_w or h and h ~= bm_h
+    local has_pos_changed = x and x ~= box_x or y and y ~= box_y
+    local has_size_changed = w and w ~= box_w or h and h ~= box_h
     if not has_pos_changed and not has_size_changed then return end
 
     if has_pos_changed then is_redraw = true end
     if has_size_changed then is_resize = true end
 
-    if bm_x then
-        -- Redraw previous area
-        reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
-            bm_x + bm_w, bm_y + bm_h, false)
-    end
+    -- Redraw previous area
+    InvalidateBoxRect()
 
-    bm_x, bm_y, bm_w, bm_h = x or bm_x, y or bm_y, w or bm_w, h or bm_h
+    box_x, box_y, box_w, box_h = x or box_x, y or box_y, w or box_w, h or box_h
 
     -- Redraw new area
-    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
-        bm_x + bm_w, bm_y + bm_h, false)
+    InvalidateBoxRect()
 
     if not is_resize then
         -- Change bitmap draw coordinates
         reaper.JS_Composite_Delay(window_hwnd, comp_delay, comp_delay * 1.5, 2)
-        reaper.JS_Composite(window_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap, 0, 0,
-            bm_w * pixel_ratio, bm_h * pixel_ratio)
+        reaper.JS_Composite(window_hwnd, box_x, box_y, box_w, box_h, bitmap, 0, 0,
+            GetBitmapSize())
     end
 end
 
 function UpdateAttachPosition()
     local mode = GetAttachMode()
     if mode == 1 then
-        attach_x = bm_x
+        attach_x = box_x
     end
     if mode == 2 then
-        attach_x = bm_x - window_w
+        attach_x = box_x - window_w
     end
     if mode == 3 then
         local st_l = GetStatusWindowClientRect()
-        attach_x = bm_x - st_l
+        attach_x = box_x - st_l
     end
     if mode == 4 then
         local _, _, st_r = GetStatusWindowClientRect()
-        attach_x = bm_x - st_r
+        attach_x = box_x - st_r
     end
 end
 
@@ -1705,35 +1724,35 @@ end
 function GetAttachPosition()
     if not attach_x then return end
     local mode = GetAttachMode()
-    local new_bm_x
+    local new_box_x
     if mode == 1 then
-        new_bm_x = attach_x
+        new_box_x = attach_x
     end
     if mode == 2 then
-        new_bm_x = attach_x + window_w
+        new_box_x = attach_x + window_w
     end
     if mode == 3 or mode == 4 then
         local st_l = GetStatusWindowClientRect()
-        new_bm_x = attach_x + st_l
+        new_box_x = attach_x + st_l
     end
     if mode == 4 then
         local _, _, st_r = GetStatusWindowClientRect()
-        new_bm_x = attach_x + st_r
+        new_box_x = attach_x + st_r
     end
-    return new_bm_x
+    return new_box_x
 end
 
-function EnsureBitmapVisible()
+function EnsureBoxVisible()
     -- Ensure position/size is within bounds
     if window_w == 0 or window_h == 0 then return end
-    local w = math.max(min_area_size, math.min(bm_w, window_w))
-    local h = math.max(min_area_size, math.min(bm_h, window_h))
+    local w = math.max(min_box_size, math.min(box_w, window_w))
+    local h = math.max(min_box_size, math.min(box_h, window_h))
 
-    local x = math.max(0, math.min(window_w - w, bm_x))
-    local y = math.max(0, math.min(window_h - h, bm_y))
+    local x = math.max(0, math.min(window_w - w, box_x))
+    local y = math.max(0, math.min(window_h - h, box_y))
 
     if attach_window_title then
-        SetBitmapCoords(x, y, w, h)
+        SetBoxCoords(x, y, w, h)
         return
     end
 
@@ -1816,14 +1835,14 @@ function EnsureBitmapVisible()
         end
 
         -- Ensure position/size is within bounds after move
-        w = math.max(min_area_size, math.min(w, window_w))
-        h = math.max(min_area_size, math.min(h, window_h))
+        w = math.max(min_box_size, math.min(w, window_w))
+        h = math.max(min_box_size, math.min(h, window_h))
 
         x = math.max(0, math.min(window_w - w, x))
         y = math.max(0, math.min(window_h - h, y))
     end
 
-    SetBitmapCoords(x, y, w, h)
+    SetBoxCoords(x, y, w, h)
 end
 
 function FindInitialPosition()
@@ -1833,19 +1852,19 @@ function FindInitialPosition()
     local st_h = math.abs(st_b - st_t)
 
     -- Set initial position that matches status window
-    bm_x = 0
-    bm_y = st_y
-    bm_w = st_h * 5 // 2
-    bm_h = st_h
+    box_x = 0
+    box_y = st_y
+    box_w = st_h * 5 // 2
+    box_h = st_h
 
     -- Add small vertical margin if status window takes up full transport height
-    if st_h >= window_h - 4 then
-        bm_y = bm_y + 2
-        bm_h = bm_h - 4
+    if st_h >= window_h - Scale(4, measure_scale) then
+        box_y = box_y + Scale(2, measure_scale)
+        box_h = box_h - Scale(4, measure_scale)
     end
 
-    -- Now we'll use GetThingFromPoint to get empty tranposrt areas on x axis
-    local st_mid_y = st_y + bm_h // 2
+    -- Now we'll use GetThingFromPoint to get empty transport areas on x axis
+    local st_mid_y = st_y + box_h // 2
     local empty_areas = {}
 
     local size = 0
@@ -1865,7 +1884,7 @@ function FindInitialPosition()
             end
             if size > 0 then
                 -- Add previous area
-                if sel_cnt == 0 and size > min_area_size then
+                if sel_cnt == 0 and size > min_box_size then
                     local area = {size = size, r = x, align = align}
                     empty_areas[#empty_areas + 1] = area
                 end
@@ -1901,7 +1920,7 @@ function FindInitialPosition()
         local min_bpm_distance
         for _, area in ipairs(empty_areas) do
             -- Check if area is large enough
-            if area.size > bm_w * 0.7 then
+            if area.size > box_w * 0.7 then
                 local area_x = area.r > bpm_x and area.r or area.r - area.size
                 local diff = bpm_x - area_x
                 local distance = math.abs(diff)
@@ -1928,11 +1947,11 @@ function FindInitialPosition()
 
     if target_area then
         -- Make bitmap a bit larger if it'll then fully fit empty space
-        if target_area.size < bm_w * 1.5 then bm_w = target_area.size end
+        if target_area.size < box_w * 1.5 then box_w = target_area.size end
 
         -- Add margin
-        local m = bm_h // 6
-        bm_w = math.max(min_area_size, math.min(target_area.size - 2 * m, bm_w))
+        local m = box_h // 6
+        box_w = math.max(min_box_size, math.min(target_area.size - 2 * m, box_w))
 
         -- Convert back to client coordinates
         local r = target_area.r
@@ -1940,13 +1959,13 @@ function FindInitialPosition()
 
         -- Place bitmap (x pos) in empty target area (based on alignment)
         if target_area.align > 0 then
-            bm_x = math.max(0, r - bm_w - m)
+            box_x = math.max(0, r - box_w - m)
         else
-            bm_x = math.max(0, r - target_area.size + m)
+            box_x = math.max(0, r - target_area.size + m)
         end
     end
 
-    attach_mode = bm_x < st_r and 3 or 4
+    attach_mode = box_x < st_r and 3 or 4
     UpdateAttachPosition()
 end
 
@@ -2017,17 +2036,21 @@ function Main()
         -- Check attached window title changes (e.g. when switching toolbar)
         local curr_title = reaper.JS_Window_GetTitle(window_hwnd)
         if curr_title ~= attach_window_title then
-            reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
             if bitmap then
                 reaper.JS_Composite_Unlink(window_hwnd, bitmap)
-            end
-            if bm_x then
-                reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
-                    bm_x + bm_w, bm_y + bm_h, false)
+                reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
             end
             EndIntercepts()
+            InvalidateBoxRect()
+            prev_window_hwnd = window_hwnd
             window_hwnd = nil
         end
+    end
+
+    if prev_window_hwnd and reaper.ValidatePtr(prev_window_hwnd, 'HWND*') and
+        reaper.JS_Window_GetTitle(prev_window_hwnd) == attach_window_title then
+        window_hwnd = prev_window_hwnd
+        prev_window_hwnd = nil
     end
 
     -- Go idle if window is not found/visible
@@ -2052,39 +2075,43 @@ function Main()
         if not LoadThemeSettings(color_theme) then
             FindInitialPosition()
         end
-        EnsureBitmapVisible()
+        EnsureBoxVisible()
         is_resize = true
     end
 
     -- Detect changes to window size
     if window_w ~= prev_window_w or window_h ~= prev_window_h then
-        local prev_scale = scale
-        scale = GetTransportScale()
+        local prev_measure_scale, prev_draw_scale = measure_scale, draw_scale
+        measure_scale, draw_scale = GetTransportScale()
 
-        if scale ~= prev_scale then
-            min_area_size = ScaleValue(12)
+        if draw_scale ~= prev_draw_scale then
+            local scale_factor = draw_scale / prev_draw_scale
+            user_snap_size = Scale(user_snap_size, scale_factor)
+            user_font_height = Scale(user_font_height, scale_factor)
+            user_font_yoffs = Scale(user_font_yoffs, scale_factor)
+            user_corner_radius = Scale(user_corner_radius, scale_factor)
+            is_resize = true
+        end
+        if measure_scale ~= prev_measure_scale then
+            min_box_size = Scale(12, measure_scale)
 
-            local scale_factor = scale / prev_scale
-            local new_bm_x = ScaleValue(bm_x, scale_factor)
-            local new_bm_y = ScaleValue(bm_y, scale_factor)
-            local new_bm_w = ScaleValue(bm_w, scale_factor)
-            local new_bm_h = ScaleValue(bm_h, scale_factor)
+            local scale_factor = measure_scale / prev_measure_scale
+            local new_box_x = Scale(box_x, scale_factor)
+            local new_box_y = Scale(box_y, scale_factor)
+            local new_box_w = Scale(box_w, scale_factor)
+            local new_box_h = Scale(box_h, scale_factor)
 
-            attach_x = ScaleValue(attach_x, scale_factor)
-            user_snap_size = ScaleValue(user_snap_size, scale_factor)
-            user_font_size = ScaleValue(user_font_size, scale_factor)
-            user_font_yoffs = ScaleValue(user_font_yoffs, scale_factor)
-            user_corner_radius = ScaleValue(user_corner_radius, scale_factor)
+            attach_x = Scale(attach_x, scale_factor)
+            if attach_x then new_box_x = GetAttachPosition() end
 
-            if attach_x then new_bm_x = GetAttachPosition() end
-            SetBitmapCoords(new_bm_x, new_bm_y, new_bm_w, new_bm_h)
-            EnsureBitmapVisible()
+            SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
+            EnsureBoxVisible()
             is_resize = true
         elseif prev_window_w then
             -- Move bitmap based on attached position
-            local new_bm_x = GetAttachPosition()
-            if new_bm_x then SetBitmapCoords(new_bm_x) end
-            EnsureBitmapVisible()
+            local new_box_x = GetAttachPosition()
+            if new_box_x then SetBoxCoords(new_box_x) end
+            EnsureBoxVisible()
         end
         prev_window_w = window_w
         prev_window_h = window_h
@@ -2100,57 +2127,56 @@ function Main()
         if drag_x and (drag_x ~= m_x or drag_y ~= m_y) then
             if resize_flags > 0 then
                 if resize_flags & 1 == 1 then
-                    local bm_r = bm_x + bm_w
-                    local new_bm_w = math.max(min_area_size, bm_r - m_x)
-                    local new_bm_x = bm_r - new_bm_w
-                    SetBitmapCoords(new_bm_x, nil, new_bm_w, nil)
+                    local box_r = box_x + box_w
+                    local new_box_w = math.max(min_box_size, box_r - m_x)
+                    local new_box_x = box_r - new_box_w
+                    SetBoxCoords(new_box_x, nil, new_box_w, nil)
                 end
                 if resize_flags & 2 == 2 then
-                    local bm_b = bm_y + bm_h
-                    local new_bm_h = math.max(min_area_size, bm_b - m_y)
-                    local new_bm_y = bm_b - new_bm_h
-                    SetBitmapCoords(nil, new_bm_y, nil, new_bm_h)
+                    local box_b = box_y + box_h
+                    local new_box_h = math.max(min_box_size, box_b - m_y)
+                    local new_box_y = box_b - new_box_h
+                    SetBoxCoords(nil, new_box_y, nil, new_box_h)
                 end
                 if resize_flags & 4 == 4 then
-                    local new_bm_w = math.max(min_area_size, m_x - bm_x)
-                    SetBitmapCoords(nil, nil, new_bm_w, nil)
+                    local new_box_w = math.max(min_box_size, m_x - box_x)
+                    SetBoxCoords(nil, nil, new_box_w, nil)
                 end
                 if resize_flags & 8 == 8 then
-                    local new_bm_h = math.max(min_area_size, m_y - bm_y)
-                    SetBitmapCoords(nil, nil, nil, new_bm_h)
+                    local new_box_h = math.max(min_box_size, m_y - box_y)
+                    SetBoxCoords(nil, nil, nil, new_box_h)
                 end
                 is_resize = true
             else
-                prev_bm_w = prev_bm_w or bm_w
-                prev_bm_h = prev_bm_h or bm_h
-                prev_bm_x = prev_bm_x or bm_x
-                prev_bm_y = prev_bm_y or bm_y
+                prev_box_w = prev_box_w or box_w
+                prev_box_h = prev_box_h or box_h
+                prev_box_x = prev_box_x or box_x
+                prev_box_y = prev_box_y or box_y
 
                 -- Move Gridbox to hovered window
-                if hover_hwnd ~= window_hwnd then
+                if hover_hwnd and hover_hwnd ~= window_hwnd then
                     prev_attach_hwnd = prev_attach_hwnd or window_hwnd
                     EndIntercepts()
+                    InvalidateBoxRect()
                     reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
                     -- Redraw previous area
-                    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
-                        bm_x + bm_w, bm_y + bm_h, false)
                     window_hwnd = hover_hwnd
                     reaper.JS_Window_SetFocus(hover_hwnd)
 
                     -- Get relative position to bitmap top left corner
-                    local drag_x_diff = drag_x - bm_x
-                    local drag_y_diff = drag_y - bm_y
+                    local drag_x_diff = drag_x - box_x
+                    local drag_y_diff = drag_y - box_y
 
                     -- Get new mouse window position
                     m_x, m_y = ScreenToClient(window_hwnd, x, y)
 
                     -- Set bitmap coordinates with relative position
-                    -- Note: Avoid SetBitmapCoords as it doesn't allow going out
+                    -- Note: Avoid SetBoxCoords as it doesn't allow going out
                     -- of bounds
-                    bm_x = m_x - drag_x_diff
-                    bm_y = m_y - drag_y_diff
-                    drag_x = bm_x + drag_x_diff
-                    drag_y = bm_y + drag_y_diff
+                    box_x = m_x - drag_x_diff
+                    box_y = m_y - drag_y_diff
+                    drag_x = box_x + drag_x_diff
+                    drag_y = box_y + drag_y_diff
 
                     StartIntercepts()
 
@@ -2163,9 +2189,9 @@ function Main()
                     is_resize = true
                 else
                     -- Move Gridbox inside window
-                    local new_bm_x = bm_x + m_x - drag_x
-                    local new_bm_y = bm_y + m_y - drag_y
-                    SetBitmapCoords(new_bm_x, new_bm_y)
+                    local new_box_x = box_x + m_x - drag_x
+                    local new_box_y = box_y + m_y - drag_y
+                    SetBoxCoords(new_box_x, new_box_y)
                 end
                 if m_x > 0 and m_y > 0 and m_x < window_w and m_y < window_h then
                     SetCursor(move_cursor)
@@ -2178,9 +2204,9 @@ function Main()
             is_left_click = false
         end
 
-        local m = ScaleValue(4)
-        is_hovered = m_x > bm_x - m and m_y > bm_y - m and
-            m_x < bm_x + bm_w + m and m_y < bm_y + bm_h + m
+        local m = Scale(4, measure_scale)
+        is_hovered = m_x > box_x - m and m_y > box_y - m and
+            m_x < box_x + box_w + m and m_y < box_y + box_h + m
 
         if is_hovered and hover_hwnd == window_hwnd then
             StartIntercepts()
@@ -2189,10 +2215,10 @@ function Main()
                 local new_resize = 0
                 local cursor = normal_cursor
 
-                local diff_l = math.abs(bm_x - m_x)
-                local diff_t = math.abs(bm_y - m_y)
-                local diff_r = math.abs(bm_x + bm_w - m_x)
-                local diff_b = math.abs(bm_y + bm_h - m_y)
+                local diff_l = math.abs(box_x - m_x)
+                local diff_t = math.abs(box_y - m_y)
+                local diff_r = math.abs(box_x + box_w - m_x)
+                local diff_b = math.abs(box_y + box_h - m_y)
 
                 if diff_l < m then
                     new_resize = 1
@@ -2242,7 +2268,7 @@ function Main()
                     is_redraw = true
                 end
             end
-            if not swing_drag_x and left_w > 0 and m_x - bm_x < left_w then
+            if not swing_drag_x and snap_w > 0 and m_x - box_x < snap_w then
                 is_snap_hovered = true
             end
             if resize_cursor then
@@ -2353,18 +2379,16 @@ function Main()
                 if is_reset then
                     -- Move Gridbox back to previous window (pre-drag)
                     EndIntercepts()
+                    InvalidateBoxRect()
                     reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
-                    -- Redraw previous area
-                    reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
-                        bm_x + bm_w, bm_y + bm_h, false)
 
                     window_hwnd = prev_attach_hwnd
                     reaper.JS_Window_SetFocus(prev_attach_hwnd)
 
-                    bm_w = prev_bm_w
-                    bm_h = prev_bm_h
-                    bm_x = prev_bm_x
-                    bm_y = prev_bm_y
+                    box_w = prev_box_w
+                    box_h = prev_box_h
+                    box_x = prev_box_x
+                    box_y = prev_box_y
 
                     StartIntercepts()
 
@@ -2377,17 +2401,17 @@ function Main()
                     is_resize = true
                 end
             end
-            EnsureBitmapVisible()
+            EnsureBoxVisible()
             UpdateAttachPosition()
             SaveThemeSettings(color_theme)
             drag_x = nil
             drag_y = nil
             is_redraw = true
             prev_attach_hwnd = nil
-            prev_bm_w = nil
-            prev_bm_h = nil
-            prev_bm_x = nil
-            prev_bm_y = nil
+            prev_box_w = nil
+            prev_box_h = nil
+            prev_box_x = nil
+            prev_box_y = nil
         end
     else
         EndIntercepts()
@@ -2401,8 +2425,8 @@ function Main()
             is_redraw = true
         elseif math.abs(m_x - swing_drag_x) > 2 then
             is_swing_drag = true
-            local swing_x = m_x - (bm_x + left_w)
-            local swing_w = bm_w - left_w
+            local swing_x = m_x - (box_x + snap_w)
+            local swing_w = box_w - snap_w
             local swing_amt = 2 * swing_x / swing_w - 1
             swing_amt = swing_amt < -1 and -1 or swing_amt
             swing_amt = swing_amt > 1 and 1 or swing_amt
@@ -2581,33 +2605,30 @@ function Main()
         if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
         if snap_bitmap then reaper.JS_LICE_DestroyBitmap(snap_bitmap) end
         if bg_bitmap then reaper.JS_LICE_DestroyBitmap(bg_bitmap) end
-        bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w * pixel_ratio, bm_h * pixel_ratio)
+
+        local bm_w, bm_h = GetBitmapSize()
+        bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
         snap_bitmap = nil
         bg_bitmap = nil
 
-        -- Determine font size (target physical pixels so text is sharp on Retina)
-        font_size = user_font_size
         local font_family = user_font_family or 'Arial'
-        if not font_size then
-            font_size = 2
-            -- Find optimal font size by incrementing until it doesn't target height
-            local target_h = math.max(math.min(ScaleValue(14), bm_h), bm_h // 2.5) * pixel_ratio
-            local curr_h
-            repeat
-                gfx.setfont(1, font_family, font_size)
-                curr_h = math.max(1, select(2, gfx.measurechar(70)))
-                font_size = font_size + math.floor(target_h / curr_h + 0.5)
-            until curr_h >= target_h
-        else
-            font_size = font_size * pixel_ratio
+        -- Find font size by incrementing until it exceeds target height
+        local default_h = Scale(14, draw_scale)
+        local target_h = math.max(math.min(default_h, bm_h), bm_h // 2.5)
+        if user_font_height then target_h = math.min(user_font_height, bm_h) end
+        local curr_h
+        font_size = 2
+        repeat
             gfx.setfont(1, font_family, font_size)
-        end
+            curr_h = math.max(1, select(2, gfx.measurechar(70)))
+            font_size = font_size + math.floor(target_h / curr_h + 0.5)
+        until curr_h >= target_h
+        if curr_h > target_h then font_size = font_size - 1 end
 
         -- Create LICE font
         if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
         lice_font = reaper.JS_LICE_CreateFont()
 
-        font_size = math.floor(font_size)
         local GDI_CreateFont = reaper.JS_GDI_CreateFont
         local gdi = GDI_CreateFont(font_size, 0, 0, 0, 0, 0, font_family)
         reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
@@ -2615,13 +2636,13 @@ function Main()
 
         -- Set bitmap draw coordinates
         reaper.JS_Composite_Delay(window_hwnd, comp_delay, comp_delay * 1.5, 2)
-        reaper.JS_Composite(window_hwnd, bm_x, bm_y, bm_w, bm_h, bitmap,
-            0, 0, bm_w * pixel_ratio, bm_h * pixel_ratio)
+        reaper.JS_Composite(window_hwnd, box_x, box_y, box_w, box_h, bitmap,
+            0, 0, bm_w, bm_h)
         is_resize = false
         is_redraw = true
     end
 
-    if left_w > 0 then
+    if snap_w > 0 then
         local is_snap = reaper.GetToggleCommandState(1157) == 1
         if is_snap ~= prev_is_snap then
             prev_is_snap = is_snap
@@ -2642,7 +2663,8 @@ function Main()
     end
 
     if is_redraw then
-        DrawLiceBitmap()
+        DrawBitmap(bitmap, GetBitmapSize())
+        InvalidateBoxRect()
         is_redraw = false
     end
 
@@ -2660,15 +2682,11 @@ function Exit()
     if snap_bitmap then reaper.JS_LICE_DestroyBitmap(snap_bitmap) end
     if bg_bitmap then reaper.JS_LICE_DestroyBitmap(bg_bitmap) end
     if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
-    if window_hwnd then
+    if reaper.ValidatePtr(window_hwnd, 'HWND*') then
         reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
-        if bm_x then
-            reaper.JS_Window_InvalidateRect(window_hwnd, bm_x, bm_y,
-                bm_x + bm_w, bm_y + bm_h, false)
-        end
+        InvalidateBoxRect()
+        EndIntercepts()
     end
-
-    EndIntercepts()
 end
 
 local has_run = reaper.GetExtState(extname, 'has_run') == 'yes'
