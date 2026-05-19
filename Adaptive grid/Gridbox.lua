@@ -1,11 +1,12 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.3.0
+  @version 2.4.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Render at 2x pixel density on macOS for Retina sharpness (thanks dansimco!)
-    - Set custom font size in height (px)
+    - Add option in customize menu to load settings from other themes
+    - Shift+click menu entries to delete settings from other themes
+    - Fix attaching box to windows with child id (v2.2.1 regression)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -115,12 +116,12 @@ if not reaper.JS_Composite_Delay then
 end
 
 -- Load scripts from Adaptive Grid
-local _, file, sec, cmd = reaper.get_action_context()
-local file_dir = file:match('^(.+)[\\/]')
+local _, script_path, sec, cmd = reaper.get_action_context()
+local script_dir = script_path:match('^(.+)[\\/]')
 
 function ConcatPath(...) return table.concat({...}, package.config:sub(1, 1)) end
 
-local menu_script = ConcatPath(file_dir, 'Adaptive grid menu.lua')
+local menu_script = ConcatPath(script_dir, 'Adaptive grid menu.lua')
 
 if not reaper.file_exists(menu_script) then
     if has_reapack then
@@ -154,7 +155,7 @@ if version >= 7.03 then reaper.set_action_options(1) end
 -- Detect operating system
 local os = reaper.GetOS()
 local is_windows = os:match('Win')
-local is_macos = os:match('OSX') or os:match('macOS')
+local is_macos = os:match('OS')
 local is_linux = os:match('Other')
 
 local scroll_dir = is_macos and -1 or 1
@@ -296,6 +297,10 @@ function Deserialize(value_str)
 end
 
 function ExtSave(key, value, is_temporary)
+    if value == nil then
+        reaper.DeleteExtState(extname, key, not is_temporary)
+        return
+    end
     local value_str = Serialize(value)
     if not value_str then return end
     reaper.SetExtState(extname, key, value_str, not is_temporary)
@@ -427,9 +432,7 @@ function CreateMenuRecursive(menu)
                 str = str .. CreateMenuRecursive(entry) .. '|'
             else
                 if entry.title or entry.separator then
-                    local shortcut = entry.shortcut and '\t ' .. entry.shortcut or
-                        ''
-                    str = str .. (entry.title or '') .. shortcut .. '|'
+                    str = str .. (entry.title or '') .. '|'
                 end
             end
         end
@@ -457,44 +460,75 @@ function ReturnMenuRecursive(menu, idx, i)
     return i
 end
 
-function GetRelativeThemePath(theme_path)
+function GetThemeKey(path)
+    if path == '' then
+        -- Note: Theme path can be empty in new REAPER installations?
+        local reaper_version = reaper.GetAppVersion():match('[%d]+')
+        return ('ColorThemes/Default_%s.0'):format(reaper_version)
+    end
+    -- Use relative path if inside resource directory
     local resource_dir = reaper.GetResourcePath()
     -- Note: Using find to suppress matching special characters in path
-    local _, end_idx = theme_path:find(resource_dir, 0, true)
-    if end_idx then
-        local rel_path = theme_path:sub(end_idx + 2)
-        return rel_path
-    end
+    local _, end_idx = path:find(resource_dir, 0, true)
+    if end_idx then path = path:sub(end_idx + 2) end
+
+    -- Replace windows path separator with unix (make cross-platform)
+    if is_windows then path = path:gsub('\\', '/') end
+    -- Remove file extension
+    path = path:gsub('%.([^./]+)$', '')
+    return path
 end
 
-function LoadThemeSettings(theme_path)
-    local settings
-    -- If theme inside resource folder, try and load from relative path
-    local rel_theme_path = GetRelativeThemePath(theme_path)
-    if rel_theme_path then
-        settings = ExtLoad(rel_theme_path)
-        -- Check for saved settings from other OS
-        if not settings and rel_theme_path:match('[/\\]') then
-            if is_windows then
-                rel_theme_path = rel_theme_path:gsub('/', '\\')
-            else
-                rel_theme_path = rel_theme_path:gsub('\\', '/')
+function GetThemeFromKey(key)
+    -- Note: File extension is not in key because GetLastColorThemeFile can
+    -- return both .ReaperTheme and .ReaperThemeZip
+    local theme_name = key:match('([^/]+)$')
+    if is_windows then key = key:gsub('/', '\\') end
+
+    -- Check absolute path
+    local dir = is_windows and key:match('^(.+)\\') or key:match('^(.+)/')
+    local i = 0
+    repeat
+        local file_name = reaper.EnumerateFiles(dir, i)
+        if file_name then
+            local file_name_no_ext = file_name:gsub('%.([^./\\]+)$', '')
+            if file_name_no_ext == theme_name then
+                return ConcatPath(dir, file_name)
             end
-            settings = ExtLoad(rel_theme_path)
         end
-    end
-    -- Note: Theme path can be empty in new REAPER installations?
-    if theme_path == '' then theme_path = 'default' end
-    -- Fallback to full path
-    if not settings then
-        settings = ExtLoad(theme_path)
-    end
+        i = i + 1
+    until not file_name
+
+    -- Check relative path
+    key = ConcatPath(reaper.GetResourcePath(), key)
+    dir = is_windows and key:match('^(.+)\\') or key:match('^(.+)/')
+
+    i = 0
+    repeat
+        local file_name = reaper.EnumerateFiles(dir, i)
+        if file_name then
+            local file_name_no_ext = file_name:gsub('%.([^./\\]+)$', '')
+            if file_name_no_ext == theme_name then
+                return ConcatPath(dir, file_name)
+            end
+        end
+        i = i + 1
+    until not file_name
+end
+
+function LoadThemeSettings(theme_path, only_appeareance)
+    local theme_settings = ExtLoad('theme_settings', {})
+    local theme_key = GetThemeKey(theme_path)
+    local settings = theme_settings[theme_key]
 
     -- When attached to another window, try to load position saved for
     -- previously used theme
-    if not settings and attach_window_title then
-        local prev_theme_path = ExtLoad('prev_theme_path')
-        local prev_settings = prev_theme_path and ExtLoad(prev_theme_path)
+    local prev_theme_path = ExtLoad('prev_theme_path')
+    if prev_theme_path and attach_window_title and (not settings or
+            attach_window_title ~= settings.attach_title or
+            attach_window_child_id ~= settings.attach_child_id) then
+        theme_key = GetThemeKey(prev_theme_path)
+        local prev_settings = theme_settings[theme_key]
         if prev_settings and prev_settings.box_x then
             settings = {}
             settings.attach_x = prev_settings.attach_x
@@ -526,19 +560,15 @@ function LoadThemeSettings(theme_path)
     user_snap_off_color = settings.snap_off_color
     user_snap_sep_color = settings.snap_sep_color
 
-    -- Compatibility: Coordinates
-    if settings.bm_x then settings.box_x = settings.bm_x end
-    if settings.bm_y then settings.box_y = settings.bm_y end
-    if settings.bm_w then settings.box_w = settings.bm_w end
-    if settings.bm_h then settings.box_h = settings.bm_h end
-    -- Compatibility: Scale
-    if settings.scale then settings.measure_scale = settings.scale end
-    -- Compatibility: Font size
-    if settings.font_size then
-        local font_family = user_font_family or 'Arial'
-        gfx.setfont(1, font_family, settings.font_size)
-        user_font_height = math.floor(math.max(1, select(2, gfx.measurechar(70))))
+    if settings.draw_scale and settings.draw_scale ~= draw_scale then
+        local scale_factor = draw_scale / settings.draw_scale
+        user_snap_size = Scale(user_snap_size, scale_factor)
+        user_font_height = Scale(user_font_height, scale_factor)
+        user_font_yoffs = Scale(user_font_yoffs, scale_factor)
+        user_corner_radius = Scale(user_corner_radius, scale_factor)
     end
+
+    if only_appeareance then return has_settings end
 
     attach_x = settings.attach_x
     attach_mode = settings.attach_mode
@@ -547,14 +577,6 @@ function LoadThemeSettings(theme_path)
     local new_box_y = settings.box_y
     local new_box_w = settings.box_w
     local new_box_h = settings.box_h
-
-    if settings.draw_scale and settings.draw_scale ~= draw_scale then
-        local scale_factor = draw_scale / settings.draw_scale
-        user_snap_size = Scale(user_snap_size, scale_factor)
-        user_font_height = Scale(user_font_height, scale_factor)
-        user_font_yoffs = Scale(user_font_yoffs, scale_factor)
-        user_corner_radius = Scale(user_corner_radius, scale_factor)
-    end
 
     if settings.measure_scale and settings.measure_scale ~= measure_scale then
         local scale_factor = measure_scale / settings.measure_scale
@@ -601,10 +623,10 @@ function SaveThemeSettings(theme_path)
         measure_scale = measure_scale,
     }
 
-    -- If theme inside resource folder, save as relative path
-    theme_path = GetRelativeThemePath(theme_path) or theme_path
-    if theme_path == '' then theme_path = 'default' end
-    ExtSave(theme_path, settings)
+    local theme_settings = ExtLoad('theme_settings', {})
+    local theme_key = GetThemeKey(theme_path)
+    theme_settings[theme_key] = settings
+    ExtSave('theme_settings', theme_settings)
     ExtSave('prev_theme_path', theme_path)
 end
 
@@ -845,7 +867,7 @@ function DrawRect(bm, color, x, y, w, h, fill, r, a)
     if not fill or fill == 0 then
         local LICE_RoundRect = reaper.JS_LICE_RoundRect
         for _ = 1, math.max(1, draw_scale) do
-            LICE_RoundRect(bm, x, y, w - 1, h - 1, r, color, a, 0, true)
+            LICE_RoundRect(bm, x, y, w - 1, h - 1, r, color, a, '', true)
             x, y, w, h = x + 1, y + 1, w - 2, h - 2
         end
         return
@@ -853,7 +875,7 @@ function DrawRect(bm, color, x, y, w, h, fill, r, a)
 
     if not r or r == 0 then
         -- Body
-        reaper.JS_LICE_FillRect(bm, x, y, w, h, color, a, 0)
+        reaper.JS_LICE_FillRect(bm, x, y, w, h, color, a, '')
         return
     end
 
@@ -862,18 +884,18 @@ function DrawRect(bm, color, x, y, w, h, fill, r, a)
 
     -- Top left corner
     local LICE_FillCircle = reaper.JS_LICE_FillCircle
-    LICE_FillCircle(bm, x + r, y + r, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + r, y + r, r, color, a, '', true)
     -- Top right corner
-    LICE_FillCircle(bm, x + w - r - 1, y + r, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + w - r - 1, y + r, r, color, a, '', true)
     -- Bottom right corner
-    LICE_FillCircle(bm, x + w - r - 1, y + h - r - 1, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + w - r - 1, y + h - r - 1, r, color, a, '', true)
     -- Bottom left corner
-    LICE_FillCircle(bm, x + r, y + h - r - 1, r, color, a, 0, 1)
+    LICE_FillCircle(bm, x + r, y + h - r - 1, r, color, a, '', true)
     -- Ends
-    reaper.JS_LICE_FillRect(bm, x, y + r, r, h - r * 2, color, a, 0)
-    reaper.JS_LICE_FillRect(bm, x + w - r, y + r, r, h - r * 2, color, a, 0)
+    reaper.JS_LICE_FillRect(bm, x, y + r, r, h - r * 2, color, a, '')
+    reaper.JS_LICE_FillRect(bm, x + w - r, y + r, r, h - r * 2, color, a, '')
     -- Body and sides
-    reaper.JS_LICE_FillRect(bm, x + r, y, w - r * 2, h, color, a, 0)
+    reaper.JS_LICE_FillRect(bm, x + r, y, w - r * 2, h, color, a, '')
 end
 
 function DrawBackground(bm, bg_color, w, h, corner_r, a)
@@ -913,15 +935,15 @@ function DrawSnapIcon(bm, snap_color, x, y, h, a)
         FillRect(snap_bitmap, 0, 0, h, h, snap_color, -1, 'ADD')
 
         -- Draw circle for right side of snap icon
-        LICE_FillCircle(snap_bitmap, r, r, r, snap_color, 1, 0, 1)
-        LICE_FillCircle(snap_bitmap, r, r, r - 0.5, snap_color, 1, 0, 1)
+        LICE_FillCircle(snap_bitmap, r, r, r, snap_color, 1, '', true)
+        LICE_FillCircle(snap_bitmap, r, r, r - 0.5, snap_color, 1, '', true)
 
         -- Draw rectangle for left side of snap icon
-        FillRect(snap_bitmap, 0, 0, r, d, snap_color, 1, 0)
+        FillRect(snap_bitmap, 0, 0, r, d, snap_color, 1, '')
 
         -- Draw inner circle (subtractive)
         local inner_r = r // 1.6
-        LICE_FillCircle(snap_bitmap, r, r, inner_r, snap_color, -1, 'ADD', 1)
+        LICE_FillCircle(snap_bitmap, r, r, inner_r, snap_color, -1, 'ADD', true)
 
         -- Draw inner rectangle (subtractive)
         local diff = r - inner_r
@@ -932,7 +954,7 @@ function DrawSnapIcon(bm, snap_color, x, y, h, a)
 
         -- Change icon when relative snap is enabled
         if prev_is_rel_snap then
-            FillRect(snap_bitmap, 0, 0, snap_cut, d, snap_color, 1, 0)
+            FillRect(snap_bitmap, 0, 0, snap_cut, d, snap_color, 1, '')
         end
     end
     reaper.JS_LICE_Blit(bm, x, y, snap_bitmap, 0, 0, h, h, a, 'ADD')
@@ -1370,6 +1392,66 @@ function PeekIntercepts(m_x, m_y)
 end
 
 function ShowRightClickMenu()
+    local other_theme_menu = {}
+    local curr_theme_key = GetThemeKey(prev_color_theme)
+    local theme_settings = ExtLoad('theme_settings', {})
+    for theme_key in pairs(theme_settings) do
+        if theme_key ~= curr_theme_key then
+            local title = theme_key
+            if not GetThemeFromKey(theme_key) then
+                title = title .. ' (not found)'
+            end
+            if is_windows then title = title:gsub('/', '\\') end
+            other_theme_menu[#other_theme_menu + 1] = {
+                title = title,
+                OnReturn = function()
+                    local is_shift_pressed = reaper.JS_Mouse_GetState(8) == 8
+                    if is_shift_pressed then
+                        local msg = 'Permanently delete all customizations for \z
+                            this theme?\n\n%s'
+                        local ret = reaper.MB(msg:format(theme_key), 'Warning', 1)
+                        if ret == 1 then
+                            SaveThemeSettings(prev_color_theme)
+                            theme_settings[theme_key] = nil
+                            ExtSave('theme_settings', theme_settings)
+                            prev_color_theme = nil
+                        end
+                        return
+                    end
+                    local msg = 'Attempt to load size and position?'
+                    local ret = reaper.MB(msg, 'Settings', 3)
+                    if ret >= 6 then
+                        LoadThemeSettings(theme_key .. '.ReaperTheme', ret ~= 6)
+                        SaveThemeSettings(prev_color_theme)
+                        prev_color_theme = nil
+                    end
+                end,
+            }
+        end
+    end
+
+    if #other_theme_menu > 0 then
+        -- Sorts the menu entries alphanumerically
+        local function SortByName(t, key)
+            local function Format(d) return ('%03d%s'):format(#d, d) end
+            local function Compare(a, b)
+                return tostring(a[key]):gsub('%d+', Format) <
+                    tostring(b[key]):gsub('%d+', Format)
+            end
+            table.sort(t, Compare)
+        end
+        -- Add title and help info entry
+        SortByName(other_theme_menu, 'title')
+        table.insert(other_theme_menu, 1,
+            {
+                title = 'Hold shift to delete settings for theme',
+                is_grayed = true,
+            }
+        )
+        table.insert(other_theme_menu, 2, {separator = true})
+        other_theme_menu.title = 'Load from'
+    end
+
     local curr_attach_mode = GetAttachMode()
 
     local comp_fps_entry
@@ -1513,6 +1595,7 @@ function ShowRightClickMenu()
                 },
             },
             {separator = true},
+            other_theme_menu,
             {
                 title = 'Reset',
                 OnReturn = function()
@@ -1520,11 +1603,11 @@ function ShowRightClickMenu()
                     for the active theme.\n\nProceed?'
                     local ret = reaper.MB(msg, 'Warning', 4)
                     if ret ~= 6 then return end
-                    -- If theme inside resource folder, save as relative path
-                    local theme_path = prev_color_theme
-                    theme_path = GetRelativeThemePath(theme_path) or theme_path
-                    if theme_path == '' then theme_path = 'default' end
-                    ExtSave(theme_path, nil)
+
+                    local settings = ExtLoad('theme_settings', {})
+                    local theme_key = GetThemeKey(prev_color_theme)
+                    settings[theme_key] = nil
+                    ExtSave('theme_settings', settings)
                     prev_color_theme = nil
 
                     if attach_window_title then
@@ -1960,12 +2043,14 @@ function FindInitialPosition()
         -- Place bitmap (x pos) in empty target area (based on alignment)
         if target_area.align > 0 then
             box_x = math.max(0, r - box_w - m)
+            attach_mode = box_x < st_r and 3 or 2
         else
             box_x = math.max(0, r - target_area.size + m)
+            attach_mode = box_x < st_r and 1 or 4
         end
+    else
+        attach_mode = box_x < st_r and 1 or 2
     end
-
-    attach_mode = box_x < st_r and 3 or 4
     UpdateAttachPosition()
 end
 
@@ -1983,14 +2068,14 @@ function FindAttachedWindow()
     elseif attach_window_title == 'Active MIDI editor' then
         hwnd = reaper.MIDIEditor_GetActive()
     else
-        local cnt, list = reaper.JS_Window_ListFind(attach_window_title, 1)
+        local cnt, list = reaper.JS_Window_ListFind(attach_window_title, tonumber)
         window_cnt = cnt
         if window_cnt > 0 then
             local first_addr = (list .. ','):match('(.-),')
             hwnd = reaper.JS_Window_HandleFromAddress(first_addr)
         end
         if hwnd then
-            reaper.SetExtState(extname, 'attach_wait', attach_window_title, 1)
+            reaper.SetExtState(extname, 'attach_wait', attach_window_title, true)
         end
     end
     if attach_window_child_id then
@@ -2003,15 +2088,15 @@ function SaveAttachedWindow(title, child_id)
     if not title or title == transport_title and not child_id then
         attach_window_title = nil
         attach_window_child_id = nil
-        reaper.SetExtState(extname, 'attach_title', '', 1)
-        reaper.SetExtState(extname, 'attach_child_id', '', 1)
-        reaper.SetExtState(extname, 'attach_wait', '', 1)
+        reaper.SetExtState(extname, 'attach_title', '', true)
+        reaper.SetExtState(extname, 'attach_child_id', '', true)
+        reaper.SetExtState(extname, 'attach_wait', '', true)
     else
         attach_window_title = title
         attach_window_child_id = child_id
-        reaper.SetExtState(extname, 'attach_title', title, 1)
-        reaper.SetExtState(extname, 'attach_child_id', child_id or '', 1)
-        reaper.SetExtState(extname, 'attach_wait', '', 1)
+        reaper.SetExtState(extname, 'attach_title', title, true)
+        reaper.SetExtState(extname, 'attach_child_id', child_id or '', true)
+        reaper.SetExtState(extname, 'attach_wait', '', true)
     end
 end
 
@@ -2032,7 +2117,7 @@ function Main()
                 is_resize = true
             end
         end
-    elseif attach_window_title and not drag_x then
+    elseif attach_window_title and not attach_window_child_id and not drag_x then
         -- Check attached window title changes (e.g. when switching toolbar)
         local curr_title = reaper.JS_Window_GetTitle(window_hwnd)
         if curr_title ~= attach_window_title then
@@ -2762,6 +2847,71 @@ if attach_window_title then
         SaveAttachedWindow(nil)
         window_hwnd = nil
     end
+end
+
+-- Compatibility: Move individual extstate entries to theme_settings table
+local ext_ini_path = ConcatPath(reaper.GetResourcePath(), 'reaper-extstate.ini')
+local ext_ini_file = io.open(ext_ini_path, 'r')
+if ext_ini_file and not reaper.HasExtState(extname, 'theme_settings') then
+    local prev_section
+    local paths = {}
+    for line in ext_ini_file:lines() do
+        local section = line:match('^%[(.-)%]$')
+        prev_section = section or prev_section
+        if prev_section == extname then
+            local _, e = line:lower():find('%.reaperthemez?i?p?=')
+            if e then paths[#paths + 1] = line:sub(1, e - 1) end
+            if line:match('^default=t:') then paths[#paths + 1] = 'default' end
+        end
+    end
+    ext_ini_file:close()
+
+    local theme_settings = {}
+    for _, path in ipairs(paths) do
+        local settings = ExtLoad(path)
+        ExtSave(path, nil)
+
+        if settings then
+            -- Compatibility: Font size
+            if settings.font_size then
+                local font_family = settings.font_family or 'Arial'
+                gfx.setfont(1, font_family, settings.font_size)
+                local height = select(2, gfx.measurechar(70))
+                settings.font_height = math.floor(math.max(1, height))
+                settings.font_size = nil
+            end
+
+            -- Compatibility: Coordinates
+            if settings.bm_x then
+                settings.box_x = settings.bm_x
+                settings.box_y = settings.bm_y
+                settings.box_w = settings.bm_w
+                settings.box_h = settings.bm_h
+
+                settings.bm_x = nil
+                settings.bm_y = nil
+                settings.bm_w = nil
+                settings.bm_h = nil
+            end
+            -- Compatibility: Scale
+            if settings.scale then
+                settings.measure_scale = settings.scale
+                settings.scale = nil
+            end
+        end
+
+        if path == 'default' then
+            local key = GetThemeKey('')
+            theme_settings[key] = theme_settings[key] or settings
+        else
+            -- Replace windows path separator with unix
+            local key = path:gsub('\\', '/')
+            -- Remove file extension
+            key = key:gsub('%.([^./]+)$', '')
+            theme_settings[key] = settings
+        end
+    end
+    ExtSave('theme_settings', theme_settings)
 end
 
 reaper.atexit(Exit)
