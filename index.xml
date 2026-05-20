@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="1684df95a3e4f3cc10e77f4b2317344e2fae3438">
+<index version="1" name="FTC Tools" commit="9c8d8010500fc67b325a778c4156c48d36d90897">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -766,6 +766,10 @@
 - Shift+click menu entries to delete settings from other themes
 - Fix attaching box to windows with child id (v2.2.1 regression)]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/1684df95a3e4f3cc10e77f4b2317344e2fae3438/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.4.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-05-20T12:32:52Z">
+        <changelog><![CDATA[- Fix crash when attached window not visible (2.4.0 regression)]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/9c8d8010500fc67b325a778c4156c48d36d90897/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
