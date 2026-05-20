@@ -1,12 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.4.0
+  @version 2.4.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add option in customize menu to load settings from other themes
-    - Shift+click menu entries to delete settings from other themes
-    - Fix attaching box to windows with child id (v2.2.1 regression)
+    - Fix crash when attached window not visible (2.4.0 regression)
 ]]
 
 local extname = 'FTC.GridBox'
@@ -1454,7 +1452,7 @@ function ShowRightClickMenu()
 
     local curr_attach_mode = GetAttachMode()
 
-    local comp_fps_entry
+    local comp_fps_entry = {}
     if is_windows then
         comp_fps_entry = {
             title = 'Anti-flickering',
@@ -2068,7 +2066,7 @@ function FindAttachedWindow()
     elseif attach_window_title == 'Active MIDI editor' then
         hwnd = reaper.MIDIEditor_GetActive()
     else
-        local cnt, list = reaper.JS_Window_ListFind(attach_window_title, tonumber)
+        local cnt, list = reaper.JS_Window_ListFind(attach_window_title, true)
         window_cnt = cnt
         if window_cnt > 0 then
             local first_addr = (list .. ','):match('(.-),')
