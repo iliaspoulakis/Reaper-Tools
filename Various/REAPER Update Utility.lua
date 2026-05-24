@@ -1,13 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 3.0.0
+  @version 3.0.1
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Reworked debugging, removed menu options
-    - Ask to automatically create log file when something goes wrong
-    - Support portable installs on Linux
-    - Ask to retry with root permission when install fails on MacOS
+    - Silently exit when no internet during startup check
 ]]
 
 -- App version & platform architecture
@@ -1326,6 +1323,7 @@ function Main()
         end
 
         if step == 'err_internet' then
+            if startup_mode then return end
             GenerateReport('Download failed!')
             return
         end
