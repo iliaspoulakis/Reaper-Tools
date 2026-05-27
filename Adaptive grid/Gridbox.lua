@@ -1,10 +1,15 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.4.1
+  @version 2.5.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix crash when attached window not visible (2.4.0 regression)
+    - Fixed snap icon color
+    - Added tooltip to snap button
+    - Change default size to show snap button
+    - Allow hiding snap icon per theme by setting icon size to 0
+    - Improved font size calculations
+    - Reworked how position is saved when not attached to transport
 ]]
 
 local extname = 'FTC.GridBox'
@@ -90,6 +95,9 @@ local is_redraw = false
 local is_resize = false
 local resize_flags = 0
 local resize_cursor
+
+local prev_hover_m_x, prev_hover_m_y
+local hover_cnt = 0
 
 local GetSetGrid = reaper.GetSetProjectGrid
 
@@ -194,6 +202,24 @@ local measure_scale, draw_scale = GetTransportScale()
 local min_box_size = Scale(12, measure_scale)
 
 -------------------------------- FUNCTIONS -----------------------------------
+
+reaper.gmem_attach('mouse_pos')
+local mouse_pos_state = reaper.gmem_read(0)
+
+local function GetMousePosition()
+    local global_state = reaper.gmem_read(0)
+    if global_state > mouse_pos_state then
+        mouse_pos_state = global_state
+        return reaper.gmem_read(1), reaper.gmem_read(2)
+    else
+        mouse_pos_state = mouse_pos_state + 1
+        local x, y = reaper.GetMousePosition()
+        reaper.gmem_write(0, mouse_pos_state)
+        reaper.gmem_write(1, x)
+        reaper.gmem_write(2, y)
+        return x, y
+    end
+end
 
 function EscapeString(str)
     local function EscapeChar(char)
@@ -519,28 +545,6 @@ function LoadThemeSettings(theme_path, only_appeareance)
     local theme_key = GetThemeKey(theme_path)
     local settings = theme_settings[theme_key]
 
-    -- When attached to another window, try to load position saved for
-    -- previously used theme
-    local prev_theme_path = ExtLoad('prev_theme_path')
-    if prev_theme_path and attach_window_title and (not settings or
-            attach_window_title ~= settings.attach_title or
-            attach_window_child_id ~= settings.attach_child_id) then
-        theme_key = GetThemeKey(prev_theme_path)
-        local prev_settings = theme_settings[theme_key]
-        if prev_settings and prev_settings.box_x then
-            settings = {}
-            settings.attach_x = prev_settings.attach_x
-            settings.attach_mode = prev_settings.attach_mode
-
-            settings.box_x = prev_settings.box_x
-            settings.box_y = prev_settings.box_y
-            settings.box_w = prev_settings.box_w
-            settings.box_h = prev_settings.box_h
-            settings.draw_scale = prev_settings.draw_scale
-            settings.measure_scale = prev_settings.measure_scale
-        end
-    end
-
     local has_settings = settings ~= nil
     settings = settings or {}
 
@@ -568,6 +572,10 @@ function LoadThemeSettings(theme_path, only_appeareance)
 
     if only_appeareance then return has_settings end
 
+    if attach_window_title then
+        settings = ExtLoad('attach_settings') or settings
+    end
+
     attach_x = settings.attach_x
     attach_mode = settings.attach_mode
 
@@ -586,12 +594,8 @@ function LoadThemeSettings(theme_path, only_appeareance)
     end
 
     if attach_x then new_box_x = GetAttachPosition() end
-    if attach_window_title == settings.attach_title
-        and attach_window_child_id == settings.attach_child_id
-        or not box_x then
-        SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
-    end
-    return has_settings
+    SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
+    return has_settings or attach_window_title ~= nil
 end
 
 function SaveThemeSettings(theme_path)
@@ -623,9 +627,29 @@ function SaveThemeSettings(theme_path)
 
     local theme_settings = ExtLoad('theme_settings', {})
     local theme_key = GetThemeKey(theme_path)
+
+    if attach_window_title then
+        local attach_settings = {
+            box_x = box_x,
+            box_y = box_y,
+            box_w = box_w,
+            box_h = box_h,
+            attach_x = attach_x,
+            attach_mode = attach_mode,
+            measure_scale = measure_scale,
+        }
+        ExtSave('attach_settings', attach_settings)
+
+        local prev_settings = theme_settings[theme_key]
+        if prev_settings then
+            for key in pairs(attach_settings) do
+                settings[key] = prev_settings[key]
+            end
+        end
+    end
+
     theme_settings[theme_key] = settings
     ExtSave('theme_settings', theme_settings)
-    ExtSave('prev_theme_path', theme_path)
 end
 
 function GetThemeColor(key, flag)
@@ -906,15 +930,17 @@ function DrawBackground(bm, bg_color, w, h, corner_r, a)
     if bg_color ~= prev_bg_color or corner_r ~= prev_bg_corner_r then
         prev_bg_color = bg_color
         prev_bg_corner_r = corner_r
+        prev_snap_color = nil
         ClearBitmap(bg_bitmap, bg_color)
         DrawRect(bg_bitmap, bg_color, 0, 0, w, h, true, corner_r)
     end
     reaper.JS_LICE_Blit(bm, 0, 0, bg_bitmap, 0, 0, w, h, a, 'COPY')
 end
 
-function DrawSnapIcon(bm, snap_color, x, y, h, a)
+function DrawSnapIcon(bm, bg_color, snap_color, x, y, h, a)
     if a == 0 then return end
     h = h + 1
+    a = a or 1
     if not snap_bitmap then
         snap_bitmap = reaper.JS_LICE_CreateBitmap(true, h, h)
         prev_snap_color = nil
@@ -925,6 +951,14 @@ function DrawSnapIcon(bm, snap_color, x, y, h, a)
 
         local r = (h - 1) // 2
         local d = 2 * r + 1
+
+        local function SubtractColors(a, b)
+            local function ch(c, s)
+                return math.max(0, ((c >> s) & 0xFF) - ((b >> s) & 0xFF)) << s
+            end
+            return ch(a, 16) | ch(a, 8) | ch(a, 0) -- R, G, B
+        end
+        snap_color = SubtractColors(snap_color, bg_color)
 
         local FillRect = reaper.JS_LICE_FillRect
         local LICE_FillCircle = reaper.JS_LICE_FillCircle
@@ -1003,7 +1037,7 @@ function DrawBitmap(bm, w, h)
     snap_w = left_w * measure_scale / draw_scale
     local right_w = w - left_w
     -- Check if snap icon will be visible
-    local is_snap_hidden = hide_snap or left_w == 0
+    local is_snap_hidden = hide_snap or snap_h == 0 or left_w == 0
     if not is_snap_hidden then
         local hide_factor = user_snap_size and 1.3 or 2.3
         is_snap_hidden = left_w > w / hide_factor
@@ -1048,7 +1082,7 @@ function DrawBitmap(bm, w, h)
         -- Draw snap icon
         local snap_x = (left_w - snap_h) // 1.78
         local snap_y = (h - snap_h) // 2
-        DrawSnapIcon(bm, snap_color, snap_x, snap_y, snap_h, snap_alpha)
+        DrawSnapIcon(bm, bg_color, snap_color, snap_x, snap_y, snap_h, snap_alpha)
         -- Draw snap separator
         local m = math.max(Scale(4, draw_scale), h // 14)
         local sep_w = math.max(1, Scale(1, draw_scale))
@@ -1613,7 +1647,9 @@ function ShowRightClickMenu()
                         ret = reaper.MB(msg, 'Gridbox', 4)
                         if ret == 6 then
                             SaveAttachedWindow(nil)
+                            EndIntercepts()
                             window_hwnd = nil
+                            prev_top_window_cnt = nil
                         end
                     end
                 end,
@@ -1935,7 +1971,7 @@ function FindInitialPosition()
     -- Set initial position that matches status window
     box_x = 0
     box_y = st_y
-    box_w = st_h * 5 // 2
+    box_w = st_h * 7 // 2
     box_h = st_h
 
     -- Add small vertical margin if status window takes up full transport height
@@ -2089,6 +2125,7 @@ function SaveAttachedWindow(title, child_id)
         reaper.SetExtState(extname, 'attach_title', '', true)
         reaper.SetExtState(extname, 'attach_child_id', '', true)
         reaper.SetExtState(extname, 'attach_wait', '', true)
+        ExtSave('attach_settings', nil)
     else
         attach_window_title = title
         attach_window_child_id = child_id
@@ -2143,7 +2180,7 @@ function Main()
         return
     end
 
-    local x, y = reaper.GetMousePosition()
+    local x, y = GetMousePosition()
     local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
 
     do
@@ -2169,10 +2206,10 @@ function Main()
 
         if draw_scale ~= prev_draw_scale then
             local scale_factor = draw_scale / prev_draw_scale
-            user_snap_size = Scale(user_snap_size, scale_factor)
             user_font_height = Scale(user_font_height, scale_factor)
             user_font_yoffs = Scale(user_font_yoffs, scale_factor)
             user_corner_radius = Scale(user_corner_radius, scale_factor)
+            user_snap_size = Scale(user_snap_size, scale_factor)
             is_resize = true
         end
         if measure_scale ~= prev_measure_scale then
@@ -2356,6 +2393,23 @@ function Main()
             end
             if resize_cursor then
                 SetCursor(resize_cursor)
+            elseif not drag_x then
+                SetCursor(normal_cursor)
+            end
+
+            if is_snap_hovered then
+                if m_x == prev_hover_m_x and m_y == prev_hover_m_y then
+                    hover_cnt = hover_cnt + 1
+                else
+                    hover_cnt = 0
+                end
+                prev_hover_m_x, prev_hover_m_y = m_x, m_y
+
+                if hover_cnt > 11 then
+                    local tooltip = 'Toggle snapping (right click for settings)'
+                    local offs = Scale(17, measure_scale)
+                    reaper.TrackCtl_SetToolTip(tooltip, x + offs, y + offs, 1)
+                end
             end
         else
             is_left_click = false
@@ -2699,14 +2753,21 @@ function Main()
         local default_h = Scale(14, draw_scale)
         local target_h = math.max(math.min(default_h, bm_h), bm_h // 2.5)
         if user_font_height then target_h = math.min(user_font_height, bm_h) end
-        local curr_h
-        font_size = 2
-        repeat
-            gfx.setfont(1, font_family, font_size)
-            curr_h = math.max(1, select(2, gfx.measurechar(70)))
-            font_size = font_size + math.floor(target_h / curr_h + 0.5)
-        until curr_h >= target_h
-        if curr_h > target_h then font_size = font_size - 1 end
+
+        local lo, hi, mid = 1, target_h * 2, nil
+        font_size = lo
+        while lo <= hi do
+            mid = math.floor((lo + hi) / 2)
+            gfx.setfont(1, font_family, mid)
+            local curr_h = math.max(1, select(2, gfx.measurechar(70)))
+            if curr_h <= target_h then
+                font_size = mid
+                lo = mid + 1
+            else
+                hi = mid - 1
+            end
+        end
+        if font_size ~= mid then gfx.setfont(1, font_family, font_size) end
 
         -- Create LICE font
         if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
@@ -2843,7 +2904,9 @@ if attach_window_title then
     -- Move Gridbox window back to transport
     if is_reset then
         SaveAttachedWindow(nil)
+        EndIntercepts()
         window_hwnd = nil
+        prev_top_window_cnt = nil
     end
 end
 
