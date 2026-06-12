@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 3.0.1
+  @version 3.0.2
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Silently exit when no internet during startup check
+    - Fix possible update issue on Windows
 ]]
 
 -- App version & platform architecture
@@ -244,11 +244,9 @@ function ExecInstall(install_cmd)
 
         reaper.SetExtState(title, install_ext_key, install_version, true)
 
-        -- In Windows execute after quitting to avoid error dialog
-        if not platform:match('Win') then ExecProcess(install_cmd) end
+        ExecProcess(install_cmd)
         -- File: Quit REAPER
         reaper.Main_OnCommand(40004, 0)
-        if platform:match('Win') then ExecProcess(install_cmd) end
     else
         reaper.MB('\nInstallation cancelled!\n ', title, 0)
     end
