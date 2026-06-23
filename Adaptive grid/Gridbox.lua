@@ -57,6 +57,7 @@ local prev_grid_div
 local prev_top_window_cnt
 local prev_attach_hwnd
 local top_window_array = reaper.new_array(4096)
+local main_hwnd = reaper.GetMainHwnd()
 
 local prev_hzoom_lvl
 local prev_vis_grid_div
@@ -690,7 +691,7 @@ function TintIntColor(color, factor)
 end
 
 function GetUserColor()
-    local ret, color = reaper.GR_SelectColor(reaper.GetMainHwnd())
+    local ret, color = reaper.GR_SelectColor(main_hwnd)
     if ret ~= 0 then return IntToHex(color):gsub('#', '') end
 end
 
@@ -2098,21 +2099,43 @@ function FindAttachedWindow()
     local hwnd
     local window_cnt = 0
     if attach_window_title == 'REAPER Main Window' then
-        hwnd = reaper.GetMainHwnd()
+        hwnd = main_hwnd
     elseif attach_window_title == 'Active MIDI editor' then
         hwnd = reaper.MIDIEditor_GetActive()
     else
-        local cnt, list = reaper.JS_Window_ListFind(attach_window_title, true)
+        local title = attach_window_title or transport_title
+        local cnt, list = reaper.JS_Window_ListFind(title, true)
         window_cnt = cnt
         if window_cnt > 0 then
-            local first_addr = (list .. ','):match('(.-),')
-            hwnd = reaper.JS_Window_HandleFromAddress(first_addr)
+            local first_hwnd
+            local main_child
+            for addr in (list .. ','):gmatch('(.-),') do
+                local handle = reaper.JS_Window_HandleFromAddress(addr)
+                first_hwnd = first_hwnd or handle
+                -- Check if only one of the windows is child of main window
+                -- (for case when running multiple reaper instances)
+                if reaper.JS_Window_IsChild(main_hwnd, hwnd) then
+                    if main_child then
+                        main_child = nil
+                        break
+                    else
+                        main_child = handle
+                    end
+                end
+            end
+            if main_child then
+                hwnd = main_child
+                window_cnt = 1
+            else
+                hwnd = first_hwnd
+            end
         end
-        if hwnd then
+
+        if hwnd and attach_window_title then
             reaper.SetExtState(extname, 'attach_wait', attach_window_title, true)
         end
     end
-    if attach_window_child_id then
+    if hwnd and attach_window_child_id then
         hwnd = reaper.JS_Window_FindChildByID(hwnd, attach_window_child_id)
     end
     return hwnd, window_cnt
@@ -2144,11 +2167,7 @@ function Main()
             local top_window_cnt = reaper.JS_Window_ArrayAllTop(top_window_array)
             if top_window_cnt ~= prev_top_window_cnt then
                 prev_top_window_cnt = top_window_cnt
-                if attach_window_title then
-                    window_hwnd = FindAttachedWindow()
-                else
-                    window_hwnd = reaper.JS_Window_Find(transport_title, true)
-                end
+                window_hwnd = FindAttachedWindow()
                 is_resize = true
             end
         end
@@ -2491,7 +2510,7 @@ function Main()
                 if not is_reset then
                     is_reset = true
                     -- Save accessible windows by custom ID instead of title
-                    if target_hwnd == reaper.GetMainHwnd() then
+                    if target_hwnd == main_hwnd then
                         title = 'REAPER Main Window'
                     end
                     if target_hwnd == reaper.MIDIEditor_GetActive() then
@@ -2871,7 +2890,7 @@ if attach_window_title then
         local ret = reaper.MB(msg:format(attach_window_title), 'Gridbox', 4)
         is_reset = ret ~= 6
         if is_reset then
-            reaper.MB('Moved Gridbox back to transport', 'Gridbox', 4)
+            reaper.MB('Moved Gridbox back to transport', 'Gridbox', 0)
         end
         ExtSave('start_cnt', nil)
     end
