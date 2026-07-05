@@ -1,18 +1,16 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.5.0
+  @version 2.6.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fixed snap icon color
-    - Added tooltip to snap button
-    - Change default size to show snap button
-    - Allow hiding snap icon per theme by setting icon size to 0
-    - Improved font size calculations
-    - Reworked how position is saved when not attached to transport
+    - Allow themes to customize GridBox
+    - Save different position for centered transport
+    - Improve behavior when running multiple REAPER instances
 ]]
 
-local extname = 'FTC.GridBox'
+local box_name = 'GridBox'
+local extname = 'FTC.' .. box_name
 
 local box_w
 local box_h
@@ -26,6 +24,9 @@ local prev_box_y
 
 local attach_mode
 local attach_x
+local attach_center_mode
+local attach_center_x
+local prev_is_centered
 
 local user_bg_color
 local user_border_color
@@ -98,6 +99,7 @@ local resize_flags = 0
 local resize_cursor
 
 local prev_hover_m_x, prev_hover_m_y
+local mouse_x, mouse_y
 local hover_cnt = 0
 
 local GetSetGrid = reaper.GetSetProjectGrid
@@ -117,7 +119,7 @@ if not reaper.JS_Composite_Delay then
     if has_reapack then
         table.insert(missing_dependencies, 'js_ReaScriptAPI')
     else
-        reaper.MB('Please install js_ReaScriptAPI extension', 'GridBox', 0)
+        reaper.MB('Please install js_ReaScriptAPI extension', box_name, 0)
         return
     end
 end
@@ -134,7 +136,7 @@ if not reaper.file_exists(menu_script) then
     if has_reapack then
         table.insert(missing_dependencies, 'Adaptive Grid')
     else
-        reaper.MB('Please install Adaptive Grid', 'GridBox', 0)
+        reaper.MB('Please install Adaptive Grid', box_name, 0)
         return
     end
 end
@@ -144,7 +146,7 @@ if #missing_dependencies > 0 then
     for _, dependency in ipairs(missing_dependencies) do
         msg = msg .. ' • ' .. dependency .. '\n'
     end
-    reaper.MB(msg, 'GridBox', 0)
+    reaper.MB(msg, box_name, 0)
 
     for i = 1, #missing_dependencies do
         if missing_dependencies[i]:match(' ') then
@@ -187,13 +189,13 @@ attach_window_child_id = tonumber(attach_window_child_id)
 local transport_title = reaper.JS_Localize('Transport', 'common')
 local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
-local function GetTransportScale()
+function GetTransportScale()
     local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
     local scale = tonumber(new_dpi) / 256
     return is_macos and 1 or scale, scale
 end
 
-local function Scale(value, scale)
+function Scale(value, scale)
     if not tonumber(value) then return value end
     return math.floor(value * scale + 0.5)
 end
@@ -485,6 +487,133 @@ function ReturnMenuRecursive(menu, idx, i)
     return i
 end
 
+local function ParseIni(content)
+    local t = {}
+    for line in content:gmatch('[^\r\n]+') do
+        line = line:match('^%s*(.-)%s*$')
+        if line ~= '' and line:sub(1, 1) ~= ';' and line:sub(1, 1) ~= '#' then
+            local key, value = line:match('^([^=]+)%s*=%s*(.*)$')
+            if key and value then
+                local value_num = not key:match('_color$') and tonumber(value)
+                t[key:match('^%s*(.-)%s*$')] = value_num or value
+            end
+        end
+    end
+    return t
+end
+
+function PrintIni()
+    local theme_settings = ExtLoad('theme_settings', {})
+    local theme_key = GetThemeKey(prev_color_theme)
+    local settings = theme_settings[theme_key]
+    if settings then
+        local sorted_settings = {}
+        for k, v in pairs(settings) do
+            sorted_settings[#sorted_settings + 1] = {key = k, value = v}
+        end
+        local function SortByName(t, key)
+            local function Format(d) return ('%03d%s'):format(#d, d) end
+            local function Compare(a, b)
+                local ak, bk = tostring(a[key]), tostring(b[key])
+                local ac, bc = ak:find('_color') ~= nil,
+                    bk:find('_color') ~= nil
+                if ac ~= bc then return bc end
+                return ak:gsub('%d+', Format) < bk:gsub('%d+', Format)
+            end
+            table.sort(t, Compare)
+        end
+        SortByName(sorted_settings, 'key')
+
+        reaper.ClearConsole()
+        reaper.ShowConsoleMsg(box_name:lower() .. '.ini:\n\n')
+        for _, entry in ipairs(sorted_settings) do
+            reaper.ShowConsoleMsg(entry.key .. '=' .. entry.value .. '\n')
+        end
+    else
+        reaper.ShowConsoleMsg('No saved settings')
+    end
+end
+
+function LoadIntegratedSettings(theme_path)
+    local file_name = box_name:lower() .. '.ini'
+    if not theme_path:lower():match('%.reaperthemezip$') then
+        -- Read theme file to get image resource path
+        local theme_file = io.open(theme_path, 'r')
+        if not theme_file then return nil, 'Could not read theme file' end
+        local content = theme_file:read('*a')
+        theme_file:close()
+
+        local ui_img
+        for line in content:gmatch('[^\r\n]+') do
+            ui_img = line:match('^%s*ui_img=(.+)%s*$')
+            if ui_img then break end
+        end
+
+        if not ui_img then return nil, 'Could not parse theme file' end
+
+        local theme_dir = theme_path:match('^(.+)/')
+        if is_windows then theme_dir = theme_path:match('^(.+)\\') end
+
+        if ui_img:lower():match('%.reaperthemezip$') then
+            -- Image resource path is a zipped
+            theme_path = ConcatPath(theme_dir, ui_img)
+        else
+            -- Image resource path is unzipped
+            local config_path = ConcatPath(theme_dir, ui_img, file_name)
+            if not reaper.file_exists(config_path) then return nil, 'No config' end
+
+            local config_file = io.open(config_path, 'r')
+            if not config_file then return nil, 'Could not read config file' end
+            content = config_file:read('*a')
+            config_file:close()
+
+            local config = ParseIni(content)
+            if not next(config) then return nil, 'Empty config' end
+            return config
+        end
+    end
+
+    local zip, err = reaper.JS_Zip_Open(theme_path, 'r', 0)
+    if err ~= 0 then return nil, reaper.JS_Zip_ErrorString(err) end
+
+    local count, list = reaper.JS_Zip_ListAllEntries(zip)
+    if count < 0 then
+        reaper.JS_Zip_Close(theme_path, zip)
+        return nil, reaper.JS_Zip_ErrorString(count)
+    end
+
+    local found_entry = nil
+    for entry in list:gmatch('[^%z]+') do
+        if entry:find(file_name, 1, true) then
+            found_entry = entry
+            break
+        end
+    end
+
+    if not found_entry then
+        reaper.JS_Zip_Close(theme_path, zip)
+        return nil, 'Entry not found: ' .. file_name
+    end
+
+    local ret = reaper.JS_Zip_Entry_OpenByName(zip, found_entry)
+    if ret ~= 0 then
+        reaper.JS_Zip_Close(theme_path, zip)
+        return nil, reaper.JS_Zip_ErrorString(ret)
+    end
+
+    local bytes, content = reaper.JS_Zip_Entry_ExtractToMemory(zip)
+    reaper.JS_Zip_Entry_Close(zip)
+    reaper.JS_Zip_Close(theme_path, zip)
+
+    if bytes < 0 then
+        return nil, reaper.JS_Zip_ErrorString(bytes)
+    end
+
+    local config = ParseIni(content)
+    if not next(config) then return nil, 'Empty config' end
+    return config
+end
+
 function GetThemeKey(path)
     if path == '' then
         -- Note: Theme path can be empty in new REAPER installations?
@@ -505,46 +634,53 @@ function GetThemeKey(path)
 end
 
 function GetThemeFromKey(key)
-    -- Note: File extension is not in key because GetLastColorThemeFile can
-    -- return both .ReaperTheme and .ReaperThemeZip
     local theme_name = key:match('([^/]+)$')
     if is_windows then key = key:gsub('/', '\\') end
 
-    -- Check absolute path
-    local dir = is_windows and key:match('^(.+)\\') or key:match('^(.+)/')
-    local i = 0
-    repeat
-        local file_name = reaper.EnumerateFiles(dir, i)
-        if file_name then
-            local file_name_no_ext = file_name:gsub('%.([^./\\]+)$', '')
-            if file_name_no_ext == theme_name then
-                return ConcatPath(dir, file_name)
+    local function FindInDir(dir)
+        local fallback = nil
+        local i = 0
+        repeat
+            local file_name = reaper.EnumerateFiles(dir, i)
+            if file_name then
+                local file_name_no_ext = file_name:gsub('%.([^./\\]+)$', '')
+                if file_name_no_ext == theme_name then
+                    if file_name:lower():match('%.reaperthemezip$') then
+                        return ConcatPath(dir, file_name)
+                    else
+                        fallback = ConcatPath(dir, file_name)
+                    end
+                end
             end
-        end
-        i = i + 1
-    until not file_name
+            i = i + 1
+        until not file_name
+        return fallback
+    end
 
-    -- Check relative path
+    local dir = is_windows and key:match('^(.+)\\') or key:match('^(.+)/')
+    local result = FindInDir(dir)
+    if result then return result end
+
     key = ConcatPath(reaper.GetResourcePath(), key)
     dir = is_windows and key:match('^(.+)\\') or key:match('^(.+)/')
-
-    i = 0
-    repeat
-        local file_name = reaper.EnumerateFiles(dir, i)
-        if file_name then
-            local file_name_no_ext = file_name:gsub('%.([^./\\]+)$', '')
-            if file_name_no_ext == theme_name then
-                return ConcatPath(dir, file_name)
-            end
-        end
-        i = i + 1
-    until not file_name
+    return FindInDir(dir)
 end
 
 function LoadThemeSettings(theme_path, only_appeareance)
     local theme_settings = ExtLoad('theme_settings', {})
     local theme_key = GetThemeKey(theme_path)
     local settings = theme_settings[theme_key]
+
+    if not settings then
+        local theme_file = GetThemeFromKey(theme_key)
+        if theme_file then
+            local integrated_settings = LoadIntegratedSettings(theme_file)
+            if integrated_settings then
+                settings = integrated_settings
+                SetEditMode(false)
+            end
+        end
+    end
 
     local has_settings = settings ~= nil
     settings = settings or {}
@@ -565,10 +701,10 @@ function LoadThemeSettings(theme_path, only_appeareance)
 
     if settings.draw_scale and settings.draw_scale ~= draw_scale then
         local scale_factor = draw_scale / settings.draw_scale
-        user_snap_size = Scale(user_snap_size, scale_factor)
         user_font_height = Scale(user_font_height, scale_factor)
         user_font_yoffs = Scale(user_font_yoffs, scale_factor)
         user_corner_radius = Scale(user_corner_radius, scale_factor)
+        user_snap_size = Scale(user_snap_size, scale_factor)
     end
 
     if only_appeareance then return has_settings end
@@ -579,6 +715,8 @@ function LoadThemeSettings(theme_path, only_appeareance)
 
     attach_x = settings.attach_x
     attach_mode = settings.attach_mode
+    attach_center_x = settings.attach_center_x
+    attach_center_mode = settings.attach_center_mode
 
     local new_box_x = settings.box_x
     local new_box_y = settings.box_y
@@ -592,9 +730,10 @@ function LoadThemeSettings(theme_path, only_appeareance)
         new_box_w = Scale(new_box_w, scale_factor)
         new_box_h = Scale(new_box_h, scale_factor)
         attach_x = Scale(attach_x, scale_factor)
+        attach_center_x = Scale(attach_center_x, scale_factor)
     end
 
-    if attach_x then new_box_x = GetAttachPosition() end
+    if attach_x or attach_center_x then new_box_x = GetAttachPosition() end
     SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
     return has_settings or attach_window_title ~= nil
 end
@@ -607,8 +746,8 @@ function SaveThemeSettings(theme_path)
         box_h = box_h,
         attach_x = attach_x,
         attach_mode = attach_mode,
-        attach_title = attach_window_title,
-        attach_child_id = attach_window_child_id,
+        attach_center_x = attach_center_x,
+        attach_center_mode = attach_center_mode,
         bg_color = user_bg_color,
         text_color = user_text_color,
         border_color = user_border_color,
@@ -1211,11 +1350,11 @@ local horz_resize_cursor = LoadCursor(32644)
 local vert_resize_cursor = LoadCursor(32645)
 local move_cursor = LoadCursor(32646)
 
-local is_edit_mode = ExtLoad('is_edit_mode', true)
-
 local Intercept = reaper.JS_WindowMessage_Intercept
 local Release = reaper.JS_WindowMessage_Release
 local Peek = reaper.JS_WindowMessage_Peek
+
+local is_edit_mode = ExtLoad('is_edit_mode', true)
 
 local prev_cursor = normal_cursor
 local is_intercept = false
@@ -1269,6 +1408,11 @@ function EndIntercepts()
     prev_cursor = -1
 end
 
+function SetEditMode(mode)
+    is_edit_mode = mode
+    ExtSave('is_edit_mode', mode)
+end
+
 function LoadMenuScript()
     local env = setmetatable({menu = true, cmd = menu_cmd}, {__index = _G})
     env._G = env
@@ -1277,13 +1421,13 @@ function LoadMenuScript()
         menu_chunk()
         if type(env._G.menu) ~= 'table' then
             local err_msg = 'Please update Adaptive Grid to latest version'
-            reaper.MB(err_msg:format(menu_script, err), 'GridBox', 0)
+            reaper.MB(err_msg:format(menu_script, err), box_name, 0)
             return
         end
         return env
     end
     local err_msg = 'Could not load script: %s:\n%s'
-    reaper.MB(err_msg:format(menu_script, err), 'GridBox', 0)
+    reaper.MB(err_msg:format(menu_script, err), box_name, 0)
 end
 
 function PeekIntercepts(m_x, m_y)
@@ -1314,6 +1458,13 @@ function PeekIntercepts(m_x, m_y)
             if msg == 'WM_LBUTTONUP' then
                 if not is_left_click then return end
                 if is_swing_drag then return end
+
+                local all_mods_pressed = reaper.JS_Mouse_GetState(28) == 28
+                if all_mods_pressed then
+                    PrintIni()
+                    return
+                end
+
                 -- Check if left section is pressed
                 if snap_w > 0 and m_x - box_x < snap_w then
                     -- Check if alt is pressed
@@ -1593,7 +1744,7 @@ function ShowRightClickMenu()
                     is_checked = curr_attach_mode == 3,
                     is_grayed = attach_window_title ~= nil,
                     OnReturn = function()
-                        attach_mode = 3
+                        SetAttachMode(3)
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
                     end,
@@ -1603,7 +1754,7 @@ function ShowRightClickMenu()
                     is_checked = curr_attach_mode == 4,
                     is_grayed = attach_window_title ~= nil,
                     OnReturn = function()
-                        attach_mode = 4
+                        SetAttachMode(4)
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
                     end,
@@ -1612,7 +1763,7 @@ function ShowRightClickMenu()
                     title = 'Left window edge',
                     is_checked = curr_attach_mode == 1,
                     OnReturn = function()
-                        attach_mode = 1
+                        SetAttachMode(1)
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
                     end,
@@ -1621,7 +1772,7 @@ function ShowRightClickMenu()
                     title = 'Right window edge',
                     is_checked = curr_attach_mode == 2,
                     OnReturn = function()
-                        attach_mode = 2
+                        SetAttachMode(2)
                         UpdateAttachPosition()
                         SaveThemeSettings(prev_color_theme)
                     end,
@@ -1644,8 +1795,8 @@ function ShowRightClickMenu()
                     prev_color_theme = nil
 
                     if attach_window_title then
-                        msg = 'Move Gridbox back to transport?'
-                        ret = reaper.MB(msg, 'Gridbox', 4)
+                        msg = 'Move %s back to transport?'
+                        ret = reaper.MB(msg:format(box_name), box_name, 4)
                         if ret == 6 then
                             SaveAttachedWindow(nil)
                             EndIntercepts()
@@ -1699,8 +1850,7 @@ function ShowRightClickMenu()
             title = 'Lock position',
             is_checked = not is_edit_mode,
             OnReturn = function()
-                is_edit_mode = not is_edit_mode
-                ExtSave('is_edit_mode', is_edit_mode)
+                SetEditMode(not is_edit_mode)
             end,
         },
         {
@@ -1738,15 +1888,16 @@ function ShowMenu(menu)
     gfx.clear = GetThemeColor('col_main_bg2')
     local ClientToScreen = reaper.JS_Window_ClientToScreen
     local window_x, window_y = ClientToScreen(window_hwnd, 0, 0)
-    window_x, window_y = window_x + 4, window_y + 4
-    gfx.init('FTC.GB', Scale(24, measure_scale), 0, 0, window_x, window_y)
+    local m = Scale(4, measure_scale)
+    gfx.init('Box Menu', Scale(24, measure_scale), 0, 0, window_x + m,
+        window_y + m)
 
     -- Open menu at bottom left corner
     local menu_x, menu_y = ClientToScreen(window_hwnd, box_x, box_y + box_h)
     gfx.x, gfx.y = gfx.screentoclient(menu_x, menu_y)
 
     -- Hide gfx window
-    local gfx_hwnd = reaper.JS_Window_Find('FTC.GB', true)
+    local gfx_hwnd = reaper.JS_Window_Find('Box Menu', true)
     reaper.JS_Window_SetOpacity(gfx_hwnd, 'ALPHA', 0)
 
     if is_linux then
@@ -1764,7 +1915,7 @@ function ShowMenu(menu)
     if focus_hwnd then reaper.JS_Window_SetFocus(focus_hwnd) end
     if ret > 0 then ReturnMenuRecursive(menu, ret) end
 
-    -- Make sure that user can click gridbox to close menu
+    -- Make sure that user can click box to close menu
     menu_time = reaper.time_precise()
     is_left_click = false
     is_right_click = false
@@ -1814,48 +1965,69 @@ end
 
 function UpdateAttachPosition()
     local mode = GetAttachMode()
-    if mode == 1 then
-        attach_x = box_x
-    end
-    if mode == 2 then
-        attach_x = box_x - window_w
-    end
+    local new_x
+    if mode == 1 then new_x = box_x end
+    if mode == 2 then new_x = box_x - window_w end
     if mode == 3 then
         local st_l = GetStatusWindowClientRect()
-        attach_x = box_x - st_l
+        new_x = box_x - st_l
     end
     if mode == 4 then
         local _, _, st_r = GetStatusWindowClientRect()
-        attach_x = box_x - st_r
+        new_x = box_x - st_r
+    end
+    local is_centered = reaper.GetToggleCommandState(40533) == 1
+    if not attach_window_title and is_centered then
+        attach_center_x = new_x
+    else
+        attach_x = new_x
     end
 end
 
 function GetAttachMode()
-    local mode = attach_mode
-    -- Note: Status window options are only valid when attached to transport
-    if mode and mode > 2 and attach_window_title then
-        mode = mode - 2
+    local mode = attach_mode or attach_center_mode
+    if attach_window_title then
+        -- Note: Status window options are only valid when attached to transport
+        if mode and mode > 2 then mode = mode - 2 end
+    else
+        local is_centered = reaper.GetToggleCommandState(40533) == 1
+        if is_centered then mode = attach_center_mode or attach_mode end
     end
     return mode
 end
 
+function SetAttachMode(mode)
+    local is_centered = reaper.GetToggleCommandState(40533) == 1
+    if attach_window_title or not is_centered then
+        attach_mode = mode
+    else
+        attach_center_mode = mode
+    end
+end
+
 function GetAttachPosition()
-    if not attach_x then return end
+    local x = attach_x or attach_center_x
+    if not x then return end
+    if not attach_window_title then
+        local is_centered = reaper.GetToggleCommandState(40533) == 1
+        if is_centered then x = attach_center_x or attach_x end
+    end
+
     local mode = GetAttachMode()
     local new_box_x
     if mode == 1 then
-        new_box_x = attach_x
+        new_box_x = x
     end
     if mode == 2 then
-        new_box_x = attach_x + window_w
+        new_box_x = x + window_w
     end
     if mode == 3 or mode == 4 then
         local st_l = GetStatusWindowClientRect()
-        new_box_x = attach_x + st_l
+        new_box_x = x + st_l
     end
     if mode == 4 then
         local _, _, st_r = GetStatusWindowClientRect()
-        new_box_x = attach_x + st_r
+        new_box_x = x + st_r
     end
     return new_box_x
 end
@@ -2078,13 +2250,13 @@ function FindInitialPosition()
         -- Place bitmap (x pos) in empty target area (based on alignment)
         if target_area.align > 0 then
             box_x = math.max(0, r - box_w - m)
-            attach_mode = box_x < st_r and 3 or 2
+            SetAttachMode(box_x < st_r and 3 or 2)
         else
             box_x = math.max(0, r - target_area.size + m)
-            attach_mode = box_x < st_r and 1 or 4
+            SetAttachMode(box_x < st_r and 1 or 4)
         end
     else
-        attach_mode = box_x < st_r and 1 or 2
+        SetAttachMode(box_x < st_r and 1 or 2)
     end
     UpdateAttachPosition()
 end
@@ -2194,13 +2366,12 @@ function Main()
 
     -- Go idle if window is not found/visible
     if not window_hwnd or not reaper.JS_Window_IsVisible(window_hwnd) then
-        if attach_window_title then window_hwnd = nil end
         reaper.defer(Main)
         return
     end
 
-    local x, y = GetMousePosition()
-    local hover_hwnd = reaper.JS_Window_FromPoint(x, y)
+    mouse_x, mouse_y = GetMousePosition()
+    local hover_hwnd = reaper.JS_Window_FromPoint(mouse_x, mouse_y)
 
     do
         local _, w, h = reaper.JS_Window_GetClientSize(window_hwnd)
@@ -2241,12 +2412,14 @@ function Main()
             local new_box_h = Scale(box_h, scale_factor)
 
             attach_x = Scale(attach_x, scale_factor)
-            if attach_x then new_box_x = GetAttachPosition() end
+            attach_center_x = Scale(attach_center_x, scale_factor)
+            if attach_x or attach_center_x then new_box_x = GetAttachPosition() end
 
             SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
             EnsureBoxVisible()
             is_resize = true
-        elseif prev_window_w then
+        end
+        if prev_window_w then
             -- Move bitmap based on attached position
             local new_box_x = GetAttachPosition()
             if new_box_x then SetBoxCoords(new_box_x) end
@@ -2256,12 +2429,22 @@ function Main()
         prev_window_h = window_h
     end
 
+    -- Detect centered transport toggle
+    local is_centered = reaper.GetToggleCommandState(40533) == 1
+    if is_centered ~= prev_is_centered then
+        prev_is_centered = is_centered
+        local new_box_x = GetAttachPosition()
+        if new_box_x then SetBoxCoords(new_box_x) end
+        EnsureBoxVisible()
+    end
+
+
     local is_snap_hovered = false
     local is_hovered = false
 
     if hover_hwnd == window_hwnd or drag_x then
         local ScreenToClient = reaper.JS_Window_ScreenToClient
-        local m_x, m_y = ScreenToClient(window_hwnd, x, y)
+        local m_x, m_y = ScreenToClient(window_hwnd, mouse_x, mouse_y)
         -- Handle drag move/resize
         if drag_x and (drag_x ~= m_x or drag_y ~= m_y) then
             if resize_flags > 0 then
@@ -2292,7 +2475,7 @@ function Main()
                 prev_box_x = prev_box_x or box_x
                 prev_box_y = prev_box_y or box_y
 
-                -- Move Gridbox to hovered window
+                -- Move box to hovered window
                 if hover_hwnd and hover_hwnd ~= window_hwnd then
                     prev_attach_hwnd = prev_attach_hwnd or window_hwnd
                     EndIntercepts()
@@ -2307,7 +2490,7 @@ function Main()
                     local drag_y_diff = drag_y - box_y
 
                     -- Get new mouse window position
-                    m_x, m_y = ScreenToClient(window_hwnd, x, y)
+                    m_x, m_y = ScreenToClient(window_hwnd, mouse_x, mouse_y)
 
                     -- Set bitmap coordinates with relative position
                     -- Note: Avoid SetBoxCoords as it doesn't allow going out
@@ -2327,7 +2510,7 @@ function Main()
                     prev_window_w = nil
                     is_resize = true
                 else
-                    -- Move Gridbox inside window
+                    -- Move box inside window
                     local new_box_x = box_x + m_x - drag_x
                     local new_box_y = box_y + m_y - drag_y
                     SetBoxCoords(new_box_x, new_box_y)
@@ -2427,7 +2610,8 @@ function Main()
                 if hover_cnt > 11 then
                     local tooltip = 'Toggle snapping (right click for settings)'
                     local offs = Scale(17, measure_scale)
-                    reaper.TrackCtl_SetToolTip(tooltip, x + offs, y + offs, 1)
+                    reaper.TrackCtl_SetToolTip(tooltip, mouse_x + offs,
+                        mouse_y + offs, true)
                 end
             end
         else
@@ -2466,17 +2650,17 @@ function Main()
 
                 -- Do not allow windows with empty titles
                 if title == '' then
-                    local msg = 'Can not attach Gridbox to this window.\n\n\z
+                    local msg = 'Can not attach %s to this window.\n\n\z
                         Window does not have a title.'
-                    reaper.MB(msg, 'Notice', 0)
+                    reaper.MB(msg:format(box_name), 'Notice', 0)
                     is_reset = true
                 end
 
                 -- Do not allow titles with newline characters
                 if not is_reset and title:match('\n') then
-                    local msg = 'Can not attach Gridbox to this window.\n\n\z
+                    local msg = 'Can not attach %s to this window.\n\n\z
                         Invalid window title:\n\nTITLE: %s'
-                    reaper.MB(msg:format(title), 'Notice', 0)
+                    reaper.MB(msg:format(box_name, title), 'Notice', 0)
                 end
 
                 local found_hwnd
@@ -2484,24 +2668,25 @@ function Main()
                     -- Check if new attached window can be found via Window_Find
                     local window_cnt, list = reaper.JS_Window_ListFind(title, 1)
                     if window_cnt > 1 then
-                        local msg = 'Can not attach Gridbox to this window. \z
+                        local msg = 'Can not attach %s to this window. \z
                             %d windows have the same title!\n\n\z
                             TITLE: %s\n\nIf this window is a toolbar, make sure \z
                             that it is only open once (not in toolbar docker) and \z
                             consider giving it a unique title.'
-                        reaper.MB(msg:format(window_cnt, title), 'Notice', 0)
+                        msg = msg:format(box_name, window_cnt, title)
+                        reaper.MB(msg, 'Notice', 0)
                         is_reset = true
                     elseif window_cnt == 0 then
-                        local msg = 'Can not attach Gridbox to this window.\n\n\z
-                            Could not find window by title.\n\nTITLE: %s'
-                        reaper.MB(msg:format(title), 'Notice', 0)
+                        local msg = 'Can not attach %s to this window.\z
+                            \n\nCould not find window by title.\n\nTITLE: %s'
+                        reaper.MB(msg:format(box_name, title), 'Notice', 0)
                         is_reset = true
                     else
                         found_hwnd = reaper.JS_Window_HandleFromAddress(list)
                         if found_hwnd ~= target_hwnd then
-                            local msg = 'Can not attach Gridbox to this window.\z
-                                \n\nHandle missmatch'
-                            reaper.MB(msg, 'Notice', 0)
+                            local msg = 'Can not attach %s to this \z
+                                window.\n\nHandle missmatch'
+                            reaper.MB(msg:format(box_name), 'Notice', 0)
                             is_reset = true
                         end
                     end
@@ -2518,11 +2703,11 @@ function Main()
                     end
 
                     -- Prompt user to confirm new attachment
-                    local msg = 'Gridbox will be attached to this window:\z
+                    local msg = '%s will be attached to this window:\z
                             \n\nTITLE: %s%s\n\nProceed?'
                     local id_text = ''
                     if child_id then id_text = ('\nID: %d'):format(child_id) end
-                    msg = msg:format(title, id_text)
+                    msg = msg:format(box_name, title, id_text)
 
                     local ret = reaper.MB(msg, 'Notice', 4)
                     if ret == 6 then
@@ -2533,7 +2718,7 @@ function Main()
                 end
 
                 if is_reset then
-                    -- Move Gridbox back to previous window (pre-drag)
+                    -- Move box back to previous window (pre-drag)
                     EndIntercepts()
                     InvalidateBoxRect()
                     reaper.JS_Composite_Delay(window_hwnd, 0, 0, 0)
@@ -2574,7 +2759,7 @@ function Main()
     end
 
     if swing_drag_x then
-        local m_x = reaper.JS_Window_ScreenToClient(window_hwnd, x, y)
+        local m_x = reaper.JS_Window_ScreenToClient(window_hwnd, mouse_x, mouse_y)
         if reaper.JS_Mouse_GetState(3) == 0 then
             swing_drag_x = nil
             is_swing_drag = false
@@ -2768,7 +2953,7 @@ function Main()
         bg_bitmap = nil
 
         local font_family = user_font_family or 'Arial'
-        -- Find font size by incrementing until it exceeds target height
+        -- Binary search to find font size that fits target height
         local default_h = Scale(14, draw_scale)
         local target_h = math.max(math.min(default_h, bm_h), bm_h // 2.5)
         if user_font_height then target_h = math.min(user_font_height, bm_h) end
@@ -2871,15 +3056,15 @@ end
 
 if attach_window_title then
     local is_reset = false
-    -- Give option to move Gridbox back to transport when attached window
+    -- Give option to move box back to transport when attached window
     -- is not found upon script startup (or when multiple windows are found)
     local window_cnt = 0
     window_hwnd, window_cnt = FindAttachedWindow()
 
     if window_cnt > 1 then
         local msg = 'Found %d windows with the same title.\n\n\z
-            Move Gridbox back to transport?'
-        local ret = reaper.MB(msg:format(window_cnt), 'Gridbox', 4)
+            Move %s back to transport?'
+        local ret = reaper.MB(msg:format(window_cnt, box_name), box_name, 4)
         is_reset = ret == 6
         ExtSave('start_cnt', nil)
     end
@@ -2887,15 +3072,16 @@ if attach_window_title then
     if not window_hwnd and not WaitForAttachedWindow() then
         local msg = 'Could not find window.\n\nTITLE: %s\n\nWait for \z
             window to open?'
-        local ret = reaper.MB(msg:format(attach_window_title), 'Gridbox', 4)
+        local ret = reaper.MB(msg:format(attach_window_title), box_name, 4)
         is_reset = ret ~= 6
         if is_reset then
-            reaper.MB('Moved Gridbox back to transport', 'Gridbox', 0)
+            msg = 'Moved %s back to transport'
+            reaper.MB(msg:format(box_name), box_name, 0)
         end
         ExtSave('start_cnt', nil)
     end
 
-    -- Give option to move Gridbox back to transport when user quickly toggles
+    -- Give option to move box back to transport when user quickly toggles
     -- the script 3 times in a row (in 3 seconds)
     local curr_time = reaper.time_precise()
     local start_cnt = ExtLoad('start_cnt', 1)
@@ -2912,15 +3098,15 @@ if attach_window_title then
         if start_cnt > 3 then
             start_cnt = nil
             curr_time = nil
-            local msg = 'Move Gridbox back to transport?'
-            local ret = reaper.MB(msg, 'Gridbox', 4)
+            local msg = 'Move %s back to transport?'
+            local ret = reaper.MB(msg:format(box_name), box_name, 4)
             is_reset = ret == 6
         end
         ExtSave('start_cnt', start_cnt)
         ExtSave('start_time', curr_time)
     end
 
-    -- Move Gridbox window back to transport
+    -- Move box back to transport
     if is_reset then
         SaveAttachedWindow(nil)
         EndIntercepts()
@@ -2930,68 +3116,71 @@ if attach_window_title then
 end
 
 -- Compatibility: Move individual extstate entries to theme_settings table
-local ext_ini_path = ConcatPath(reaper.GetResourcePath(), 'reaper-extstate.ini')
-local ext_ini_file = io.open(ext_ini_path, 'r')
-if ext_ini_file and not reaper.HasExtState(extname, 'theme_settings') then
-    local prev_section
-    local paths = {}
-    for line in ext_ini_file:lines() do
-        local section = line:match('^%[(.-)%]$')
-        prev_section = section or prev_section
-        if prev_section == extname then
-            local _, e = line:lower():find('%.reaperthemez?i?p?=')
-            if e then paths[#paths + 1] = line:sub(1, e - 1) end
-            if line:match('^default=t:') then paths[#paths + 1] = 'default' end
+if not reaper.HasExtState(extname, 'theme_settings') then
+    local res_path = reaper.GetResourcePath()
+    local ext_ini_path = ConcatPath(res_path, 'reaper-extstate.ini')
+    local ext_ini_file = io.open(ext_ini_path, 'r')
+    if ext_ini_file then
+        local prev_section
+        local paths = {}
+        for line in ext_ini_file:lines() do
+            local section = line:match('^%[(.-)%]$')
+            prev_section = section or prev_section
+            if prev_section == extname then
+                local _, e = line:lower():find('%.reaperthemez?i?p?=')
+                if e then paths[#paths + 1] = line:sub(1, e - 1) end
+                if line:match('^default=t:') then paths[#paths + 1] = 'default' end
+            end
         end
+        ext_ini_file:close()
+
+        local theme_settings = {}
+        for _, path in ipairs(paths) do
+            local settings = ExtLoad(path)
+            ExtSave(path, nil)
+
+            if settings then
+                -- Compatibility: Font size
+                if settings.font_size then
+                    local font_family = settings.font_family or 'Arial'
+                    gfx.setfont(1, font_family, settings.font_size)
+                    local height = select(2, gfx.measurechar(70))
+                    settings.font_height = math.floor(math.max(1, height))
+                    settings.font_size = nil
+                end
+
+                -- Compatibility: Coordinates
+                if settings.bm_x then
+                    settings.box_x = settings.bm_x
+                    settings.box_y = settings.bm_y
+                    settings.box_w = settings.bm_w
+                    settings.box_h = settings.bm_h
+
+                    settings.bm_x = nil
+                    settings.bm_y = nil
+                    settings.bm_w = nil
+                    settings.bm_h = nil
+                end
+                -- Compatibility: Scale
+                if settings.scale then
+                    settings.measure_scale = settings.scale
+                    settings.scale = nil
+                end
+            end
+
+            if path == 'default' then
+                local key = GetThemeKey('')
+                theme_settings[key] = theme_settings[key] or settings
+            else
+                -- Replace windows path separator with unix
+                local key = path:gsub('\\', '/')
+                -- Remove file extension
+                key = key:gsub('%.([^./]+)$', '')
+                theme_settings[key] = settings
+            end
+        end
+        ExtSave('theme_settings', theme_settings)
     end
-    ext_ini_file:close()
-
-    local theme_settings = {}
-    for _, path in ipairs(paths) do
-        local settings = ExtLoad(path)
-        ExtSave(path, nil)
-
-        if settings then
-            -- Compatibility: Font size
-            if settings.font_size then
-                local font_family = settings.font_family or 'Arial'
-                gfx.setfont(1, font_family, settings.font_size)
-                local height = select(2, gfx.measurechar(70))
-                settings.font_height = math.floor(math.max(1, height))
-                settings.font_size = nil
-            end
-
-            -- Compatibility: Coordinates
-            if settings.bm_x then
-                settings.box_x = settings.bm_x
-                settings.box_y = settings.bm_y
-                settings.box_w = settings.bm_w
-                settings.box_h = settings.bm_h
-
-                settings.bm_x = nil
-                settings.bm_y = nil
-                settings.bm_w = nil
-                settings.bm_h = nil
-            end
-            -- Compatibility: Scale
-            if settings.scale then
-                settings.measure_scale = settings.scale
-                settings.scale = nil
-            end
-        end
-
-        if path == 'default' then
-            local key = GetThemeKey('')
-            theme_settings[key] = theme_settings[key] or settings
-        else
-            -- Replace windows path separator with unix
-            local key = path:gsub('\\', '/')
-            -- Remove file extension
-            key = key:gsub('%.([^./]+)$', '')
-            theme_settings[key] = settings
-        end
-    end
-    ExtSave('theme_settings', theme_settings)
 end
 
 reaper.atexit(Exit)
