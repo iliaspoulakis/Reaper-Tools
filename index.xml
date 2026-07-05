@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="d6b7789d6af3b642540e705e45ca3c986192b2bd">
+<index version="1" name="FTC Tools" commit="ae3e194327cd12c185ad8fd5073eae9596bf4782">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -779,6 +779,12 @@
 - Improved font size calculations
 - Reworked how position is saved when not attached to transport]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/042f778a6912f53c24ffc489657066a59f4bdcef/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.6.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-07-05T16:43:49Z">
+        <changelog><![CDATA[- Allow themes to customize GridBox
+- Save different position for centered transport
+- Improve behavior when running multiple REAPER instances]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/ae3e194327cd12c185ad8fd5073eae9596bf4782/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
