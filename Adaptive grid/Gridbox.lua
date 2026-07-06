@@ -1,12 +1,14 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.6.0
+  @version 2.7.0
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Allow themes to customize GridBox
-    - Save different position for centered transport
-    - Improve behavior when running multiple REAPER instances
+    - Added font weight option
+    - Automatically toggle theme adjuster option if includes Gridbox in name
+    - Automatically scale box when loading layout that includes scaling in name
+    - Properly display transparency (AARRGGBB) in colors dialog when set
+    - Fix drawing snap icon on transparent background
 ]]
 
 local box_name = 'GridBox'
@@ -35,8 +37,9 @@ local user_swing_color
 local user_corner_radius
 local user_adaptive_color
 local user_font_height
-local user_font_yoffs
 local user_font_family
+local user_font_weight
+local user_font_yoffs
 
 local user_snap_size
 local user_snap_on_color
@@ -191,7 +194,12 @@ local menu_cmd = reaper.AddRemoveReaScript(true, 0, menu_script, true)
 
 function GetTransportScale()
     local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
+    local _, layout = reaper.ThemeLayout_GetLayout('trans', -1)
     local scale = tonumber(new_dpi) / 256
+    if type(layout) == 'string' and not attach_window_title then
+        local layout_scale = tonumber(layout:match('^(%d+)%%'))
+        if layout_scale then scale = scale * layout_scale / 100 end
+    end
     return is_macos and 1 or scale, scale
 end
 
@@ -614,6 +622,22 @@ function LoadIntegratedSettings(theme_path)
     return config
 end
 
+function SetThemeIntegration(value)
+    local i = 0
+    local param_pattern = box_name:lower()
+    repeat
+        local ret, desc, val, def, min, max = reaper.ThemeLayout_GetParameter(i)
+        if desc and desc:lower():match(param_pattern) then
+            if val ~= value and def == 0 and min == 0 and max == 1 then
+                reaper.ThemeLayout_SetParameter(i, value, false)
+                reaper.ThemeLayout_RefreshAll()
+            end
+            break
+        end
+        i = i + 1
+    until not ret
+end
+
 function GetThemeKey(path)
     if path == '' then
         -- Note: Theme path can be empty in new REAPER installations?
@@ -692,6 +716,7 @@ function LoadThemeSettings(theme_path, only_appeareance)
     user_adaptive_color = settings.adaptive_color
     user_font_height = settings.font_height
     user_font_family = settings.font_family
+    user_font_weight = settings.font_weight
     user_font_yoffs = settings.font_yoffs
     user_corner_radius = settings.corner_radius
     user_snap_size = settings.snap_size
@@ -755,6 +780,7 @@ function SaveThemeSettings(theme_path)
         adaptive_color = user_adaptive_color,
         font_height = user_font_height,
         font_family = user_font_family,
+        font_weight = user_font_weight,
         font_yoffs = user_font_yoffs,
         corner_radius = user_corner_radius,
         snap_size = user_snap_size,
@@ -886,16 +912,17 @@ end
 
 function SetCustomFont()
     local title = 'Font'
-    local captions = 'Height: (e.g.42),Family (e.g. Comic Sans),\z
-        Y offset:,extrawidth=50'
+    local captions = 'Height: (e.g.42),Family (e.g. Comic Sans):,\z
+        Weight (0/400/700):,Y offset:,extrawidth=50'
 
-    local curr_vals_str = ('%s,%s,%s'):format(
+    local curr_vals_str = ('%s,%s,%s,%s'):format(
         user_font_height or '',
         user_font_family or '',
+        user_font_weight or '',
         user_font_yoffs or ''
     )
 
-    local ret, inputs = reaper.GetUserInputs(title, 3, captions, curr_vals_str)
+    local ret, inputs = reaper.GetUserInputs(title, 4, captions, curr_vals_str)
     if not ret or inputs == curr_vals_str then return end
 
     local input_vals = {}
@@ -906,7 +933,8 @@ function SetCustomFont()
     user_font_height = tonumber(input_vals[1])
     user_font_family = input_vals[2]
     if user_font_family == '' then user_font_family = nil end
-    user_font_yoffs = tonumber(input_vals[3])
+    user_font_weight = tonumber(input_vals[3])
+    user_font_yoffs = tonumber(input_vals[4])
     is_resize = true
 
     SaveThemeSettings(prev_color_theme)
@@ -947,7 +975,8 @@ function SetCustomColors()
     local curr_vals = {}
     local function AddCurrentValue(color)
         local hex_num = color and tonumber(color, 16)
-        curr_vals[#curr_vals + 1] = hex_num and ('#%.6X'):format(hex_num) or ''
+        local pattern = color and #color == 8 and ('#%.8X') or ('#%.6X')
+        curr_vals[#curr_vals + 1] = hex_num and pattern:format(hex_num) or ''
     end
 
     AddCurrentValue(user_bg_color)
@@ -1093,10 +1122,11 @@ function DrawSnapIcon(bm, bg_color, snap_color, x, y, h, a)
         local d = 2 * r + 1
 
         local function SubtractColors(a, b)
+            local alpha = a & 0xFF000000
             local function ch(c, s)
                 return math.max(0, ((c >> s) & 0xFF) - ((b >> s) & 0xFF)) << s
             end
-            return ch(a, 16) | ch(a, 8) | ch(a, 0) -- R, G, B
+            return ch(a, 16) | ch(a, 8) | ch(a, 0) | alpha -- R, G, B, A
         end
         snap_color = SubtractColors(snap_color, bg_color)
 
@@ -2381,6 +2411,7 @@ function Main()
     -- Monitor color theme changes
     local color_theme = reaper.GetLastColorThemeFile()
     if color_theme ~= prev_color_theme then
+        SetThemeIntegration(1)
         prev_color_theme = color_theme
         if not LoadThemeSettings(color_theme) then
             FindInitialPosition()
@@ -2978,7 +3009,9 @@ function Main()
         lice_font = reaper.JS_LICE_CreateFont()
 
         local GDI_CreateFont = reaper.JS_GDI_CreateFont
-        local gdi = GDI_CreateFont(font_size, 0, 0, 0, 0, 0, font_family)
+        local font_weight = user_font_weight or 0
+        local gdi = GDI_CreateFont(font_size, font_weight, 0, 0, 0, 0,
+            font_family)
         reaper.JS_LICE_SetFontFromGDI(lice_font, gdi, '')
         reaper.JS_GDI_DeleteObject(gdi)
 
@@ -3023,6 +3056,7 @@ reaper.SetToggleCommandState(sec, cmd, 1)
 reaper.RefreshToolbar2(sec, cmd)
 
 function Exit()
+    SetThemeIntegration(0)
     reaper.SetToggleCommandState(sec, cmd, 0)
     reaper.RefreshToolbar2(sec, cmd)
 
