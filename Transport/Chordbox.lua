@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.0
+  @version 1.0.1
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Initial release
+    - Fix crash when exporting to chord track
 ]]
 
 local box_name = 'ChordBox'
@@ -3510,6 +3510,7 @@ function CreateChordTrack()
     end
 
     -- Combine regions with same chord name
+    local prev_name
     local prev_chord_item
     for i = reaper.CountTrackMediaItems(chord_track) - 1, 0, -1 do
         local chord_item = reaper.GetTrackMediaItem(chord_track, i)
