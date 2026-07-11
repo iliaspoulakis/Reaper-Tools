@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.1
+  @version 1.0.2
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Fix crash when exporting to chord track
+    - Fix possible crash when loading saved coordinates
 ]]
 
 local box_name = 'ChordBox'
@@ -656,7 +656,8 @@ function LoadThemeSettings(theme_path, only_appeareance)
 
     if attach_x or attach_center_x then new_box_x = GetAttachPosition() end
     SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
-    return has_settings or attach_window_title ~= nil
+    local has_box_coords = box_x and box_y and box_w and box_h
+    return (has_box_coords and (has_settings or attach_window_title ~= nil))
 end
 
 function SaveThemeSettings(theme_path)
@@ -1273,6 +1274,7 @@ end
 function EnsureBoxVisible()
     -- Ensure position/size is within bounds
     if window_w == 0 or window_h == 0 then return end
+    if not box_w or not box_h then return end
     local w = math.max(min_box_size, math.min(box_w, window_w))
     local h = math.max(min_box_size, math.min(box_h, window_h))
 
