@@ -1,12 +1,13 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.0.3
+  @version 1.1.0
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Default to explicitely showing major chords
-    - Fix showing 7sus4 instead of 11 omit9
-    - Added majb5, maj7#11, maj9#11, 13#9, 9#5, dim/maj7 chords
+    - Improve behavior when explicit major is off (CM7 will still be displayed because C7 is defined)
+    - Add option to pin chord track to top of arrange (enabled by default)
+    - Option to reuse chord track now enabled by default
+    - Ensure that text on chord track items is stretched
 ]]
 
 local box_name = 'ChordBox'
@@ -2174,7 +2175,8 @@ local use_solfege = ExtLoad('solfege', 0) == 1
 local use_sharps = ExtLoad('sharps', 0) == 1
 
 local chord_track_name = ExtLoad('chord_track_name', 'Chords')
-local reuse_chord_track = ExtLoad('reuse_chord_track', 0) == 1
+local reuse_chord_track = ExtLoad('reuse_chord_track', 1) == 1
+local pin_chord_track = ExtLoad('pin_chord_track', 1) == 1
 
 local prev_is_button_hovered
 local is_toggle = ExtLoad('toggle', 1) == 1
@@ -2185,6 +2187,7 @@ local label = ExtLoad('label', 'Chord')
 
 local curr_chord_names
 local chord_names = {}
+local chord_name_map = {}
 
 -- Dyads
 chord_names['1 2'] = {expanded = ' minor 2nd', compact = 'm2'}
@@ -2331,9 +2334,11 @@ local note_names_solfege_flat = {'Do ', 'Reb ', 'Re ', 'Mib ', 'Mi ', 'Fa ',
 
 function LoadChordNames()
     curr_chord_names = {}
+    chord_name_map = {}
     local key = use_compact and 'compact' or 'expanded'
     for inverval, names in pairs(chord_names) do
         curr_chord_names[inverval] = names[key]
+        chord_name_map[names[key]] = true
     end
 end
 LoadChordNames()
@@ -2487,10 +2492,14 @@ function BuildChordName(chord)
     if chord.name then return chord.name end
     local add = curr_chord_names[chord.key]
     if not use_omissions then
-        add = add:gsub(use_compact and '%(no%d+%)' or ' omit%d+', '')
+        local pattern = use_compact and '%(no%d+%)' or ' omit%d+'
+        add = add:gsub(pattern, '')
     end
     if not use_major then
-        add = add:gsub(use_compact and '^M(%s?)' or '^(%s?)majo?r?%s?', '%1')
+        local pattern = use_compact and '^M(%s?)' or '^(%s?)majo?r?%s?'
+        local new_add = add:gsub(pattern, '%1')
+        -- Only remove major notation if standalone chord does not exist (e.g. CM7, C7)
+        if not chord_name_map[new_add] then add = new_add end
     end
     local name = PitchToName(chord.root) .. add
     if use_inversions and chord.inversion_root then
@@ -2822,8 +2831,14 @@ function ShowChordboxMenu()
                     title = 'Set track name...',
                     OnReturn = SetChordTrackName,
                 },
+                {separator = true},
                 {
-                    title = 'Reuse existing chord track',
+                    title = 'Pin track',
+                    OnReturn = TogglePinChordTrack,
+                    is_checked = pin_chord_track,
+                },
+                {
+                    title = 'Reuse existing track',
                     OnReturn = ToggleReuseChordTrack,
                     is_checked = reuse_chord_track,
                 },
@@ -3387,6 +3402,11 @@ function ToggleReuseChordTrack()
     ExtSave('reuse_chord_track', reuse_chord_track and 1 or 0)
 end
 
+function TogglePinChordTrack()
+    pin_chord_track = not pin_chord_track
+    ExtSave('pin_chord_track', pin_chord_track and 1 or 0)
+end
+
 function CreateChordTrack()
     local sel_takes = {}
     local sel_start_pos = math.huge
@@ -3461,6 +3481,9 @@ function CreateChordTrack()
         reaper.InsertTrackAtIndex(track_num - 1, true)
         chord_track = reaper.GetTrack(0, track_num - 1)
         GetSetTrackInfo(chord_track, 'P_NAME', chord_track_name, true)
+        if pin_chord_track then
+            reaper.SetMediaTrackInfo_Value(chord_track, 'B_TCPPIN', 1)
+        end
     end
 
     local take_notes = {}
@@ -3537,6 +3560,15 @@ function CreateChordTrack()
 
                 local curr_start_pos = GetItemInfo(chord_item, 'D_POSITION')
                 SetItemInfo(chord_item, 'D_LENGTH', prev_end_pos - curr_start_pos)
+            end
+
+            local _, chunk = reaper.GetItemStateChunk(chord_item, '', false)
+            local flag = chunk:match('IMGRESOURCEFLAGS (%d+)')
+            if flag and tonumber(flag) & 16 ~= 16 then
+                local new_flag = tonumber(flag) | 16
+                local replace = ('IMGRESOURCEFLAGS %d'):format(new_flag)
+                chunk = chunk:gsub('IMGRESOURCEFLAGS %d+', replace, 1)
+                reaper.SetItemStateChunk(chord_item, chunk, true)
             end
             prev_name = name
             prev_chord_item = chord_item
