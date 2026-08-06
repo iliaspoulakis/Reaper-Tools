@@ -1,13 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.1.0
+  @version 1.2.0
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Improve behavior when explicit major is off (CM7 will still be displayed because C7 is defined)
-    - Add option to pin chord track to top of arrange (enabled by default)
-    - Option to reuse chord track now enabled by default
-    - Ensure that text on chord track items is stretched
+    - Add theme layout scaling detection
+    - Support running on multiple instances of REAPER
 ]]
 
 local box_name = 'ChordBox'
@@ -55,9 +53,8 @@ local prev_time
 local prev_window_w
 local prev_window_h
 local prev_color_theme
-local prev_top_window_cnt
+local prev_top_window_hash
 local prev_attach_hwnd
-local top_window_array = reaper.new_array(4096)
 local main_hwnd = reaper.GetMainHwnd()
 
 local chord_text = ''
@@ -152,8 +149,29 @@ end
 
 function GetTransportScale()
     local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
-    local scale = tonumber(new_dpi) / 256
-    return is_macos and 1 or scale, scale
+    local ret, layout = reaper.ThemeLayout_GetLayout('trans', -1)
+    local pixel_scale = tonumber(new_dpi) / 256
+    local point_scale = pixel_scale
+
+    if ret and not attach_window_title then
+        local layout_scale = tonumber(layout:match('^(%d+)%%'))
+        if layout_scale then
+            if pixel_scale > 1.74 then
+                if layout_scale == 50 then point_scale = 1 end
+                if layout_scale == 75 then point_scale = 1.5 end
+            elseif pixel_scale > 1.34 then
+                if layout_scale == 50 then point_scale = 1 end
+                if layout_scale == 75 then point_scale = 1 end
+                if layout_scale == 150 then point_scale = 2 end
+                if layout_scale == 200 then point_scale = 2 end
+            else
+                if layout_scale == 150 then point_scale = 1.5 end
+                if layout_scale == 200 then point_scale = 2 end
+            end
+        end
+    end
+    if is_macos then return point_scale / pixel_scale, pixel_scale end
+    return point_scale, point_scale
 end
 
 function Scale(value, scale)
@@ -624,11 +642,11 @@ function LoadThemeSettings(theme_path, only_appeareance)
     user_button_size = settings.button_size
 
     if settings.draw_scale and settings.draw_scale ~= draw_scale then
-        local scale_factor = draw_scale / settings.draw_scale
-        user_font_height = Scale(user_font_height, scale_factor)
-        user_font_yoffs = Scale(user_font_yoffs, scale_factor)
-        user_corner_radius = Scale(user_corner_radius, scale_factor)
-        user_button_size = Scale(user_button_size, scale_factor)
+        local scale = draw_scale / settings.draw_scale
+        user_font_height = Scale(user_font_height, scale)
+        user_font_yoffs = Scale(user_font_yoffs, scale)
+        user_corner_radius = Scale(user_corner_radius, scale)
+        user_button_size = Scale(user_button_size, scale)
     end
 
     if only_appeareance then return has_settings end
@@ -648,13 +666,13 @@ function LoadThemeSettings(theme_path, only_appeareance)
     local new_box_h = settings.box_h
 
     if settings.measure_scale and settings.measure_scale ~= measure_scale then
-        local scale_factor = measure_scale / settings.measure_scale
-        new_box_x = Scale(new_box_x, scale_factor)
-        new_box_y = Scale(new_box_y, scale_factor)
-        new_box_w = Scale(new_box_w, scale_factor)
-        new_box_h = Scale(new_box_h, scale_factor)
-        attach_x = Scale(attach_x, scale_factor)
-        attach_center_x = Scale(attach_center_x, scale_factor)
+        local scale = measure_scale / settings.measure_scale
+        new_box_x = Scale(new_box_x, scale)
+        new_box_y = Scale(new_box_y, scale)
+        new_box_w = Scale(new_box_w, scale)
+        new_box_h = Scale(new_box_h, scale)
+        attach_x = Scale(attach_x, scale)
+        attach_center_x = Scale(attach_center_x, scale)
     end
 
     if attach_x or attach_center_x then new_box_x = GetAttachPosition() end
@@ -702,8 +720,8 @@ function SaveThemeSettings(theme_path)
             box_y = box_y,
             box_w = box_w,
             box_h = box_h,
-            attach_x = attach_x,
-            attach_mode = attach_mode,
+            attach_x = attach_x or attach_center_x,
+            attach_mode = attach_mode or attach_center_mode,
             measure_scale = measure_scale,
         }
         ExtSave('attach_settings', attach_settings)
@@ -1124,6 +1142,7 @@ end
 
 function ShowMenu(menu)
     SetCursor(normal_cursor)
+    EndIntercepts()
 
     local focus_hwnd = reaper.JS_Window_GetFocus()
     -- Open gfx window
@@ -1504,6 +1523,40 @@ function FindInitialPosition()
     UpdateAttachPosition()
 end
 
+function IsOwnedByReaperInstance(hwnd)
+    if not hwnd then return false end
+    if hwnd == main_hwnd then return true end
+    if reaper.JS_Window_IsChild(main_hwnd, hwnd) then return true end
+    local current = hwnd
+    local safety_i = 0
+    while current and safety_i < 50 do
+        safety_i = safety_i + 1
+        current = reaper.JS_Window_GetParent(current)
+        if current == main_hwnd then return true end
+    end
+    return false
+end
+
+function FindUniqueWindow(title)
+    local cnt, list = reaper.JS_Window_ListFind(title, true)
+    if cnt == 0 then return nil, 0 end
+
+    local unique_hwnd
+    for addr in (list .. ','):gmatch('(.-),') do
+        local handle = reaper.JS_Window_HandleFromAddress(addr)
+        if IsOwnedByReaperInstance(handle) then
+            if unique_hwnd then
+                unique_hwnd = nil
+                break
+            else
+                unique_hwnd = handle
+            end
+        end
+    end
+    if unique_hwnd then return unique_hwnd, 1 end
+    return nil, cnt
+end
+
 function WaitForAttachedWindow()
     if attach_window_title == 'REAPER Main Window' then return true end
     if attach_window_title == 'Active MIDI editor' then return true end
@@ -1515,36 +1568,13 @@ function FindAttachedWindow()
     local window_cnt = 0
     if attach_window_title == 'REAPER Main Window' then
         hwnd = main_hwnd
+        window_cnt = 1
     elseif attach_window_title == 'Active MIDI editor' then
         hwnd = reaper.MIDIEditor_GetActive()
+        if hwnd then window_cnt = 1 end
     else
         local title = attach_window_title or transport_title
-        local cnt, list = reaper.JS_Window_ListFind(title, true)
-        window_cnt = cnt
-        if window_cnt > 0 then
-            local first_hwnd
-            local main_child
-            for addr in (list .. ','):gmatch('(.-),') do
-                local handle = reaper.JS_Window_HandleFromAddress(addr)
-                first_hwnd = first_hwnd or handle
-                -- Check if only one of the windows is child of main window
-                -- (for case when running multiple reaper instances)
-                if reaper.JS_Window_IsChild(main_hwnd, hwnd) then
-                    if main_child then
-                        main_child = nil
-                        break
-                    else
-                        main_child = handle
-                    end
-                end
-            end
-            if main_child then
-                hwnd = main_child
-                window_cnt = 1
-            else
-                hwnd = first_hwnd
-            end
-        end
+        hwnd, window_cnt = FindUniqueWindow(title)
 
         if hwnd and attach_window_title then
             reaper.SetExtState(extname, 'attach_wait', attach_window_title, true)
@@ -1552,6 +1582,7 @@ function FindAttachedWindow()
     end
     if hwnd and attach_window_child_id then
         hwnd = reaper.JS_Window_FindChildByID(hwnd, attach_window_child_id)
+        if hwnd then window_cnt = 1 end
     end
     return hwnd, window_cnt
 end
@@ -1579,9 +1610,9 @@ function Main()
         local time = reaper.time_precise()
         if not prev_time or time > prev_time + 0.5 then
             prev_time = time
-            local top_window_cnt = reaper.JS_Window_ArrayAllTop(top_window_array)
-            if top_window_cnt ~= prev_top_window_cnt then
-                prev_top_window_cnt = top_window_cnt
+            local _, top_window_hash = reaper.JS_Window_ListAllTop()
+            if top_window_hash ~= prev_top_window_hash then
+                prev_top_window_hash = top_window_hash
                 window_hwnd = FindAttachedWindow()
                 is_resize = true
             end
@@ -1639,24 +1670,24 @@ function Main()
         measure_scale, draw_scale = GetTransportScale()
 
         if draw_scale ~= prev_draw_scale then
-            local scale_factor = draw_scale / prev_draw_scale
-            user_font_height = Scale(user_font_height, scale_factor)
-            user_font_yoffs = Scale(user_font_yoffs, scale_factor)
-            user_corner_radius = Scale(user_corner_radius, scale_factor)
-            user_button_size = Scale(user_button_size, scale_factor)
+            local scale = draw_scale / prev_draw_scale
+            user_font_height = Scale(user_font_height, scale)
+            user_font_yoffs = Scale(user_font_yoffs, scale)
+            user_corner_radius = Scale(user_corner_radius, scale)
+            user_button_size = Scale(user_button_size, scale)
             is_resize = true
         end
         if measure_scale ~= prev_measure_scale then
             min_box_size = Scale(12, measure_scale)
 
-            local scale_factor = measure_scale / prev_measure_scale
-            local new_box_x = Scale(box_x, scale_factor)
-            local new_box_y = Scale(box_y, scale_factor)
-            local new_box_w = Scale(box_w, scale_factor)
-            local new_box_h = Scale(box_h, scale_factor)
+            local scale = measure_scale / prev_measure_scale
+            local new_box_x = Scale(box_x, scale)
+            local new_box_y = Scale(box_y, scale)
+            local new_box_w = Scale(box_w, scale)
+            local new_box_h = Scale(box_h, scale)
 
-            attach_x = Scale(attach_x, scale_factor)
-            attach_center_x = Scale(attach_center_x, scale_factor)
+            attach_x = Scale(attach_x, scale)
+            attach_center_x = Scale(attach_center_x, scale)
             if attach_x or attach_center_x then new_box_x = GetAttachPosition() end
 
             SetBoxCoords(new_box_x, new_box_y, new_box_w, new_box_h)
@@ -1894,11 +1925,15 @@ function Main()
                     reaper.MB(msg:format(box_name, title), 'Notice', 0)
                 end
 
-                local found_hwnd
                 if not is_reset then
-                    -- Check if new attached window can be found via Window_Find
-                    local window_cnt, list = reaper.JS_Window_ListFind(title, 1)
-                    if window_cnt > 1 then
+                    -- Check if new attached window can be found
+                    local hwnd, window_cnt = FindUniqueWindow(title)
+                    if window_cnt == 0 then
+                        local msg = 'Can not attach %s to this window.\z
+                            \n\nCould not find window by title.\n\nTITLE: %s'
+                        reaper.MB(msg:format(box_name, title), 'Notice', 0)
+                        is_reset = true
+                    elseif window_cnt > 1 then
                         local msg = 'Can not attach %s to this window. \z
                             %d windows have the same title!\n\n\z
                             TITLE: %s\n\nIf this window is a toolbar, make sure \z
@@ -1907,19 +1942,11 @@ function Main()
                         msg = msg:format(box_name, window_cnt, title)
                         reaper.MB(msg, 'Notice', 0)
                         is_reset = true
-                    elseif window_cnt == 0 then
-                        local msg = 'Can not attach %s to this window.\z
-                            \n\nCould not find window by title.\n\nTITLE: %s'
-                        reaper.MB(msg:format(box_name, title), 'Notice', 0)
-                        is_reset = true
-                    else
-                        found_hwnd = reaper.JS_Window_HandleFromAddress(list)
-                        if found_hwnd ~= target_hwnd then
-                            local msg = 'Can not attach %s to this \z
+                    elseif hwnd ~= target_hwnd then
+                        local msg = 'Can not attach %s to this \z
                                 window.\n\nHandle missmatch'
-                            reaper.MB(msg:format(box_name), 'Notice', 0)
-                            is_reset = true
-                        end
+                        reaper.MB(msg:format(box_name), 'Notice', 0)
+                        is_reset = true
                     end
                 end
 
@@ -1944,6 +1971,16 @@ function Main()
                     if ret == 6 then
                         -- Save info on new attachment for next script startup
                         SaveAttachedWindow(title, child_id)
+                        local prev_draw_scale = draw_scale
+                        measure_scale, draw_scale = GetTransportScale()
+                        if draw_scale ~= prev_draw_scale then
+                            local scale = draw_scale / prev_draw_scale
+                            user_font_height = Scale(user_font_height, scale)
+                            user_font_yoffs = Scale(user_font_yoffs, scale)
+                            user_corner_radius = Scale(user_corner_radius, scale)
+                            user_button_size = Scale(user_button_size, scale)
+                            is_resize = true
+                        end
                         is_reset = false
                     end
                 end
@@ -2086,8 +2123,8 @@ function Exit()
     end
 end
 
+local is_reset = false
 if attach_window_title then
-    local is_reset = false
     -- Give option to move box back to transport when attached window
     -- is not found upon script startup (or when multiple windows are found)
     local window_cnt = 0
@@ -2112,38 +2149,47 @@ if attach_window_title then
         end
         ExtSave('start_cnt', nil)
     end
+end
 
-    -- Give option to move box back to transport when user quickly toggles
-    -- the script 3 times in a row (in 3 seconds)
-    local curr_time = reaper.time_precise()
-    local start_cnt = ExtLoad('start_cnt', 1)
-    local start_time = ExtLoad('start_time', curr_time)
+-- Give option to move box back to transport when user quickly toggles
+-- the script 3 times in a row (in 3 seconds)
+local curr_time = reaper.time_precise()
+local start_cnt = ExtLoad('start_cnt', 1)
+local start_time = ExtLoad('start_time', curr_time)
 
-    -- Check if more than 3 seconds have passed
-    if math.abs(start_time - curr_time) > 3 then
-        start_cnt = 1
-        ExtSave('start_cnt', nil)
-        ExtSave('start_time', nil)
-    else
-        start_cnt = start_cnt + 1
-        -- Check if script has started 3 times
-        if start_cnt > 3 then
-            start_cnt = nil
-            curr_time = nil
-            local msg = 'Move %s back to transport?'
-            local ret = reaper.MB(msg:format(box_name), box_name, 4)
-            is_reset = ret == 6
-        end
-        ExtSave('start_cnt', start_cnt)
-        ExtSave('start_time', curr_time)
+-- Check if more than 3 seconds have passed
+if math.abs(start_time - curr_time) > 3 then
+    start_cnt = 1
+    ExtSave('start_cnt', nil)
+    ExtSave('start_time', nil)
+else
+    start_cnt = start_cnt + 1
+    -- Check if script has started 3 times
+    if start_cnt > 3 then
+        start_cnt = nil
+        curr_time = nil
+        local msg = 'Clear all customizations for this theme?'
+        if attach_window_title then msg = 'Move %s back to transport?' end
+        local ret = reaper.MB(msg:format(box_name), box_name, 4)
+        is_reset = ret == 6
     end
+    ExtSave('start_cnt', start_cnt)
+    ExtSave('start_time', curr_time)
+end
 
-    -- Move box back to transport
-    if is_reset then
+-- Reset or move box back to transport
+if is_reset then
+    if attach_window_title then
         SaveAttachedWindow(nil)
         EndIntercepts()
         window_hwnd = nil
-        prev_top_window_cnt = nil
+        prev_top_window_hash = nil
+    else
+        local settings = ExtLoad('theme_settings', {})
+        local theme_key = GetThemeKey(reaper.GetLastColorThemeFile())
+        settings[theme_key] = nil
+        ExtSave('theme_settings', settings)
+        prev_color_theme = nil
     end
 end
 
@@ -3015,7 +3061,7 @@ function ShowChordboxMenu()
                             SaveAttachedWindow(nil)
                             EndIntercepts()
                             window_hwnd = nil
-                            prev_top_window_cnt = nil
+                            prev_top_window_hash = nil
                         end
                     end
                 end,
