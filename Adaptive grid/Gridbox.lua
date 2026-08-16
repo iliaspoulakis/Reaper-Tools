@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.8.0
+  @version 2.8.1
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Improve theme layout scaling detection
-    - Support running on multiple instances of REAPER
+    - Add safeguard dialog when another script is blocking mouse interactions
 ]]
 
 local box_name = 'GridBox'
@@ -1417,10 +1416,8 @@ function SetCursor(cursor)
     prev_cursor = cursor
 end
 
-function StartIntercepts()
-    if is_intercept then return end
-    is_intercept = true
-    local _, intercept_str = reaper.JS_WindowMessage_ListIntercepts(window_hwnd)
+function IsInterceptBlocked(hwnd)
+    local _, intercept_str = reaper.JS_WindowMessage_ListIntercepts(hwnd)
     local blocked_messages = {}
     for entry in (intercept_str .. ','):gmatch('(.-),') do
         local blocked_message = entry:match('(.-):block')
@@ -1428,11 +1425,15 @@ function StartIntercepts()
     end
     for _, intercept in ipairs(intercepts) do
         local msg = intercept.message
-        if blocked_messages[msg] then
-            is_intercept = false
-            return
-        end
+        if blocked_messages[msg] then return true end
     end
+    return false
+end
+
+function StartIntercepts()
+    if is_intercept then return end
+    if IsInterceptBlocked(window_hwnd) then return end
+    is_intercept = true
     for _, intercept in ipairs(intercepts) do
         Intercept(window_hwnd, intercept.message, intercept.passthrough)
     end
@@ -1713,7 +1714,6 @@ function ShowRightClickMenu()
             {title = 'Colors', OnReturn = SetCustomColors},
             {
                 title = 'Choose color...',
-
                 {
                     title = 'Background',
                     OnReturn = function()
@@ -2365,6 +2365,13 @@ function FindAttachedWindow()
     if hwnd and attach_window_child_id then
         hwnd = reaper.JS_Window_FindChildByID(hwnd, attach_window_child_id)
         if hwnd then window_cnt = 1 end
+    end
+    if hwnd and IsInterceptBlocked(hwnd) then
+        local msg = 'Another script is currently blocking mouse interactions \z
+            with the attached window.\n\nRelease all mouse interactions so %s can work?\n\n\z
+             (Might cause the other script to malfunction)'
+        local ret = reaper.MB(msg:format(box_name), box_name, 4)
+        if ret == 6 then reaper.JS_WindowMessage_ReleaseWindow(hwnd) end
     end
     return hwnd, window_cnt
 end
