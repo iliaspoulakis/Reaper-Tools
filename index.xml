@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="a49b540e74fbc11906c3a0b6e44fb2dcf2e4f81b">
+<index version="1" name="FTC Tools" commit="a6818f33a8ac5d3f0805085a2de368b4c3a3ecb0">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -802,6 +802,10 @@
       <version name="2.8.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-08-16T19:05:57Z">
         <changelog><![CDATA[- Add safeguard dialog when another script is blocking mouse interactions]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a49b540e74fbc11906c3a0b6e44fb2dcf2e4f81b/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.8.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-08-18T10:19:15Z">
+        <changelog><![CDATA[- Improve layout-based scaling on MacOS]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a6818f33a8ac5d3f0805085a2de368b4c3a3ecb0/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
@@ -3689,6 +3693,10 @@
       <version name="1.2.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-08-16T19:05:57Z">
         <changelog><![CDATA[- Add safeguard dialog when another script is blocking mouse interactions]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a49b540e74fbc11906c3a0b6e44fb2dcf2e4f81b/Transport/Chordbox.lua</source>
+      </version>
+      <version name="1.2.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-08-18T10:19:15Z">
+        <changelog><![CDATA[- Improve layout-based scaling on MacOS]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/a6818f33a8ac5d3f0805085a2de368b4c3a3ecb0/Transport/Chordbox.lua</source>
       </version>
     </reapack>
   </category>
