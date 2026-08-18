@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.1
+  @version 1.2.2
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Add safeguard dialog when another script is blocking mouse interactions
+    - Improve layout-based scaling on MacOS
 ]]
 
 local box_name = 'ChordBox'
@@ -169,7 +169,7 @@ function GetTransportScale()
             end
         end
     end
-    if is_macos then return point_scale / pixel_scale, pixel_scale end
+    if is_macos then return point_scale / pixel_scale, point_scale end
     return point_scale, point_scale
 end
 

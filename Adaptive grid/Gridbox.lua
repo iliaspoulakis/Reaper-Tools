@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.8.1
+  @version 2.8.2
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Add safeguard dialog when another script is blocking mouse interactions
+    - Improve layout-based scaling on MacOS
 ]]
 
 local box_name = 'GridBox'
@@ -210,7 +210,7 @@ function GetTransportScale()
             end
         end
     end
-    if is_macos then return point_scale / pixel_scale, pixel_scale end
+    if is_macos then return point_scale / pixel_scale, point_scale end
     return point_scale, point_scale
 end
 
