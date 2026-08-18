@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.2.2
+  @version 1.2.3
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Improve layout-based scaling on MacOS
+    - Support advanced UI scaling (via preferences) on MacOS
 ]]
 
 local box_name = 'ChordBox'
@@ -150,6 +150,13 @@ function GetTransportScale()
     local _, new_dpi = reaper.ThemeLayout_GetLayout('trans', -3)
     local ret, layout = reaper.ThemeLayout_GetLayout('trans', -1)
     local pixel_scale = tonumber(new_dpi) / 256
+    local ini_scale = 1
+    if is_macos then
+        local _, ui_scale = reaper.get_config_var_string('ui_scale')
+        ini_scale = tonumber(ui_scale) or 1
+        pixel_scale = pixel_scale / ini_scale
+    end
+    pixel_scale = (pixel_scale * 100 + 0.5) / 100
     local point_scale = pixel_scale
 
     if ret and not attach_window_title then
@@ -169,7 +176,9 @@ function GetTransportScale()
             end
         end
     end
-    if is_macos then return point_scale / pixel_scale, point_scale end
+    if is_macos then
+        return point_scale / pixel_scale * ini_scale, point_scale * ini_scale
+    end
     return point_scale, point_scale
 end
 
