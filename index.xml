@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="0096db5b054e73c3b11fc4da79470e37e1c262b5">
+<index version="1" name="FTC Tools" commit="e9593ff5305cba91aeb8acbed1f955d96b14ad1f">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -564,7 +564,7 @@
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Adds a little box to transport that displays project grid information\par}
+{\pard \ql \f0 \fs24 \sa180 \li0 \fi0 Adds a little box to transport that displays project grid information\par}
 }
 ]]></description>
       </metadata>
@@ -810,6 +810,10 @@
       <version name="2.8.3" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-08-18T11:34:58Z">
         <changelog><![CDATA[- Support advanced UI scaling (via preferences) on MacOS]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/0096db5b054e73c3b11fc4da79470e37e1c262b5/Adaptive%20grid/Gridbox.lua</source>
+      </version>
+      <version name="2.8.4" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-10-18T08:53:35Z">
+        <changelog><![CDATA[- Fix REAPER freezing when loading certain projects]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/e9593ff5305cba91aeb8acbed1f955d96b14ad1f/Adaptive%20grid/Gridbox.lua</source>
       </version>
     </reapack>
   </category>
