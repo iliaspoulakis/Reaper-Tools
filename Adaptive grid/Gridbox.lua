@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.8.3
+  @version 2.8.4
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Support advanced UI scaling (via preferences) on MacOS
+    - Fix REAPER freezing when loading certain projects
 ]]
 
 local box_name = 'GridBox'
@@ -1364,7 +1364,7 @@ end
 
 function DecimalToFraction(x, error)
     error = error or 0.0000000001
-    local n = math.floor(x)
+    local n = x // 1
     x = x - n
     if x < error then
         return n, 1
@@ -1372,25 +1372,20 @@ function DecimalToFraction(x, error)
         return n + 1, 1
     end
 
-    local lower_n = 0
-    local lower_d = 1
+    local prev_n, curr_n = 0, 1
+    local prev_d, curr_d = 1, 0
+    local f = x
 
-    local upper_n = 1
-    local upper_d = 1
-
-    while true do
-        local middle_n = lower_n + upper_n
-        local middle_d = lower_d + upper_d
-        if middle_d * (x + error) < middle_n then
-            upper_n = middle_n
-            upper_d = middle_d
-        elseif middle_n < (x - error) * middle_d then
-            lower_n = middle_n
-            lower_d = middle_d
-        else
-            return n * middle_d + middle_n, middle_d
+    for _ = 1, 64 do
+        local a = f // 1
+        prev_n, curr_n = curr_n, a * curr_n + prev_n
+        prev_d, curr_d = curr_d, a * curr_d + prev_d
+        if curr_n <= (x + error) * curr_d and (x - error) * curr_d <= curr_n then
+            break
         end
+        f = 1 / (f - a)
     end
+    return n * curr_d + curr_n, curr_d
 end
 
 local LoadCursor = reaper.JS_Mouse_LoadCursor
