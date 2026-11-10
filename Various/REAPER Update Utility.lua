@@ -1,10 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 3.0.2
+  @version 3.1.0
   @about Simple utility to update REAPER to the latest version
   @changelog
-    - Fix possible update issue on Windows
+    - Add menu option to set how long to wait for REAPER to close on Windows
+    - Increase default wait time before installing to 10 seconds on Windows
 ]]
 
 -- App version & platform architecture
@@ -549,10 +550,15 @@ function LoadSettings()
         ['notify_rc'] = {idx = 5, default = true},
         ['dialog_install'] = {idx = 6, default = show_install_dialog},
         ['dialog_dl_cancel'] = {idx = 7, default = true},
+        ['close_timeout'] = {idx = 8, default = 10},
     }
     for key, setting in pairs(default_settings) do
         local ret = reaper.GetExtState(title, key)
-        setting.enabled = ret == 'true' or ret == '' and setting.default
+        if type(setting.default) == 'number' then
+            setting.value = tonumber(ret) or setting.default
+        else
+            setting.enabled = ret == 'true' or ret == '' and setting.default
+        end
     end
     return default_settings
 end
@@ -575,9 +581,26 @@ function ShowSettingsMenu()
     end
     menu = menu:gsub('%%(%d+)', substitute)
 
+    -- Windows: Time to wait for REAPER to close before running installer
+    local timeouts = {5, 10, 15, 20, 25, 30}
+    local timeout_idx = settings.close_timeout.idx
+    if platform:match('Win') then
+        menu = menu .. '|>Wait for REAPER to close'
+        for i, timeout in ipairs(timeouts) do
+            local is_checked = timeout == settings.close_timeout.value
+            local prefix = (i == #timeouts and '<' or '') ..
+                (is_checked and '!' or '')
+            menu = menu .. '|' .. prefix .. timeout .. 's'
+        end
+    end
+
     local ret = gfx.showmenu(menu)
 
-    if ret > 0 then
+    if ret >= timeout_idx then
+        local timeout = timeouts[ret - timeout_idx + 1]
+        reaper.SetExtState(title, 'close_timeout', tostring(timeout), true)
+        settings.close_timeout.value = timeout
+    elseif ret > 0 then
         local enabled = not state[ret].enabled
         reaper.SetExtState(title, state[ret].key, tostring(enabled), true)
         settings[state[ret].key].enabled = enabled
@@ -1087,23 +1110,8 @@ function Main()
             local portable_str = is_portable and '/PORTABLE' or '/ADMIN'
             local dfile_path = tmp_path .. dfile_name
 
-            -- Count how many FX are loaded across all projects
-            local fx_cnt = 0
-            local p = 0
-            repeat
-                local proj = reaper.EnumProjects(p)
-                if proj then
-                    for t = 0, reaper.CountTracks(proj) - 1 do
-                        local track = reaper.GetTrack(proj, t)
-                        fx_cnt = fx_cnt + reaper.TrackFX_GetCount(track)
-                    end
-                end
-                p = p + 1
-            until not proj
-
-            -- Pick a timeout between 5 and 10 seconds based on FX count
-            -- (give REAPER time to close projects)
-            local timeout = math.ceil(math.min(10, 5 + fx_cnt / 100 * 5))
+            -- Give REAPER time to close projects (user adjustable)
+            local timeout = settings.close_timeout.value
             local cmd = 'timeout %d >> %s 2>&1'
             cmd = cmd:format(timeout, log_path)
 
