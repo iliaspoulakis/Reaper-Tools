@@ -1,10 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.8.4
+  @version 2.8.5
   @about Adds a little box to transport that displays project grid information
   @changelog
-    - Fix REAPER freezing when loading certain projects
+    - Attempt to fix menu behavior in Linux mint
 ]]
 
 local box_name = 'GridBox'
@@ -1957,7 +1957,18 @@ function ShowMenu(menu)
 
     -- Show menu
     local menu_str = CreateMenuRecursive(menu)
+    local menu_start_time = reaper.time_precise()
     local ret = gfx.showmenu(menu_str)
+
+    -- On Linux, the window manager can close the menu right after it opens.
+    -- Reopen it when it closes too fast to be a user action
+    local retries = 0
+    while is_linux and ret == 0 and retries < 10
+        and reaper.time_precise() - menu_start_time < 0.1 do
+        menu_start_time = reaper.time_precise()
+        ret = gfx.showmenu(menu_str)
+        retries = retries + 1
+    end
     gfx.quit()
 
     if focus_hwnd then reaper.JS_Window_SetFocus(focus_hwnd) end
