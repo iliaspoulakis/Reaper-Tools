@@ -1083,28 +1083,26 @@ function MenuCreateRecursive(menu)
     local str = ''
     if menu.title then str = str .. '>' .. menu.title .. '|' end
 
-    for i, entry in ipairs(menu) do
-        if #entry > 0 then
-            str = str .. MenuCreateRecursive(entry) .. '|'
-        else
+    for _, entry in ipairs(menu) do
+        if entry then
             local arg = entry.arg
-
             if entry.IsGrayed and entry.IsGrayed(arg) or entry.is_grayed then
                 str = str .. '#'
             end
-
             if entry.IsChecked and entry.IsChecked(arg) or entry.is_checked then
                 str = str .. '!'
             end
-
-            if menu.title and i == #menu then str = str .. '<' end
-
-            if entry.title or entry.separator then
-                str = str .. (entry.title or '') .. '|'
+            if #entry > 0 then
+                str = str .. MenuCreateRecursive(entry) .. '|'
+            else
+                if entry.title or entry.separator then
+                    str = str .. (entry.title or '') .. '|'
+                end
             end
         end
     end
-    return str:sub(1, #str - 1)
+    if menu.title then str = str .. '<' end
+    return str
 end
 
 function MenuReturnRecursive(menu, idx, i)
@@ -1122,26 +1120,6 @@ function MenuReturnRecursive(menu, idx, i)
         end
     end
     return i
-end
-
-function ShowMenu(menu_str)
-    -- Toggle fullscreen
-    local is_full_screen = reaper.GetToggleCommandState(40346) == 1
-
-    -- On Windows and MacOS (fullscreen), a dummy window is required to show menu
-    if is_windows or is_macos and is_full_screen then
-        local offs = is_windows and {x = 10, y = 20} or {x = 0, y = 0}
-        local x, y = reaper.GetMousePosition()
-        gfx.init('LCB', 0, 0, 0, x + offs.x, y + offs.y)
-        gfx.x, gfx.y = gfx.screentoclient(x + offs.x / 2, y + offs.y / 2)
-        if reaper.JS_Window_Find then
-            local hwnd = reaper.JS_Window_FindTop('LCB', true)
-            reaper.JS_Window_Show(hwnd, 'HIDE')
-        end
-    end
-    local ret = gfx.showmenu(menu_str)
-    gfx.quit()
-    return ret
 end
 
 function GetTakeChunk(take, item_chunk)
@@ -1262,9 +1240,9 @@ function CreateChordTrack()
 
     -- Find existing chord track
     if reuse_chord_track then
-        for i = midi_track_num - 2, 0, -1 do
+        for i = reaper.CountTracks(0) - 1, 0, -1 do
             local track = reaper.GetTrack(0, i)
-            local _, track_name = GetSetTrackInfo(track, 'P_NAME', '', 0)
+            local _, track_name = GetSetTrackInfo(track, 'P_NAME', '', false)
             if track_name == chord_track_name then
                 chord_track = track
                 break
@@ -1760,6 +1738,12 @@ function ShowChordBoxMenu()
         {
             title = 'Export chords as',
             {
+                title = ('%s+click on box to export with last setting')
+                    :format(is_macos and 'Cmd' or 'Ctrl'),
+                is_grayed = true,
+            },
+            {separator = true},
+            {
                 title = 'Project regions',
                 OnReturn = CreateChordProjectRegions,
             },
@@ -1785,7 +1769,7 @@ function ShowChordBoxMenu()
             },
         },
         {
-            title = 'Options',
+            title = 'Preferences',
             {
                 title = 'Chord display',
                 {
@@ -1860,6 +1844,19 @@ function ShowChordBoxMenu()
                 },
             },
             {
+                title = 'Chord detection',
+                {
+                    title = 'Show selected chord only when notes overlap',
+                    OnReturn = ToggleSelectionMode,
+                    is_checked = sel_mode == 2,
+                },
+                {
+                    title = 'Analyze incoming MIDI (live input)',
+                    OnReturn = ToggleInputMode,
+                    is_checked = use_input,
+                },
+            },
+            {
                 title = 'Chord track',
                 {
                     title = 'Set track name...',
@@ -1877,16 +1874,6 @@ function ShowChordBoxMenu()
                     is_checked = reuse_chord_track,
                 },
             },
-            {
-                title = 'Show selected chord only when notes overlap',
-                OnReturn = ToggleSelectionMode,
-                is_checked = sel_mode == 2,
-            },
-            {
-                title = 'Analyze incoming MIDI (live input)',
-                OnReturn = ToggleInputMode,
-                is_checked = use_input,
-            },
         },
         {title = 'Customize...', OnReturn = SetCustomColors},
         {
@@ -1902,7 +1889,7 @@ function ShowChordBoxMenu()
     }
 
     local menu_str = MenuCreateRecursive(menu)
-    local ret = ShowMenu(menu_str)
+    local ret = gfx.showmenu(menu_str)
     MenuReturnRecursive(menu, ret)
 end
 
