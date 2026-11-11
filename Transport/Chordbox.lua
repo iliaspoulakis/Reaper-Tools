@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.1
+  @version 1.3.2
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Fix explicit major option not being remembered
-    - Improve consistency of chord and interval names
+    - Add octave number to single notes
 ]]
 
 local box_name = 'ChordBox'
