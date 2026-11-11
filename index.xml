@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="f70e47da88433963bad72624d615bd56e1d04b87">
+<index version="1" name="FTC Tools" commit="11a040aa4c9f77c049db6ddb4f25d95691599caf">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1806,6 +1806,10 @@
 - Reuse existing chord track anywhere in the project
 - Group chord detection options in preferences menu]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/f70e47da88433963bad72624d615bd56e1d04b87/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.7.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-11-11T14:58:12Z">
+        <changelog><![CDATA[- Add octave number to single notes]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/11a040aa4c9f77c049db6ddb4f25d95691599caf/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
@@ -3733,6 +3737,10 @@
         <changelog><![CDATA[- Fix explicit major option not being remembered
 - Improve consistency of chord and interval names]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/f70e47da88433963bad72624d615bd56e1d04b87/Transport/Chordbox.lua</source>
+      </version>
+      <version name="1.3.2" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-11-11T14:58:12Z">
+        <changelog><![CDATA[- Add octave number to single notes]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/11a040aa4c9f77c049db6ddb4f25d95691599caf/Transport/Chordbox.lua</source>
       </version>
     </reapack>
   </category>
