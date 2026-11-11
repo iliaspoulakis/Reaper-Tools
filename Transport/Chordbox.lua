@@ -2244,7 +2244,7 @@ local use_omissions = ExtLoad('omissions', 0) == 1
 local use_major = ExtLoad('major', 1) == 1
 local use_solfege = ExtLoad('solfege', 0) == 1
 local use_sharps = ExtLoad('sharps', 0) == 1
-local use_single_notes = ExtLoad('single_notes', 0) == 1
+local use_single_notes = ExtLoad('single_notes', 1) == 1
 
 local chord_track_name = ExtLoad('chord_track_name', 'Chords')
 local reuse_chord_track = ExtLoad('reuse_chord_track', 1) == 1
@@ -2469,6 +2469,13 @@ function SetSharpMode(is_sharp)
     ExtSave('sharps', use_sharps and 1 or 0)
 end
 
+function GetOctave(pitch)
+    -- Follow octave name display offset from REAPER preferences
+    local _, offs = reaper.get_config_var_string('midioctoffs')
+    offs = tonumber(offs) or 1
+    return pitch // 12 + offs - 2
+end
+
 function ToggleSingleNoteMode()
     use_single_notes = not use_single_notes
     ExtSave('single_notes', use_single_notes and 1 or 0)
@@ -2605,7 +2612,12 @@ function BuildChordName(chord)
     end
     -- Separate solfège roots from compact names (e.g. Do m7)
     if use_solfege and add:match('^%S') then add = ' ' .. add end
-    local name = PitchToName(chord.root) .. add
+    local root_name = PitchToName(chord.root)
+    -- Single notes show their octave
+    if chord.key == '1' then
+        root_name = root_name .. GetOctave(chord.root)
+    end
+    local name = root_name .. add
     if use_inversions and chord.inversion_root then
         name = name .. '/' .. PitchToName(chord.inversion_root)
     end
