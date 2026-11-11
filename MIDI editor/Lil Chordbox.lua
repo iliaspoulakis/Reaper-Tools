@@ -1,14 +1,11 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.6.0
+  @version 2.7.0
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Improve behavior when explicit major is off (CM7 will still be displayed because C7 is defined)
-    - Add option to pin chord track to top of arrange (enabled by default)
-    - Option to reuse chord track now enabled by default
-    - Ensure that text on chord track items is stretched
+    - Add option to detect single notes (enabled by default)
 ]]
 local box_x_offs = 0
 local box_y_offs = 0
@@ -55,6 +52,9 @@ local scale
 local font_size
 local bitmap
 local lice_font
+local note_bitmap
+local note_icon
+local prev_note_color
 
 local bm_x, bm_y, bm_w, bm_h
 
@@ -120,6 +120,8 @@ local curr_chord_names
 local chord_names = {}
 local chord_name_map = {}
 
+-- Single notes
+chord_names['1'] = {expanded = ' note', compact = ' note'}
 -- Dyads
 chord_names['1 2'] = {expanded = ' minor 2nd', compact = 'm2'}
 chord_names['1 3'] = {expanded = ' major 2nd', compact = 'M2'}
@@ -257,17 +259,17 @@ local degrees = {'I', 'II', 'II', 'III', 'III', 'IV', 'V', 'V', 'VI', 'VI',
 local note_names_abc_sharp = {'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#',
     'A', 'A#', 'B'}
 
-local note_names_solfege_sharp = {'Do ', 'Do# ', 'Re ', 'Re# ', 'Mi ', 'Fa ',
-    'Fa# ', 'Sol ', 'Sol# ', 'La ', 'La# ', 'Si '}
+local note_names_solfege_sharp = {'Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa',
+    'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'}
 
 local note_names_abc_flat = {'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab',
     'A', 'Bb', 'B'}
 
-local note_names_solfege_flat = {'Do ', 'Reb ', 'Re ', 'Mib ', 'Mi ', 'Fa ',
-    'Solb ', 'Sol ', 'Lab ', 'La ', 'Sib ', 'Si '}
+local note_names_solfege_flat = {'Do', 'Reb', 'Re', 'Mib', 'Mi', 'Fa',
+    'Solb', 'Sol', 'Lab', 'La', 'Sib', 'Si'}
 
 local use_input = reaper.GetExtState(extname, 'input') ~= '0'
-local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_only')) or 3
+local degree_mode = tonumber(reaper.GetExtState(extname, 'degree_mode')) or 3
 
 local sel_mode = tonumber(reaper.GetExtState(extname, 'sel_mode')) or 2
 local use_compact = reaper.GetExtState(extname, 'compact') ~= '0'
@@ -276,6 +278,7 @@ local use_omissions = reaper.GetExtState(extname, 'omissions') == '1'
 local use_major = reaper.GetExtState(extname, 'major') ~= '0'
 local use_solfege = reaper.GetExtState(extname, 'solfege') == '1'
 local use_sharps = reaper.GetExtState(extname, 'sharps') == '1'
+local use_single_notes = reaper.GetExtState(extname, 'single_notes') ~= '0'
 local use_sharps_autodetect = reaper.GetExtState(extname, 'sharps_auto') ~= '0'
 local is_sharp_autodetect = false
 
@@ -309,8 +312,10 @@ function LoadChordNames()
     chord_name_map = {}
     local key = use_compact and 'compact' or 'expanded'
     for inverval, names in pairs(chord_names) do
-        curr_chord_names[inverval] = names[key]
-        chord_name_map[names[key]] = true
+        if inverval ~= '1' or use_single_notes then
+            curr_chord_names[inverval] = names[key]
+            chord_name_map[names[key]] = true
+        end
     end
 end
 LoadChordNames()
@@ -381,6 +386,22 @@ end
 function ToggleSolfegeMode()
     use_solfege = not use_solfege
     reaper.SetExtState(extname, 'solfege', use_solfege and '1' or '0', 1)
+end
+
+function ToggleSingleNoteMode()
+    use_single_notes = not use_single_notes
+    local state = use_single_notes and '1' or '0'
+    reaper.SetExtState(extname, 'single_notes', state, 1)
+    LoadChordNames()
+    prev_take_hashes = {}
+end
+
+function RemoveSingleNotes(chords)
+    local new_chords = {}
+    for _, chord in ipairs(chords) do
+        if chord.key ~= '1' then new_chords[#new_chords + 1] = chord end
+    end
+    return new_chords
 end
 
 function SetSharpMode(is_sharp)
@@ -461,7 +482,9 @@ function IdentifyChord(notes)
         end
 
         -- Check if compound chord name exists for key
-        if curr_chord_names[comp_key] then return comp_key, root end
+        if comp_key ~= '1' and curr_chord_names[comp_key] then
+            return comp_key, root
+        end
     end
 
     -- Check if chord name exists for key
@@ -487,6 +510,7 @@ function IdentifyChord(notes)
 end
 
 function BuildChord(notes)
+    if #notes == 0 then return end
     local chord_key, chord_root, inversion_root = IdentifyChord(notes)
     if chord_key then
         local chord = {
@@ -562,11 +586,14 @@ function BuildChordName(chord)
         -- Only remove major notation if standalone chord does not exist (e.g. CM7, C7)
         if not chord_name_map[new_add] then add = new_add end
     end
+    -- Separate solfège roots from compact names (e.g. Do m7)
+    if use_solfege and add:match('^%S') then add = ' ' .. add end
     local name = PitchToName(chord.root) .. add
     if use_inversions and chord.inversion_root then
         name = name .. '/' .. PitchToName(chord.inversion_root)
     end
-    if prev_is_key_snap and degree_mode > 1 then
+    -- Scale degrees describe chords, not single notes
+    if prev_is_key_snap and degree_mode > 1 and chord.key ~= '1' then
         local degree = GetChordDegree(chord)
         if degree_mode == 2 then
             name = degree or ''
@@ -681,6 +708,7 @@ function GetChords(notes)
     local chords = {}
     local chord_notes = {}
     local sel_notes = {}
+    local min_notes = use_single_notes and 1 or 2
 
     local chord_min_eppq
 
@@ -694,10 +722,10 @@ function GetChords(notes)
 
         if sppq >= chord_min_eppq then
             local new_chord_notes = {}
-            if #chord_notes >= 2 then
+            if #chord_notes >= min_notes then
                 local chord = BuildChord(chord_notes)
                 if chord then chords[#chords + 1] = chord end
-                for n = 3, #chord_notes do
+                for n = min_notes + 1, #chord_notes do
                     -- Remove notes that end prior to chord_min_eppq
                     for _, note in ipairs(chord_notes) do
                         if note.eppq > chord_min_eppq then
@@ -732,7 +760,7 @@ function GetChords(notes)
             end
             chord_notes = new_chord_notes
         else
-            if #chord_notes >= 2 then
+            if #chord_notes >= min_notes then
                 local chord = BuildChord(chord_notes)
                 if chord then
                     chord.eppq = math.min(chord.eppq, sppq)
@@ -747,7 +775,7 @@ function GetChords(notes)
     end
 
     local sel_chord
-    if #sel_notes >= 2 then
+    if #sel_notes >= min_notes then
         if sel_mode == 1 then
             sel_chord = BuildChord(sel_notes) or {name = 'none'}
         end
@@ -768,10 +796,10 @@ function GetChords(notes)
             end
         end
     end
-    if #chord_notes >= 2 then
+    if #chord_notes >= min_notes then
         local chord = BuildChord(chord_notes)
         if chord then chords[#chords + 1] = chord end
-        for n = 3, #chord_notes do
+        for n = min_notes + 1, #chord_notes do
             local new_chord_notes = {}
             -- Remove notes that end prior to chord_min_eppq
             for _, note in ipairs(chord_notes) do
@@ -869,7 +897,7 @@ function GetMIDIInputChord(track)
         end
     end
 
-    if input_note_cnt >= 2 then
+    if input_note_cnt >= (use_single_notes and 1 or 2) then
         local notes = {}
         for n = 0, 127 do
             if input_note_map[n] == 1 then
@@ -1291,7 +1319,7 @@ function CreateChordTrack()
     local prev_end_pos
 
     for loop = 1, loops do
-        for _, chord in ipairs(curr_chords) do
+        for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
             local loop_ppq = source_ppq_length * (loop - 1)
             local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
             local end_pos = GetProjTimeFromPPQPos(take, chord.eppq + loop_ppq)
@@ -1412,7 +1440,7 @@ function CreateChordProjectRegions()
     end
 
     -- Note: Keep this for debugging purposes
-    --[[ for _, chord in ipairs(curr_chords) do
+    --[[ for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
         local start_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, chord.sppq)
         local end_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, chord.eppq)
 
@@ -1444,7 +1472,7 @@ function CreateChordProjectRegions()
     local prev_end_pos
 
     for loop = 1, loops do
-        for _, chord in ipairs(curr_chords) do
+        for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
             local loop_ppq = source_ppq_length * (loop - 1)
             local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
             local end_pos = GetProjTimeFromPPQPos(take, chord.eppq + loop_ppq)
@@ -1552,7 +1580,7 @@ function CreateChordProjectMarkers()
 
     for loop = 1, loops do
         local prev_name
-        for _, chord in ipairs(curr_chords) do
+        for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
             local loop_ppq = source_ppq_length * (loop - 1)
             local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
             local name = BuildChordName(chord)
@@ -1607,7 +1635,7 @@ function CreateChordTakeMarkers()
 
     for loop = 1, loops do
         local prev_name
-        for _, chord in ipairs(curr_chords) do
+        for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
             local loop_ppq = source_ppq_length * (loop - 1)
             local start_pos = GetProjTimeFromPPQPos(take, chord.sppq + loop_ppq)
             local name = BuildChordName(chord)
@@ -1640,7 +1668,7 @@ function CreateChordTextEvents()
     end
     -- Add chord text event markers
     local prev_name
-    for _, chord in ipairs(curr_chords) do
+    for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
         local name = BuildChordName(chord)
         if name ~= '' and name ~= prev_name then
             reaper.MIDI_InsertTextSysexEvt(take, 0, 0, chord.sppq, 6, name)
@@ -1673,7 +1701,7 @@ function CreateChordNotationEvents()
     end
     -- Add chord text event markers
     local prev_name
-    for _, chord in ipairs(curr_chords) do
+    for _, chord in ipairs(RemoveSingleNotes(curr_chords)) do
         local name = BuildChordName(chord)
         if name ~= '' and name ~= prev_name then
             local msg = 'TRAC custom "' .. name .. '" chord'
@@ -1791,6 +1819,11 @@ function ShowChordBoxMenu()
                     OnReturn = ToggleSolfegeMode,
                     is_checked = use_solfege,
                 },
+                {
+                    title = 'Single notes',
+                    OnReturn = ToggleSingleNoteMode,
+                    is_checked = use_single_notes,
+                },
             },
             {
                 title = 'Key snap',
@@ -1866,6 +1899,87 @@ function ShowChordBoxMenu()
     MenuReturnRecursive(menu, ret)
 end
 
+function GetNoteIcon(font, color)
+    -- Icon bitmap is only redrawn when font (reset on resize) or color changes
+    if note_bitmap and color == prev_note_color then return note_icon end
+    if note_bitmap then reaper.JS_LICE_DestroyBitmap(note_bitmap) end
+    prev_note_color = color
+
+    -- Measure cap height and baseline by rendering an 'H' (sets font color)
+    local w, h = gfx.measurestr('H')
+    w, h = math.ceil(w) * 2, math.ceil(h) * 2
+    local bm = reaper.JS_LICE_CreateBitmap(true, w, h)
+    reaper.JS_LICE_Clear(bm, 0xFF000000)
+    reaper.JS_LICE_SetFontColor(font, 0xFFFFFFFF)
+    reaper.JS_LICE_DrawText(bm, font, 'H', 1, 0, 0, w, h)
+    local cap_top, cap_bottom
+    for y = 0, h - 1 do
+        for x = 0, w - 1 do
+            if reaper.JS_LICE_GetPixel(bm, x, y) >> 8 & 0xFF >= 0x80 then
+                cap_top = cap_top or y
+                cap_bottom = y
+                break
+            end
+        end
+    end
+    reaper.JS_LICE_DestroyBitmap(bm)
+    reaper.JS_LICE_SetFontColor(font, color)
+    -- Fall back to typical proportions if nothing was drawn
+    if not cap_top then cap_top, cap_bottom = h // 8, h * 3 // 8 end
+
+    local cap_h = cap_bottom - cap_top + 1
+    local r = math.max(1.5, cap_h * 0.27)
+    -- Notehead is an ellipse tilted by 20 degrees
+    local rx, ry = 1.12 * r, 0.8 * r
+    local sin, cos = math.sin(math.rad(20)), math.cos(math.rad(20))
+    local half_w = math.sqrt((rx * cos) ^ 2 + (ry * sin) ^ 2)
+    local half_h = math.sqrt((rx * sin) ^ 2 + (ry * cos) ^ 2)
+
+    -- Note: Icon bitmap spans from text top to baseline
+    w, h = math.ceil(2 * half_w), cap_bottom + 1
+    local cx, cy = w / 2, h - half_h
+    local stem_w = math.max(1, cap_h // 9)
+    local stem_y2 = math.floor(cy)
+
+    note_bitmap = reaper.JS_LICE_CreateBitmap(true, w, h)
+    reaper.JS_LICE_Clear(note_bitmap, 0)
+    local rgb = color & 0xFFFFFF
+    local PutPixel = reaper.JS_LICE_PutPixel
+    for py = 0, h - 1 do
+        for px = 0, w - 1 do
+            local coverage = 0
+            if px >= w - stem_w and py >= cap_top and py < stem_y2 then
+                coverage = 1
+            else
+                -- Antialias notehead by sampling 4x4 points per pixel
+                local hits = 0
+                for sy = 0.125, 1, 0.25 do
+                    for sx = 0.125, 1, 0.25 do
+                        local dx, dy = px + sx - cx, py + sy - cy
+                        local u = (dx * cos - dy * sin) / rx
+                        local v = (dx * sin + dy * cos) / ry
+                        if u * u + v * v <= 1 then hits = hits + 1 end
+                    end
+                end
+                coverage = hits / 16
+            end
+            if coverage > 0 then
+                local a = math.floor(coverage * 255 + 0.5)
+                PutPixel(note_bitmap, px, py, a << 24 | rgb, 1, '')
+            end
+        end
+    end
+
+    note_icon = {w = w, h = h, gap = math.max(1, cap_h // 4)}
+    return note_icon
+end
+
+function DrawNoteIcon(bm, x, y)
+    local w, h = note_icon.w, note_icon.h
+    x = math.floor(x)
+    reaper.JS_LICE_Blit(bm, x, y, note_bitmap, 0, 0, w, h, 1, 'ALPHA')
+end
+
 function DrawLICE(chord, mode)
     reaper.JS_LICE_Clear(bitmap, 0)
 
@@ -1919,7 +2033,18 @@ function DrawLICE(chord, mode)
 
     -- Draw Text
     reaper.JS_LICE_SetFontColor(lice_font, text_color)
+    -- Single notes are drawn as root name followed by a note icon
+    local is_single_note = chord:sub(-5) == ' note'
+    if is_single_note then chord = chord:sub(1, -6) end
+
     local text_w, text_h = gfx.measurestr(chord)
+
+    local note_icon_offs
+    if is_single_note then
+        local note = GetNoteIcon(lice_font, text_color)
+        note_icon_offs = text_w + note.gap
+        text_w = note_icon_offs + note.w
+    end
     local text_x = (bm_w - text_w) // 2
     local text_y = (bm_h - text_h) // 2
     if is_macos then text_y = text_y + 1 end
@@ -1967,6 +2092,10 @@ function DrawLICE(chord, mode)
     local len = chord:len()
     reaper.JS_LICE_DrawText(bitmap, lice_font, chord, len, text_x, text_y, bm_w,
         bm_h)
+
+    if note_icon_offs then
+        DrawNoteIcon(bitmap, text_x + note_icon_offs, text_y)
+    end
 
     -- Refresh window
     reaper.JS_Window_InvalidateRect(piano_pane, bm_x, bm_y, bm_x + bm_w,
@@ -2044,6 +2173,8 @@ function Main()
             -- Prepare LICE bitmap for drawing
             if bitmap then reaper.JS_LICE_DestroyBitmap(bitmap) end
             if lice_font then reaper.JS_LICE_DestroyFont(lice_font) end
+            if note_bitmap then reaper.JS_LICE_DestroyBitmap(note_bitmap) end
+            note_bitmap = nil
 
             bitmap = reaper.JS_LICE_CreateBitmap(true, bm_w, bm_h)
             lice_font = reaper.JS_LICE_CreateFont()
@@ -2358,6 +2489,7 @@ function Exit()
     reaper.RefreshToolbar2(sec, cmd)
     reaper.JS_LICE_DestroyBitmap(bitmap)
     reaper.JS_LICE_DestroyFont(lice_font)
+    if note_bitmap then reaper.JS_LICE_DestroyBitmap(note_bitmap) end
     reaper.JS_Composite_Delay(piano_pane, 0, 0, 0)
 end
 
