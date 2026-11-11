@@ -703,7 +703,14 @@ function GetEditableNotes(main_take, takes)
     return notes
 end
 
-function GetChords(notes)
+function GetChords(notes, take)
+    -- Get ticks per quarter note (imported MIDI files can differ from 960)
+    local qn_ppq = 960
+    if take then
+        local start_qn = reaper.MIDI_GetProjQNFromPPQPos(take, 0)
+        qn_ppq = reaper.MIDI_GetPPQPosFromProjQN(take, start_qn + 1)
+    end
+
     -- Build chords from notes
     local chords = {}
     local chord_notes = {}
@@ -738,7 +745,7 @@ function GetChords(notes)
                         chord.sppq = chord_min_eppq
                         chord.eppq = math.min(chord.eppq, sppq)
                         -- Ignore short chords
-                        if chord.eppq - chord.sppq >= 240 then
+                        if chord.eppq - chord.sppq >= 0.25 * qn_ppq then
                             chords[#chords + 1] = chord
                         end
                         chord_min_eppq = chord.eppq
@@ -765,7 +772,7 @@ function GetChords(notes)
                 if chord then
                     chord.eppq = math.min(chord.eppq, sppq)
                     -- Ignore very short arpeggiated chords
-                    if chord.eppq - chord.sppq >= 180 then
+                    if chord.eppq - chord.sppq >= 0.1875 * qn_ppq then
                         chords[#chords + 1] = chord
                     end
                 end
@@ -785,7 +792,7 @@ function GetChords(notes)
             local max_eppq = sel_notes[1].eppq
             for i = 2, #sel_notes do
                 local note = sel_notes[i]
-                if note.sppq > max_eppq - 60 then
+                if note.sppq > max_eppq - 0.0625 * qn_ppq then
                     has_gaps = true
                     break
                 end
@@ -812,7 +819,7 @@ function GetChords(notes)
             if chord then
                 chord.sppq = chord_min_eppq
                 -- Ignore short chords
-                if chord.eppq - chord.sppq >= 240 then
+                if chord.eppq - chord.sppq >= 0.25 * qn_ppq then
                     chords[#chords + 1] = chord
                 end
                 chord_min_eppq = chord.eppq
@@ -2354,7 +2361,7 @@ function Main()
             prev_take_hashes[t] = hash
         end
         local notes = GetEditableNotes(take, takes)
-        curr_chords, curr_sel_chord = GetChords(notes)
+        curr_chords, curr_sel_chord = GetChords(notes, take)
         is_redraw = true
     end
 
