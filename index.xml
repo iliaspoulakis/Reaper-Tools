@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="FTC Tools" commit="1e41f73ad50488ba3e948788f2559a6377247bdb">
+<index version="1" name="FTC Tools" commit="f70e47da88433963bad72624d615bd56e1d04b87">
   <category name="Adaptive grid">
     <reapack name="Adaptive grid.lua" type="script">
       <metadata>
@@ -1799,6 +1799,13 @@
       <version name="2.7.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-11-11T12:40:12Z">
         <changelog><![CDATA[- Add option to detect single notes (enabled by default)]]></changelog>
         <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/07da4824a30c4f597a14fc5a240f28f8f06725ae/MIDI%20editor/Lil%20Chordbox.lua</source>
+      </version>
+      <version name="2.7.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-11-11T14:32:10Z">
+        <changelog><![CDATA[- Fix degree display mode not being remembered
+- Improve consistency of chord and interval names
+- Reuse existing chord track anywhere in the project
+- Group chord detection options in preferences menu]]></changelog>
+        <source main="main midi_editor">https://github.com/iliaspoulakis/Reaper-Tools/raw/f70e47da88433963bad72624d615bd56e1d04b87/MIDI%20editor/Lil%20Chordbox.lua</source>
       </version>
     </reapack>
   </category>
@@ -3721,6 +3728,11 @@
       <version name="1.3.0" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-11-11T12:40:12Z">
         <changelog><![CDATA[- Add option to detect single notes (enabled by default)]]></changelog>
         <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/07da4824a30c4f597a14fc5a240f28f8f06725ae/Transport/Chordbox.lua</source>
+      </version>
+      <version name="1.3.1" author="Ilias-Timon Poulakis (FeedTheCat)" time="2026-11-11T14:32:10Z">
+        <changelog><![CDATA[- Fix explicit major option not being remembered
+- Improve consistency of chord and interval names]]></changelog>
+        <source main="main">https://github.com/iliaspoulakis/Reaper-Tools/raw/f70e47da88433963bad72624d615bd56e1d04b87/Transport/Chordbox.lua</source>
       </version>
     </reapack>
   </category>
