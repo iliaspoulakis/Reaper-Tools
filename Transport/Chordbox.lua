@@ -1,10 +1,9 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 1.3.0
+  @version 1.3.1
   @about Adds a little box to transport that displays chord information
   @changelog
-    - Add option to detect single notes (enabled by default)
     - Fix explicit major option not being remembered
     - Improve consistency of chord and interval names
 ]]

@@ -1,11 +1,10 @@
 --[[
   @author Ilias-Timon Poulakis (FeedTheCat)
   @license MIT
-  @version 2.7.0
+  @version 2.7.1
   @provides [main=main,midi_editor] .
   @about Adds a little box to the MIDI editor that displays chord information
   @changelog
-    - Add option to detect single notes (enabled by default)
     - Fix degree display mode not being remembered
     - Improve consistency of chord and interval names
     - Reuse existing chord track anywhere in the project
