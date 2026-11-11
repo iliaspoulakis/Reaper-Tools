@@ -5,6 +5,8 @@
   @about Adds a little box to transport that displays chord information
   @changelog
     - Add option to detect single notes (enabled by default)
+    - Fix explicit major option not being remembered
+    - Improve consistency of chord and interval names
 ]]
 
 local box_name = 'ChordBox'
@@ -2263,34 +2265,34 @@ local chord_name_map = {}
 -- Single notes
 chord_names['1'] = {expanded = ' note', compact = ' note'}
 -- Dyads
-chord_names['1 2'] = {expanded = ' minor 2nd', compact = 'm2'}
-chord_names['1 3'] = {expanded = ' major 2nd', compact = 'M2'}
-chord_names['1 4'] = {expanded = ' minor 3rd', compact = 'm3'}
-chord_names['1 5'] = {expanded = ' major 3rd', compact = 'M3'}
-chord_names['1 6'] = {expanded = ' perfect 4th', compact = 'P4'}
-chord_names['1 7'] = {expanded = '5-', compact = '5-'}
+chord_names['1 2'] = {expanded = ' minor 2nd', compact = ' m2'}
+chord_names['1 3'] = {expanded = ' major 2nd', compact = ' M2'}
+chord_names['1 4'] = {expanded = ' minor 3rd', compact = ' m3'}
+chord_names['1 5'] = {expanded = ' major 3rd', compact = ' M3'}
+chord_names['1 6'] = {expanded = ' perfect 4th', compact = ' P4'}
+chord_names['1 7'] = {expanded = ' dim 5th', compact = ' d5'}
 chord_names['1 8'] = {expanded = '5', compact = '5'}
-chord_names['1 9'] = {expanded = ' minor 6th', compact = 'm6'}
-chord_names['1 10'] = {expanded = ' major 6th', compact = 'M6'}
-chord_names['1 11'] = {expanded = ' minor 7th', compact = 'm7'}
-chord_names['1 12'] = {expanded = ' major 7th', compact = 'M7'}
-chord_names['1 13'] = {expanded = ' octave', compact = 'P8'}
+chord_names['1 9'] = {expanded = ' minor 6th', compact = ' m6'}
+chord_names['1 10'] = {expanded = ' major 6th', compact = ' M6'}
+chord_names['1 11'] = {expanded = ' minor 7th', compact = ' m7'}
+chord_names['1 12'] = {expanded = ' major 7th', compact = ' M7'}
+chord_names['1 13'] = {expanded = ' octave', compact = ' P8'}
 -- Compound intervals
-chord_names['1 14'] = {expanded = ' minor 9th', compact = 'm9'}
-chord_names['1 15'] = {expanded = ' major 9th', compact = 'M9'}
-chord_names['1 16'] = {expanded = ' minor 10th', compact = 'm10'}
-chord_names['1 17'] = {expanded = ' major 10th', compact = 'M10'}
-chord_names['1 18'] = {expanded = ' perfect 11th', compact = 'P11'}
-chord_names['1 19'] = {expanded = ' minor 12th', compact = 'm12'}
-chord_names['1 20'] = {expanded = ' perfect 12th', compact = 'P12'}
-chord_names['1 21'] = {expanded = ' minor 13th', compact = 'm13'}
-chord_names['1 22'] = {expanded = ' major 13th', compact = 'M13'}
-chord_names['1 23'] = {expanded = ' minor 14th', compact = 'm14'}
-chord_names['1 24'] = {expanded = ' major 14th', compact = 'M14'}
+chord_names['1 14'] = {expanded = ' minor 9th', compact = ' m9'}
+chord_names['1 15'] = {expanded = ' major 9th', compact = ' M9'}
+chord_names['1 16'] = {expanded = ' minor 10th', compact = ' m10'}
+chord_names['1 17'] = {expanded = ' major 10th', compact = ' M10'}
+chord_names['1 18'] = {expanded = ' perfect 11th', compact = ' P11'}
+chord_names['1 19'] = {expanded = ' dim 12th', compact = ' d12'}
+chord_names['1 20'] = {expanded = ' perfect 12th', compact = ' P12'}
+chord_names['1 21'] = {expanded = ' minor 13th', compact = ' m13'}
+chord_names['1 22'] = {expanded = ' major 13th', compact = ' M13'}
+chord_names['1 23'] = {expanded = ' minor 14th', compact = ' m14'}
+chord_names['1 24'] = {expanded = ' major 14th', compact = ' M14'}
 
 -- Major chords
 chord_names['1 5 8'] = {expanded = 'maj', compact = 'M'}
-chord_names['1 5 7'] = {expanded = 'majb5', compact = 'Mb5'}
+chord_names['1 5 7'] = {expanded = '(b5)', compact = '(b5)'}
 chord_names['1 8 12'] = {expanded = 'maj7 omit3', compact = 'M7(no3)'}
 chord_names['1 5 12'] = {expanded = 'maj7 omit5', compact = 'M7(no5)'}
 chord_names['1 5 8 12'] = {expanded = 'maj7', compact = 'M7'}
@@ -2306,9 +2308,9 @@ chord_names['1 8 10'] = {expanded = '6 omit3', compact = '6(no3)'}
 chord_names['1 5 8 10'] = {expanded = '6', compact = '6'}
 chord_names['1 3 5 10'] = {expanded = '6/9 omit5', compact = '6/9(no5)'}
 chord_names['1 3 5 8 10'] = {expanded = '6/9', compact = '6/9'}
-chord_names['1 5 7 12'] = {expanded = 'maj7#11 omit5', compact = 'M7#11(no5)'}
+chord_names['1 5 7 12'] = {expanded = 'maj7b5', compact = 'M7b5'}
 chord_names['1 5 7 8 12'] = {expanded = 'maj7#11', compact = 'M7#11'}
-chord_names['1 3 5 7 12'] = {expanded = 'maj9#11 omit5', compact = 'M9#11(no5)'}
+chord_names['1 3 5 7 12'] = {expanded = 'maj9b5', compact = 'M9b5'}
 chord_names['1 3 5 7 8 12'] = {expanded = 'maj9#11', compact = 'M9#11'}
 
 -- Dominant/Seventh
@@ -2321,9 +2323,9 @@ chord_names['1 3 5 8 11'] = {expanded = '9', compact = '9'}
 chord_names['1 3 5 10 11'] = {expanded = '13 omit5', compact = '13(no5)'}
 chord_names['1 5 8 10 11'] = {expanded = '13 omit9', compact = '13(no9)'}
 chord_names['1 3 5 8 10 11'] = {expanded = '13', compact = '13'}
-chord_names['1 5 7 11'] = {expanded = '7#11 omit5', compact = '7#11(no5)'}
+chord_names['1 5 7 11'] = {expanded = '7b5', compact = '7b5'}
 chord_names['1 5 7 8 11'] = {expanded = '7#11', compact = '7#11'}
-chord_names['1 3 5 7 11'] = {expanded = '9#11 omit5', compact = '9#11(no5)'}
+chord_names['1 3 5 7 11'] = {expanded = '9b5', compact = '9b5'}
 chord_names['1 3 5 7 8 11'] = {expanded = '9#11', compact = '9#11'}
 
 -- Altered
@@ -2351,10 +2353,10 @@ chord_names['1 3 6 8 11'] = {expanded = '11', compact = '11'}
 chord_names['1 4 8'] = {expanded = 'm', compact = 'm'}
 chord_names['1 4 11'] = {expanded = 'm7 omit5', compact = 'm7(no5)'}
 chord_names['1 4 8 11'] = {expanded = 'm7', compact = 'm7'}
-chord_names['1 4 12'] = {expanded = 'm/maj7 omit5', compact = 'm/M7(no5)'}
-chord_names['1 4 8 12'] = {expanded = 'm/maj7', compact = 'm/M7'}
-chord_names['1 3 4 12'] = {expanded = 'm/maj9 omit5', compact = 'm/M9(no5)'}
-chord_names['1 3 4 8 12'] = {expanded = 'm/maj9', compact = 'm/M9'}
+chord_names['1 4 12'] = {expanded = 'm(maj7) omit5', compact = 'mM7(no5)'}
+chord_names['1 4 8 12'] = {expanded = 'm(maj7)', compact = 'mM7'}
+chord_names['1 3 4 12'] = {expanded = 'm(maj9) omit5', compact = 'mM9(no5)'}
+chord_names['1 3 4 8 12'] = {expanded = 'm(maj9)', compact = 'mM9'}
 chord_names['1 3 4 11'] = {expanded = 'm9 omit5', compact = 'm9(no5)'}
 chord_names['1 3 4 8 11'] = {expanded = 'm9', compact = 'm9'}
 chord_names['1 3 4 6 11'] = {expanded = 'm11 omit5', compact = 'm11(no5)'}
@@ -2371,7 +2373,7 @@ chord_names['1 3 4 8 10'] = {expanded = 'm6/9', compact = 'm6/9'}
 chord_names['1 4 7'] = {expanded = 'dim', compact = 'dim'}
 chord_names['1 4 7 10'] = {expanded = 'dim7', compact = 'dim7'}
 chord_names['1 4 7 11'] = {expanded = 'm7b5', compact = 'm7b5'}
-chord_names['1 4 7 12'] = {expanded = 'dim/maj7', compact = 'dim/M7'}
+chord_names['1 4 7 12'] = {expanded = 'dim(maj7)', compact = 'dimM7'}
 chord_names['1 2 4 8 11'] = {expanded = 'm7b9', compact = 'm7b9'}
 chord_names['1 2 4 7 11'] = {expanded = 'm7b5b9', compact = 'm7b5b9'}
 chord_names['1 2 4 11'] = {expanded = 'm7b9 omit5', compact = 'm7b9(no5)'}
@@ -2381,8 +2383,8 @@ chord_names['1 3 5 7 10 11'] = {expanded = '13b5', compact = '13b5'}
 
 -- Augmented
 chord_names['1 5 9'] = {expanded = 'aug', compact = 'aug'}
-chord_names['1 5 9 11'] = {expanded = 'aug7', compact = 'aug7'}
-chord_names['1 5 9 12'] = {expanded = 'aug/maj7', compact = 'aug/M7'}
+chord_names['1 5 9 11'] = {expanded = '7#5', compact = '7#5'}
+chord_names['1 5 9 12'] = {expanded = 'maj7#5', compact = 'M7#5'}
 
 -- Additions
 chord_names['1 3 4'] = {expanded = 'm add9 omit5', compact = 'm add9(no5)'}
@@ -2589,11 +2591,18 @@ function BuildChordName(chord)
         local pattern = use_compact and '%(no%d+%)' or ' omit%d+'
         add = add:gsub(pattern, '')
     end
-    if not use_major then
-        local pattern = use_compact and '^M(%s?)' or '^(%s?)majo?r?%s?'
+    -- Note: Major is part of an interval name (e.g. major 3rd), never remove it
+    local is_interval = chord.key:match('^1 %d+$')
+    if not use_major and not is_interval then
+        local pattern = use_compact and '^M(%s?)' or '^(%s?)majo?r?'
         local new_add = add:gsub(pattern, '%1')
         -- Only remove major notation if standalone chord does not exist (e.g. CM7, C7)
-        if not chord_name_map[new_add] then add = new_add end
+        -- Note: Also check without omissions (e.g. CM11(no9), C11)
+        local omit_pattern = use_compact and '%(no%d+%)' or ' omit%d+'
+        local base_add = new_add:gsub(omit_pattern, '')
+        if not chord_name_map[new_add] and not chord_name_map[base_add] then
+            add = new_add
+        end
     end
     -- Separate solfège roots from compact names (e.g. Do m7)
     if use_solfege and add:match('^%S') then add = ' ' .. add end
@@ -2995,7 +3004,7 @@ function ShowChordboxMenu()
                     end,
                 },
                 {
-                    title = 'Cursor Icon',
+                    title = 'Cursor icon',
                     OnReturn = function()
                         user_cursor_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
@@ -3003,7 +3012,7 @@ function ShowChordboxMenu()
                     end,
                 },
                 {
-                    title = 'Play Icon',
+                    title = 'Play icon',
                     OnReturn = function()
                         user_play_color = GetUserColor()
                         SaveThemeSettings(prev_color_theme)
